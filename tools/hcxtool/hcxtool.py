@@ -70,17 +70,17 @@ class Hcxtool(Tool):
         """
         cmd = ["hcxdumptool"]
 
-        # 1. Determine the interface.
+        # 1. Determine the interface
         scan_interface = self.get_scan_interface()
         cmd.extend(["-i", scan_interface])
 
-        # 2. Determine the output prefix.
+        # 2. Determine the output prefix
         prefix = self.presets.get("output_prefix")
         if prefix:
-            # If prefix is provided as a string, ensure it's absolute.
+            # If prefix is provided as a string, ensure it's absolute
             if not os.path.isabs(prefix):
                 prefix = os.path.join(str(self.results_dir), prefix)
-            # Ensure the directory exists.
+            # Ensure the directory exists
             dir_path = os.path.dirname(prefix)
             if not os.path.isdir(dir_path):
                 try:
@@ -88,19 +88,19 @@ class Hcxtool(Tool):
                 except Exception as e:
                     self.logger.error(f"Failed to create directory {dir_path}: {e}")
                     return []
-            # Convert to a Path object for suffix operations.
+            # Convert to a Path object for suffix operations
             prefix = Path(prefix)
         else:
-            # Generate a default prefix and convert it to a Path.
+            # Generate a default prefix and convert it to a Path
             prefix = self.results_dir / self.generate_default_prefix()
             self.presets["output_prefix"] = str(prefix)
 
-        # 'prefix' is a Path object.
+        # 'prefix' is a Path object
         pcap_file = str(prefix.with_suffix('.pcapng'))
         cmd.extend(["-w", pcap_file])
         self.logger.debug(f"Setting pcapng filepath: {pcap_file}")
 
-        # 3. GPS options.
+        # 3. GPS options
         if self.presets["options"].get("--gpsd", False):
             cmd.append("--gpsd")
             cmd.append("--nmea_pcapng")
@@ -108,7 +108,7 @@ class Hcxtool(Tool):
             cmd.append(nmea_path)
             self.logger.debug(f"Setting NMEA filepath: {nmea_path}")
 
-        # 4. Channel/frequency options.
+        # 4. Channel/frequency options
         if "channel" in self.presets:
             channel_value = self.presets["channel"]
             if isinstance(channel_value, list):
@@ -119,15 +119,15 @@ class Hcxtool(Tool):
                     channel_str = ",".join(channel_str.split())
             cmd.extend(["-c", channel_str])
 
-        # 5. BPF Filter Options.
+        # 5. BPF Filter Options
         if self.presets.get("autobpf", False):
             bpf_file = self.config_dir / "filter.bpf"
             self.logger.debug(f"Using auto-generated BPF filter: {bpf_file}")
             cmd.append(f"--bpf={bpf_file}")
 
-        # 6. Merge and append additional options.
-        merged_options = self.defaults.copy()  # Already merged from YAML and defaults.
-        # Remove keys that have been handled above.
+        # 6. Merge and append additional options
+        merged_options = self.defaults.copy()  # Already merged from YAML and defaults
+        # Remove handled keys
         for key in ("-i", "-w", "--gpsd", "--nmea_out", "--nmea_pcapng", "-c", "--bpf"):
             merged_options.pop(key, None)
 
@@ -152,15 +152,15 @@ class Hcxtool(Tool):
                 self.logger.critical("Error: build_command() returned an empty command.")
                 return
 
-            # Convert the command list into a structured dictionary.
+            # Convert the command list into a structured dictionary
             cmd_dict = self.cmd_to_dict(cmd_list)
             self.logger.debug("Command dict built: %s", cmd_dict)
 
-            # Create a pane title; the UI manager will handle pane creation.
+            # Create a pane title; the UI manager will handle pane creation
             pane_title = f"{self.get_scan_interface()}_#{profile}"
             self.logger.debug(f"Using pane title: {pane_title}")
 
-            # Send the structured command to the IPC server.
+            # Send the structured command to the IPC server
             response = self.run_to_ipc(pane_title, cmd_dict)
             if not (response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK")):
                 self.logger.error("Scan failed to send to pane. Response: %s", response)

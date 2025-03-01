@@ -44,12 +44,12 @@ def log_ui_state_phase(logger, ui_instance, phase: str, extra_msg: str = "") -> 
     )
     ui_instance.dump_ui_state()
 
-    # Flatten active_scans for comparison.
+    # flatten active_scans for comparison
     flattened = {}
     for tool, mapping in ui_instance.active_scans.items():
         flattened.update(mapping)
 
-    # Now compare each main UI pane's tmux title vs. our internal mapping.
+    # compare each main UI pane's tmux title vs. internal mapping
     for pane in ui_instance.window.panes:
         title_cmd = f'tmux display-message -p "#{{pane_title}}" -t {pane.pane_id}'
         result = subprocess.run(title_cmd, shell=True, capture_output=True, text=True)

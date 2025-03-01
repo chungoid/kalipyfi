@@ -8,7 +8,7 @@ from common.ipc_protocol import (
     unpack_message,
     GET_STATE, GET_SCANS, SEND_SCAN, SWAP_SCAN,
     STOP_SCAN, UPDATE_LOCK, REMOVE_LOCK, KILL_UI, DETACH_UI,
-    ERROR_KEY
+    ERROR_KEY, handle_get_state, handle_send_scan
 )
 from config.constants import DEFAULT_SOCKET_PATH, RETRY_DELAY  # example constants
 
