@@ -8,7 +8,8 @@ from common.ipc_protocol import (
     unpack_message,
     GET_STATE, GET_SCANS, SEND_SCAN, SWAP_SCAN,
     STOP_SCAN, UPDATE_LOCK, REMOVE_LOCK, KILL_UI, DETACH_UI,
-    ERROR_KEY, handle_get_state, handle_send_scan
+    ERROR_KEY, handle_get_state, handle_send_scan, handle_get_scans, handle_swap_scan, handle_update_lock,
+    handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui
 )
 from config.constants import DEFAULT_SOCKET_PATH, RETRY_DELAY  # example constants
 
@@ -51,7 +52,7 @@ def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
             data = conn.recv(1024).decode().strip()
             request = unpack_message(data)
             action = request.get("action", "UNKNOWN")
-            # Dispatch to the appropriate handler based on the action.
+            # Dispatch
             if action == GET_STATE:
                 response = handle_get_state(ui_instance, request)
             elif action == GET_SCANS:
@@ -77,7 +78,6 @@ def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
             conn.shutdown(socket.SHUT_WR)
             conn.close()
         except Exception as e:
-            # Log error here if you have a common logger
             print(f"IPC server error: {e}")
 
 
