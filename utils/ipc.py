@@ -4,14 +4,11 @@ import os
 import json
 import time
 from common.ipc_protocol import (
-    pack_message,
-    unpack_message,
-    GET_STATE, GET_SCANS, SEND_SCAN, SWAP_SCAN,
-    STOP_SCAN, UPDATE_LOCK, REMOVE_LOCK, KILL_UI, DETACH_UI,
-    ERROR_KEY, handle_get_state, handle_send_scan, handle_get_scans, handle_swap_scan, handle_update_lock,
+    pack_message, unpack_message, handle_get_state, handle_get_scans,
+    handle_send_scan, handle_swap_scan, handle_update_lock,
     handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui
 )
-from config.constants import DEFAULT_SOCKET_PATH, RETRY_DELAY  # example constants
+from config.constants import
 
 
 def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> dict:
