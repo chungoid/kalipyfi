@@ -8,7 +8,26 @@ from common.ipc_protocol import (
     handle_send_scan, handle_swap_scan, handle_update_lock,
     handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui
 )
-from config.constants import
+from config.constants import IPC_CONSTANTS, DEFAULT_SOCKET_PATH, RETRY_DELAY
+
+ACTION_KEY    = IPC_CONSTANTS["keys"]["ACTION_KEY"]
+ERROR_KEY     = IPC_CONSTANTS["keys"]["ERROR_KEY"]
+TOOL_KEY      = IPC_CONSTANTS["keys"]["TOOL_KEY"]
+SCAN_PROFILE_KEY = IPC_CONSTANTS["keys"]["SCAN_PROFILE_KEY"]
+COMMAND_KEY   = IPC_CONSTANTS["keys"]["COMMAND_KEY"]
+TIMESTAMP_KEY = IPC_CONSTANTS["keys"]["TIMESTAMP_KEY"]
+STATUS_KEY    = IPC_CONSTANTS["keys"]["STATUS_KEY"]
+RESULT_KEY    = IPC_CONSTANTS["keys"]["RESULT_KEY"]
+
+GET_STATE     = IPC_CONSTANTS["actions"]["GET_STATE"]
+GET_SCANS     = IPC_CONSTANTS["actions"]["GET_SCANS"]
+SEND_SCAN     = IPC_CONSTANTS["actions"]["SEND_SCAN"]
+SWAP_SCAN     = IPC_CONSTANTS["actions"]["SWAP_SCAN"]
+STOP_SCAN     = IPC_CONSTANTS["actions"]["STOP_SCAN"]
+UPDATE_LOCK   = IPC_CONSTANTS["actions"]["UPDATE_LOCK"]
+REMOVE_LOCK   = IPC_CONSTANTS["actions"]["REMOVE_LOCK"]
+KILL_UI       = IPC_CONSTANTS["actions"]["KILL_UI"]
+DETACH_UI     = IPC_CONSTANTS["actions"]["DETACH_UI"]
 
 
 def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> dict:

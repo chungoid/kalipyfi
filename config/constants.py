@@ -25,26 +25,30 @@ TOOL_PATHS = {
 ##### IPC PROTOCOL #####
 ########################
 
-## keys ##
-ACTION_KEY = "action"
-TOOL_KEY = "tool"
-SCAN_PROFILE_KEY = "scan_profile"
-COMMAND_KEY = "command"
-TIMESTAMP_KEY = "timestamp"
-STATUS_KEY = "status"
-RESULT_KEY = "result"
-ERROR_KEY = "error"
+IPC_CONSTANTS = {
+    "keys": {
+        "ACTION_KEY": "action",
+        "TOOL_KEY": "tool",
+        "SCAN_PROFILE_KEY": "scan_profile",
+        "COMMAND_KEY": "command",
+        "TIMESTAMP_KEY": "timestamp",
+        "STATUS_KEY": "status",
+        "RESULT_KEY": "result",
+        "ERROR_KEY": "error",
+    },
+    "actions": {
+        "GET_STATE": "GET_STATE",
+        "GET_SCANS": "GET_SCANS",
+        "SEND_SCAN": "SEND_SCAN",
+        "SWAP_SCAN": "SWAP_SCAN",
+        "STOP_SCAN": "STOP_SCAN",
+        "UPDATE_LOCK": "UPDATE_LOCK",
+        "REMOVE_LOCK": "REMOVE_LOCK",
+        "KILL_UI": "KILL_UI",
+        "DETACH_UI": "DETACH_UI",
+    }
+}
 
-## actions ##
-GET_STATE = "GET_STATE"
-GET_SCANS = "GET_SCANS"
-SEND_SCAN = "SEND_SCAN"
-SWAP_SCAN = "SWAP_SCAN"
-STOP_SCAN = "STOP_SCAN"
-UPDATE_LOCK = "UPDATE_LOCK"
-REMOVE_LOCK = "REMOVE_LOCK"
-KILL_UI = "KILL_UI"
-DETACH_UI = "DETACH_UI"
 
 ## DEFAULT SETTINGS ##
 DEFAULT_SOCKET_PATH = "/tmp/tmuxp-kalipifi.sock"
