@@ -1,0 +1,15 @@
+session_name: {{ session_name }}
+windows:
+  - window_name: bg_{{ tool_name }}
+    layout: tiled
+    options:
+      remain-on-exit: true
+    panes:
+      - shell_command:
+          - bash
+      - shell_command:
+          - bash
+      - shell_command:
+          - bash
+      - shell_command:
+          - bash

@@ -1,0 +1,12 @@
+session_name: kalipifi
+windows:
+  - window_name: kalipifi
+    layout: main-horizontal
+    options:
+      remain-on-exit: true
+      main-pane-height: 70%
+    panes:
+      - shell_command: "{{ UI_DIR }}/tmuxp/show_ascii.sh"
+      - shell_command: "python {{ UI_DIR }}/main_menu.py"
+        focus: true
+      - shell_command: "LOG_FILE={{ BASE_DIR }}logs/kalipifi.log {{ UI_DIR }}/tmuxp/tail_log.sh"

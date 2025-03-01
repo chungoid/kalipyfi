@@ -1,0 +1,105 @@
+user:
+  wpasec-key:
+
+interfaces:
+  wlan:
+    - name: wlan0
+      description: "Hotspot"
+      role: hotspot
+      locked: true
+    - name: wlan1
+      description: "Monitor"
+      role: monitor
+    - name: wlan2
+      description: "Monitor"
+      role: monitor
+    - name: wlan3
+      description: "Client"
+      role: client
+      locked: true
+
+presets:
+  1:
+    description: "wlan1 -A -F"
+    interface: wlan1
+    auto_bpf: true
+    options:
+      "--gpsd": true
+      "-A": true
+      "-F": true
+
+  2:
+    description: "wlan2 passive -F"
+    interface: wlan2
+    autobpf: true
+    options:
+      "--gpsd": true
+      "--attemptapmax": 0
+      "-F": true
+
+  3:
+    description: "wlan1 rca:a -A -F"
+    interface: wlan1
+    auto_bpf: true
+    options:
+      "--gpsd": true
+      "--rcascan": a
+      "-A": true
+      "-F": true
+
+  4:
+    description: "wlan2 rca:p -F"
+    interface: wlan2
+    auto_bpf: true
+    options:
+      "--gpsd": true
+      "--rcascan": p
+      "-F": true
+      "-A": true
+
+  5:
+    description: "auto iface essid"
+    interface: any
+    auto_bpf: true
+    options:
+      "--gpsd": true
+      "--essidlist": default
+      "-A": true
+      "-F": true
+
+
+### DO NOT TOUCH. THEY'RE DEFAULT OPTIONS HCXTOOL.PY LOADS FOR AWARENESS OF AVAILABLE OPTIONS. ###
+
+defaults:
+      "--bpf": "default",
+      "--essidlist": None,
+      "-c": None,
+      "-f": None,
+      "-F": False,
+      "-t": None,
+      "-A": False,
+      "--gpsd": False,
+      "--nmea_out": None,
+      "--nmea_pcapng": False,
+      "--nmea_dev": None,
+      "--rcascan": None,
+      "--rds": None,
+      "--disable_deauthentication": False,
+      "--disable_proberequest": False,
+      "--disable_association": False,
+      "--disable_reassociation": False,
+      "--disable_beacon": False,
+      "--proberesponsetx": None,
+      "--errormax": None,
+      "--watchdogmax": None,
+      "--attemptclientmax": None,
+      "--attemptapmax": None,
+      "--tot": None,
+      "--exitoneapol": None,
+      "--onsigterm": None,
+      "--ongpiobutton": None,
+      "--ontot": None,
+      "--onwatchdog": None,
+      "--onerror": None,
+      "--gpio_button": None,
+      "--gpio_statusled": None,
