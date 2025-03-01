@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import logging
 import yaml
 from pathlib import Path
@@ -26,3 +27,40 @@ def load_yaml_config(config_path: Path, logger: logging.Logger = None) -> Dict:
     except Exception as e:
         logger.critical(f"Failed to load config: {config_path}: {e}")
         return {}
+
+
+def test_config_paths() -> str:
+    """
+    Assembles the default directory and file paths defined in config/constants.py
+    into a string for debugging purposes.
+
+    :return: A formatted string containing all configuration paths.
+    """
+    from config.constants import (
+        BASE_DIR, CONFIG_DIR, LOG_DIR, UI_DIR, TOOLS_DIR,
+        CURSES_MAIN_MENU, LOG_FILE, MAIN_UI_YAML_PATH, BG_YAML_PATH, DEFAULT_ASCII
+    )
+
+    output_lines = [
+        "Default Directories:",
+        f"  BASE_DIR: {BASE_DIR}",
+        f"  CONFIG_DIR: {CONFIG_DIR}",
+        f"  LOG_DIR: {LOG_DIR}",
+        f"  UI_DIR: {UI_DIR}",
+        f"  TOOLS_DIR: {TOOLS_DIR}",
+        "",
+        "Default Files:",
+        f"  CURSES_MAIN_MENU: {CURSES_MAIN_MENU}",
+        f"  LOG_FILE: {LOG_FILE}",
+        f"  MAIN_UI_YAML_PATH: {MAIN_UI_YAML_PATH}",
+        f"  BG_YAML_PATH: {BG_YAML_PATH}",
+        f"  DEFAULT_ASCII: {DEFAULT_ASCII}"
+    ]
+    return "\n".join(output_lines)
+
+
+if __name__ == "__main__":
+    import logging
+
+    logging.basicConfig(level=logging.DEBUG)
+    logging.debug(test_config_paths())

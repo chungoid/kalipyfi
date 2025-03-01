@@ -1,11 +1,15 @@
+import logging
 import os
-from pathlib import Path
 import jinja2
-from config.constants import UI_DIR, MAIN_UI_YAML
+from pathlib import Path
+from common.logging_setup import setup_logging
+from config.constants import UI_DIR, MAIN_UI_YAML_PATH
+
 
 def main():
+    setup_logging()
     # Load the YAML template: utils/ui/tmuxp/main_tmuxp.yaml.
-    with open(MAIN_UI_YAML, "r") as f:
+    with open(MAIN_UI_YAML_PATH, "r") as f:
         template_str = f.read()
 
     # Render templates with path variables
@@ -13,7 +17,7 @@ def main():
     rendered_yaml = template.render(UI_DIR=str(UI_DIR.resolve()))
 
     # Write the rendered YAML to a temporary file.
-    tmp_yaml = Path("/tmp/kalipifi_main.yaml")
+    tmp_yaml = Path("/tmp/kaliyifi_main.yaml")
     with open(tmp_yaml, "w") as f:
         f.write(rendered_yaml)
 

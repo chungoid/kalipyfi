@@ -3,9 +3,11 @@ import traceback
 from pathlib import Path
 from typing import Optional, Any, Dict
 
+
 #locals
 from tools.tools import Tool
 from utils.tool_registry import register_tool
+from tools.hcxtool.submenu import HcxToolSubmenu
 
 @register_tool("hcxtool")
 class Hcxtool(Tool):
@@ -20,6 +22,8 @@ class Hcxtool(Tool):
             interfaces=interfaces,
             settings=presets
         )
+
+        self.submenu = HcxToolSubmenu(self)
 
 
     def get_scan_interface(self) -> str:

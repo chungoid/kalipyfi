@@ -1,12 +1,11 @@
-import inspect
 import logging
-import os
 import shlex
 import subprocess
 import time
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+from abc import ABC, abstractmethod
 
 
 # local
@@ -29,14 +28,13 @@ class Tool:
 
         # Initialize configuration data as an empty dict
         self.config_data = {}
-        self.require_root = False
+        #self.require_root = False
 
         # Setup logging and create directories
         self.setup_directories()  # Ensure Dirs
         self.logger = logging.getLogger(f"{self.name.upper()}")
         self.logger.info(f"Initialized tool: {self.name}")
 
-        # Resolve the configuration file path
         # If config_file is provided, use it
         if config_file:
             config_path = Path(config_file)
@@ -60,6 +58,14 @@ class Tool:
             self.interfaces.update(interfaces)
         if settings:
             self.defaults.update(settings)
+
+    @abstractmethod
+    def submenu(self, stdscr) -> None:
+        """
+        Launches the tool-specific submenu using curses.
+        Must be implemented by concrete tool classes.
+        """
+        pass
 
 
     def setup_directories(self) -> None:
@@ -137,7 +143,7 @@ class Tool:
         Returns:
             List[str]: A unique list of client MAC addresses.
         """
-        # todo: simplify this using self.interfaces dict
+        # todo: simplify this using self.interfaces dict and maybe split into two
 
         client_macs = set()
         for iface in interfaces:

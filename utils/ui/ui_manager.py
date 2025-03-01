@@ -8,10 +8,10 @@ import libtmux
 import jinja2
 
 from common.models import ScanData, InterfaceData
-from config.constants import BG_WINDOW
+from config.constants import BG_YAML_PATH
 
 class UIManager:
-    def __init__(self, session_name: str = "kalipifi") -> None:
+    def __init__(self, session_name: str = "kalipyfi") -> None:
         """
         Initializes the UIManager by connecting to a tmux server and ensuring
         a tmux session with the given session_name exists.
@@ -26,18 +26,21 @@ class UIManager:
         # Tool Interfaces: map interface name -> InterfaceData
         self.interfaces: Dict[str, InterfaceData] = {}
 
-    def _register_scan(self, window_name: str, pane_id: str, internal_name: str, tool_name: str, scan_profile: str,
-                         command: str, interface: str, lock_status: bool) -> None:
+    def _register_scan(self, window_name: str, pane_id: str, internal_name: str, tool_name: str,
+                         scan_profile: str, command: str, interface: str,
+                         lock_status: bool) -> None:
         """
         Creates a ScanData object and updates the active_scans registry.
 
         :param window_name: The name of the window containing the scan.
         :param pane_id: The unique identifier of the pane.
+        :param internal_name: The canonical internal name generated for the pane.
         :param tool_name: The name of the tool launching the scan.
         :param scan_profile: The scan profile used.
         :param command: The executed command string.
         :param interface: The interface used for scanning.
         :param lock_status: The lock status of the interface.
+        :return: None
         """
         scan_data = ScanData(
             tool=tool_name,
@@ -56,8 +59,8 @@ class UIManager:
         """
         Converts the command dictionary into a command string and sends it to the pane.
 
-        :param pane: The libtmux Pane where the command will be launched.
-        :param cmd_dict: Dictionary with keys 'executable' and 'arguments'.
+        :param pane: The libtmux.Pane where the command will be launched.
+        :param cmd_dict: Dictionary with keys 'executable' (str) and 'arguments' (List[str]).
         :return: The command string that was launched.
         """
         command = self.convert_cmd_dict_to_string(cmd_dict)
@@ -121,10 +124,10 @@ class UIManager:
 
     def create_tool_window(self, tool_name: str) -> libtmux.Window:
         """
+        Creates a new background window for a given tool using direct libtmux commands.
         This function is a fallback method and is generally not recommended for primary use.
         For the preferred behavior—creating a window based on a YAML-defined layout—use
-        get_or_create_tool_window(), which invokes load_background_window() to load the
-        window layout from a tmuxp YAML template.
+        get_or_create_tool_window(), which invokes load_background_window().
 
         :param tool_name: The tool's name.
         :return: The newly created libtmux.Window.
@@ -133,7 +136,8 @@ class UIManager:
         self.logger.info(f"Creating new window for tool: {tool_name}")
         return self.session.new_window(window_name=window_name, attach=False)
 
-    def get_or_create_tool_window(self, tool_name: str, background_yaml_path: Path, ui_dir: Path) -> libtmux.Window:
+    def get_or_create_tool_window(self, tool_name: str, background_yaml_path: Path,
+                                  ui_dir: Path) -> libtmux.Window:
         """
         Retrieves the background window for a tool. If it doesn't exist,
         loads it using the background tmuxp YAML template.
@@ -160,18 +164,19 @@ class UIManager:
         """
         return window.split_window(attach=False)
 
-    def rename_pane(self, pane, tool_name: str, scan_profile: str) -> str:
+    def rename_pane(self, pane: libtmux.Pane, tool_name: str, scan_profile: str) -> str:
         """
         Generates a canonical internal name for the pane.
 
-        Note: tmux does not support renaming individual panes directly.
+        Note: tmux does not support renaming individual panes directly. This function
+        generates an internal name for UI mapping purposes only.
 
+        :param pane: The libtmux.Pane (unused in renaming, but provided for consistency).
         :param tool_name: The name of the tool.
         :param scan_profile: The scan profile being used.
         :return: The generated canonical pane name as a string.
         """
         pane_title = f"{tool_name}_{scan_profile}_{int(time.time())}"
-        # Since we cannot rename a pane in tmux, we simply generate the name.
         return pane_title
 
     def create_and_rename_pane(self, window: libtmux.Window, tool_name: str,
@@ -193,7 +198,8 @@ class UIManager:
         internal_name = self.rename_pane(pane, tool_name, scan_profile)
         return pane, internal_name
 
-    def load_background_window(self, tool_name: str, background_yaml_path: Path, ui_dir: Path) -> None:
+    def load_background_window(self, tool_name: str, background_yaml_path: Path,
+                               ui_dir: Path) -> None:
         """
         Loads the background window for the given tool using a tmuxp YAML template.
         Renders the template with provided path variables and tool-specific variables,
@@ -220,9 +226,8 @@ class UIManager:
     def allocate_scan_pane(self, tool_name: str, scan_profile: str, cmd_dict: dict,
                            background_yaml_path: Path, ui_dir: Path) -> str:
         """
-        This function first retrieves (or creates, using a tmuxp YAML template) the background window for the tool,
-        then creates a new pane, generates an internal name (since tmux cannot rename panes directly),
-        sends the scan command to the pane, and finally registers the scan data.
+        Allocates a new pane within the tool's background window (loaded from a YAML template),
+        launches the scan command in that pane, and updates the active scan registry.
 
         :param tool_name: The name of the tool (str).
         :param scan_profile: The scan profile to use (str).
@@ -233,26 +238,18 @@ class UIManager:
         :param ui_dir: A Path representing the UI directory to be injected into the YAML template.
         :return: The pane_id (str) of the allocated pane.
         """
-        # Retrieve or create the background window using the YAML template.
         window = self.get_or_create_tool_window(tool_name, background_yaml_path, ui_dir)
-        # Create a new pane in the window.
         pane = self.create_pane(window)
-        # Generate an internal pane name for UI mapping.
         pane_internal_name = self.rename_pane(pane, tool_name, scan_profile)
-        # Convert the command dictionary to a command string.
         command = self.convert_cmd_dict_to_string(cmd_dict)
-        # Launch the command in the allocated pane.
         pane.send_keys(command, enter=True)
         self.logger.info(f"Launched scan in pane '{pane_internal_name}' with command: {command}")
 
-        # Retrieve interface info and lock status.
         interface = cmd_dict.get("interface", "unknown")
         lock_status = self.get_lock_status(interface)
         pane_id = pane.get("pane_id")
-        # Register the scan data (including the window name, pane id, and internal pane name).
         self._register_scan(window.get("window_name"), pane_id, pane_internal_name, tool_name, scan_profile, command,
                             interface, lock_status)
-
         return pane_id
 
     def update_interface(self, interface: str, lock_status: bool) -> None:

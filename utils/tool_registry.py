@@ -1,10 +1,9 @@
+# tool_registry.py
 import logging
-from pathlib import Path
 from typing import Any, Callable, Dict
-import logging
 
 # locals
-from config.constants import setup_logging
+from common.logging_setup import setup_logging
 setup_logging()
 
 class ToolRegistry:
