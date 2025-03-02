@@ -22,7 +22,6 @@ def load_yaml_config(config_path: Path, logger: logging.Logger = None) -> Dict:
         with open(config_path, "r") as f:
             loaded_data = yaml.safe_load(f) or {}
         logger.info(f"Successfully loaded config: {config_path}")
-        logger.debug(f"Loaded config data: {loaded_data}")
         return loaded_data
     except Exception as e:
         logger.critical(f"Failed to load config: {config_path}: {e}")
@@ -61,6 +60,4 @@ def test_config_paths() -> str:
 
 if __name__ == "__main__":
     import logging
-
     logging.basicConfig(level=logging.DEBUG)
-    logging.debug(test_config_paths())

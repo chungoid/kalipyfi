@@ -1,9 +1,7 @@
 import json
-from config.constants import (
-    ERROR_KEY, STATUS_KEY, GET_SCANS, SEND_SCAN,
-    SWAP_SCAN, STOP_SCAN, UPDATE_LOCK, REMOVE_LOCK,
-    KILL_UI, DETACH_UI)
+from config.constants import IPC_CONSTANTS
 
+ERROR_KEY = IPC_CONSTANTS["keys"]["ERROR_KEY"]
 
 def pack_message(message: dict) -> str:
     """

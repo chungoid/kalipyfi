@@ -1,5 +1,6 @@
 import os
 import traceback
+from abc import ABC
 from pathlib import Path
 from typing import Optional, Any, Dict
 
@@ -10,7 +11,7 @@ from utils.tool_registry import register_tool
 from tools.hcxtool.submenu import HcxToolSubmenu
 
 @register_tool("hcxtool")
-class Hcxtool(Tool):
+class Hcxtool(Tool, ABC):
     def __init__(self, base_dir: Path, config_file: Optional[str] = None,
                  interfaces: Optional[Any] = None, presets: Optional[Dict[str, Any]] = None):
 

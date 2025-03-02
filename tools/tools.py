@@ -5,59 +5,85 @@ import time
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 
 # local
+from config.constants import BASE_DIR
 from common.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
 from utils.ipc import send_ipc_command
 
 
 class Tool:
-    def __init__(self, name: str, description: str, base_dir: Path, config_file: Optional[str] = None,
+    def __init__(self, name: str, description: str, base_dir: Path,
+                 config_file: Optional[str] = None,
                  interfaces: Optional[Any] = None, settings: Optional[Dict[str, Any]] = None) -> None:
-        # Set basic attributes.
         self.name = name
         self.description = description
-        self.base_dir = Path(base_dir)
+        self.base_dir = Path(base_dir).resolve()
 
-        # Define essential directories based on base_dir
+        # Define essential directories based on base_dir.
         self.config_dir = self.base_dir / "configs"
         self.results_dir = self.base_dir / "results"
 
-        # Initialize configuration data as an empty dict
-        self.config_data = {}
-        #self.require_root = False
+        # Ensure required directories exist.
+        self._setup_directories()
 
-        # Setup logging and create directories
-        self.setup_directories()  # Ensure Dirs
+        # Setup logger.
         self.logger = logging.getLogger(f"{self.name.upper()}")
         self.logger.info(f"Initialized tool: {self.name}")
 
-        # If config_file is provided, use it
-        if config_file:
-            config_path = Path(config_file)
-            if not config_path.is_absolute():
-                config_path = self.base_dir / config_file
-        else:
-            # Default config file location
-            config_path = self.config_dir / "config.yaml"
-        self.config_file = config_path.resolve()
+        # Determine the configuration file path using a helper function.
+        self.config_file = self._determine_config_path(config_file)
+        self.logger.debug(f"Using config file: {self.config_file}")
 
-        # Load configs
+        # Load configuration.
         self.config_data = load_yaml_config(self.config_file, self.logger)
 
-        # Extract config.yaml sections into dicts
+        # Extract config sections.
         self.interfaces = self.config_data.get("interfaces", {})
         self.presets = self.config_data.get("presets", {})
         self.defaults = self.config_data.get("defaults", {})
 
-        # Optional Overrides
+        # Optional Overrides.
         if interfaces:
             self.interfaces.update(interfaces)
         if settings:
             self.defaults.update(settings)
+
+
+    def _determine_config_path(self, config_file: Optional[str]) -> Path:
+        """
+        Determines the full path to the configuration file.
+
+        If a config_file string is provided and is relative:
+          - If it starts with "tools", assume it is relative to BASE_DIR.
+          - If it starts with "configs", assume it is relative to base_dir.
+          - Otherwise, assume it is relative to self.config_dir.
+        If no config_file is provided, defaults to self.config_dir / "config.yaml".
+
+        :param config_file: Optional string representing the config file path.
+        :return: A resolved Path object for the configuration file.
+        """
+        if config_file:
+            config_path = Path(config_file)
+            if not config_path.is_absolute():
+                if config_path.parts and config_path.parts[0] == "tools":
+                    config_path = BASE_DIR / config_path
+                elif config_path.parts and config_path.parts[0] == "configs":
+                    config_path = self.base_dir / config_path
+                else:
+                    config_path = self.config_dir / config_path
+        else:
+            config_path = self.config_dir / "config.yaml"
+        return config_path.resolve()
+
+    def _setup_directories(self) -> None:
+        """Ensure required directories exist."""
+        for d in [self.config_dir, self.results_dir]:
+            d.mkdir(parents=True, exist_ok=True)
+
 
     @abstractmethod
     def submenu(self, stdscr) -> None:
@@ -66,12 +92,6 @@ class Tool:
         Must be implemented by concrete tool classes.
         """
         pass
-
-
-    def setup_directories(self) -> None:
-        """Ensure required directories exist."""
-        for d in [self.config_dir, self.results_dir]:
-            d.mkdir(parents=True, exist_ok=True)
 
 
     def run_to_ipc(self, scan_profile: str, cmd_dict: dict):

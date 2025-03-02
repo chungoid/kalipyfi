@@ -1,7 +1,6 @@
 # ipc.py
 import socket
 import os
-import json
 import time
 from common.ipc_protocol import (
     pack_message, unpack_message, handle_get_state, handle_get_scans,

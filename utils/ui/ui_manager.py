@@ -1,5 +1,7 @@
 # utils/ui/ui_manager.py
 import os
+import subprocess
+import sys
 import time
 import logging
 from pathlib import Path
@@ -7,7 +9,7 @@ from typing import Dict, Optional, Tuple
 import libtmux
 import jinja2
 
-from common.models import ScanData, InterfaceData
+from common.models import ScanData, InterfaceData, SessionData
 from config.constants import BG_YAML_PATH
 
 class UIManager:
@@ -21,6 +23,7 @@ class UIManager:
         self.logger = logging.getLogger("UIManager")
         self.server = libtmux.Server()
         self.session = self.get_or_create_session(session_name)
+        self.session_data = SessionData(session_name=self.session.get("session_name"))
         # Active scans: map pane_id -> ScanData
         self.active_scans: Dict[str, ScanData] = {}
         # Tool Interfaces: map interface name -> InterfaceData
@@ -305,6 +308,28 @@ class UIManager:
                     pane.send_keys("C-c")  # Send Ctrl+C to stop the command.
                     self.logger.info(f"Stopped scan in pane {pane_id} (window: {scan_data.window_name}).")
             del self.active_scans[pane_id]
+
+    def detach_ui(self) -> None:
+        """
+        Detaches the UI session by invoking the tmux detach-client command.
+        This leaves the session running in the background.
+        After detaching, exit the process.
+        """
+        session_name = self.session_data.session_name
+        self.logger.info(f"Detaching UI session: {session_name}")
+        os.system(f"tmux detach-client -s {session_name}")
+        sys.exit(0)
+
+    def kill_ui(self) -> None:
+        """
+        Kills the UI session and all associated windows.
+        After killing the session, exit the process.
+        """
+        session_name = self.session_data.session_name
+        self.logger.info(f"Killing UI session: {session_name}")
+        self.session.kill_session()
+        sys.exit(0)
+
 
     #############################
     ##### STATE & DEBUGGING #####

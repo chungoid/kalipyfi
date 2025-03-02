@@ -25,6 +25,11 @@ TOOL_PATHS = {
 ##### IPC PROTOCOL #####
 ########################
 
+## DEFAULT SETTINGS ##
+DEFAULT_SOCKET_PATH = "/tmp/tmuxp-kalipifi.sock"
+RETRY_DELAY = 1
+
+## keys and commands ##
 IPC_CONSTANTS = {
     "keys": {
         "ACTION_KEY": "action",
@@ -49,7 +54,3 @@ IPC_CONSTANTS = {
     }
 }
 
-
-## DEFAULT SETTINGS ##
-DEFAULT_SOCKET_PATH = "/tmp/tmuxp-kalipifi.sock"
-RETRY_DELAY = 1

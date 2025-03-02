@@ -41,8 +41,6 @@ class ToolRegistry:
 
         instance = tool_class(**override_kwargs)
         self.tool_instances[normalized] = instance
-        self.logger.debug("Instantiated tool '%s' with config: %s (instance id: %s)", normalized, tool_config_path,
-                          id(instance))
         return instance
 
     def __iter__(self):

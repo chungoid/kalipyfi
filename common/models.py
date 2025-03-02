@@ -3,6 +3,14 @@ from dataclasses import dataclass, field, asdict
 import time
 
 @dataclass
+class SessionData:
+    session_name: str
+    created_at: float = time.time()
+
+    def to_dict(self):
+        return asdict(self)
+
+@dataclass
 class InterfaceData:
     interface: str
     lock_status: bool
