@@ -39,7 +39,7 @@ def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> d
     logger = logging.getLogger(__name__)
     logger.debug(f"send_ipc_command: Called with message: {message} and socket_path: {socket_path}")
     attempt = 0
-    while attempt < 50:
+    while attempt < 3:
         try:
             logger.debug(f"send_ipc_command: Attempt {attempt+1}: Creating socket.")
             client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -139,7 +139,6 @@ def start_ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> Non
     Starts the IPC server in a separate daemon thread.
     """
     import threading
-
     log_queue = get_log_queue()
     worker_configurer(log_queue)
     logging.getLogger(__name__).debug("IPC process logging configured")

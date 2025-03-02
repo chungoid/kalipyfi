@@ -1,6 +1,7 @@
 import curses
 import logging
 import os
+import time
 from logging.handlers import QueueListener
 
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
@@ -9,11 +10,6 @@ from utils import ipc
 #from utils.tool_registry import tool_registry
 #from tools.hcxtool import hcxtool
 
-####################################################
-##### ensure you import each tools module here #####
-##### e.g. (from tools.hcxtool import hcxtool) #####
-##### they load via tool_registry / decorators #####
-####################################################
 
 log_queue = get_log_queue()
 worker_configurer(log_queue)
@@ -165,12 +161,36 @@ def main_menu(stdscr):
 
 
 if __name__ == "__main__":
+
+    def wait_for_ipc_socket(socket_path, timeout=5):
+        start_time = time.time()
+        while not os.path.exists(socket_path):
+            if time.time() - start_time > timeout:
+                return False
+            time.sleep(0.1)
+        return True
+
+####################################################
+##### ensure you import each tools module here #####
+##### e.g. (from tools.hcxtool import hcxtool) #####
+##### they load via tool_registry / decorators #####
+####################################################
+
+    # import tools & registry
     from utils.tool_registry import tool_registry
     from tools.hcxtool import hcxtool
+
+    # setup logs for curses menu processes
     log_queue = get_log_queue()
     listener_handlers = configure_listener_handlers()
     listener = QueueListener(log_queue, *listener_handlers)
     listener.start()
     worker_configurer(log_queue)
     logging.getLogger(__name__).debug("Main process logging configured using QueueHandler")
+
+    # wait for ipc
+    wait_for_ipc_socket(DEFAULT_SOCKET_PATH)
+
+    # run menu
     curses.wrapper(main_menu)
+

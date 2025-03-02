@@ -1,3 +1,4 @@
+import curses
 import logging
 import os
 import time
@@ -8,6 +9,7 @@ from logging.handlers import QueueListener
 from config.constants import UI_DIR, MAIN_UI_YAML_PATH, CLEANUP_SCRIPT
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
 from utils.ipc import start_ipc_server
+from utils.ui.main_menu import main_menu
 from utils.ui.ui_manager import UIManager
 from tools.hcxtool import hcxtool
 

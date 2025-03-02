@@ -20,8 +20,7 @@ interfaces:
 
 presets:
   1:
-    description: "wlan1 -A -F"
-    interface: wlan1
+    description: "aggressive"
     auto_bpf: true
     options:
       "--gpsd": true
@@ -29,8 +28,7 @@ presets:
       "-F": true
 
   2:
-    description: "wlan2 passive -F"
-    interface: wlan2
+    description: "passive"
     autobpf: true
     options:
       "--gpsd": true
@@ -38,8 +36,7 @@ presets:
       "-F": true
 
   3:
-    description: "wlan1 rca:a -A -F"
-    interface: wlan1
+    description: "rca a"
     auto_bpf: true
     options:
       "--gpsd": true
@@ -48,8 +45,7 @@ presets:
       "-F": true
 
   4:
-    description: "wlan2 rca:p -F"
-    interface: wlan2
+    description: "rca p"
     auto_bpf: true
     options:
       "--gpsd": true
@@ -59,7 +55,6 @@ presets:
 
   5:
     description: "auto iface essid"
-    interface: any
     auto_bpf: true
     options:
       "--gpsd": true

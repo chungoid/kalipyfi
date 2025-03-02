@@ -2,14 +2,10 @@ import os
 import curses
 import logging
 from typing import Any, List
-
-from common.logging_setup import get_log_queue, worker_configurer
 from config.constants import DEFAULT_SOCKET_PATH
+
 # local
 from utils import ipc
-
-log_queue = get_log_queue()
-worker_configurer(log_queue)
 
 class HcxToolSubmenu:
     def __init__(self, tool_instance):
@@ -20,6 +16,7 @@ class HcxToolSubmenu:
         """
         self.tool = tool_instance
         self.logger = logging.getLogger("HcxToolSubmenu")
+        self.logger.debug("HcxToolSubmenu initialized.")
 
     def draw_menu(self, parent_win, title: str, menu_items: List[str]) -> Any:
         """
@@ -45,13 +42,16 @@ class HcxToolSubmenu:
     def select_scan(self, parent_win) -> None:
         """
         Handles the 'Name Scan' option.
-        Runs the original routine: interface selection, preset selection, then launching the scan.
+        Runs the routine: interface selection, preset selection, then launching the scan.
         """
+        self.logger.debug("select_scan: Starting scan selection.")
         selected_iface = self.select_interface(parent_win)
         if not selected_iface:
+            self.logger.debug("select_scan: No interface selected; returning.")
             return
-        selected_preset = self.select_preset(parent_win, selected_iface)
+        selected_preset = self.select_preset(parent_win)
         if not selected_preset:
+            self.logger.debug("select_scan: No preset selected; returning.")
             return
 
         # Save the scan settings in the tool instance.
@@ -78,6 +78,7 @@ class HcxToolSubmenu:
         """
         tool_name = getattr(self.tool, 'name', 'hcxtool')
         message = {"action": "GET_SCANS", "tool": tool_name}
+        self.logger.debug(f"view_scans: Sending GET_SCANS for tool '{tool_name}'")
         response = ipc.send_ipc_command(message, DEFAULT_SOCKET_PATH)
         scans = response.get("scans", [])
         if not scans:
@@ -118,7 +119,7 @@ class HcxToolSubmenu:
                         "pane_id": selected_scan.get("pane_id"),
                         "new_title": new_title
                     }
-                    swap_response = ipc.send_ipc_command(swap_message, DEFAULT_SOCKET_PATH)
+                    swap_response = ipc.send_ipc_command(swap_message)
                     parent_win.clear()
                     if swap_response.get("status") == "SWAP_SCAN_OK":
                         parent_win.addstr(0, 0, "Scan swapped successfully!")
@@ -210,7 +211,8 @@ class HcxToolSubmenu:
 
     def select_interface(self, parent_win) -> Any:
         """
-        Original interface selection routine.
+        Presents a menu of available interfaces from the 'wlan' category.
+        Returns the selected interface name or None if cancelled.
         """
         interfaces = self.tool.interfaces.get("wlan", [])
         available = [iface.get("name") for iface in interfaces if iface.get("name")]
@@ -238,43 +240,42 @@ class HcxToolSubmenu:
             elif key == 27:
                 return None
 
-    def select_preset(self, parent_win, selected_interface: str) -> Any:
+    def select_preset(self, parent_win) -> Any:
         """
-        Presents a menu of scan presets filtered by the selected interface.
+        Presents a menu of all scan presets.
         The menu is independent and separate from other submenus.
         Returns the selected preset dictionary or None if cancelled.
         """
         logger = logging.getLogger(__name__)
-        logger.debug(f"select_preset: Filtering presets for interface '{selected_interface}'")
+        logger.debug("select_preset: Loading all presets (interface filtering skipped)")
 
-        # Log the entire presets configuration for debugging.
         presets_dict = self.tool.presets
         logger.debug(f"select_preset: Full presets config: {presets_dict}")
 
-        # Filter presets into a list of (key, preset) tuples.
-        filtered = [
-            (key, preset)
-            for key, preset in presets_dict.items()
-            if preset.get("interface", "").lower() in (selected_interface.lower(), "any")
-        ]
-        logger.debug(f"select_preset: Filtered presets: {filtered}")
-
-        if not filtered:
+        if not presets_dict:
             parent_win.clear()
-            parent_win.addstr(0, 0, "No presets available for this interface!")
+            parent_win.addstr(0, 0, "No presets available!")
             parent_win.refresh()
             parent_win.getch()
             return None
 
-        # Build menu items from the filtered list.
+        # Sort the keys numerically if possible.
+        try:
+            sorted_keys = sorted(presets_dict.keys(), key=lambda k: int(k))
+        except Exception:
+            sorted_keys = sorted(presets_dict.keys())
+        logger.debug(f"select_preset: Sorted preset keys: {sorted_keys}")
+
+        # Build a list of (key, preset) tuples.
+        preset_list = [(key, presets_dict[key]) for key in sorted_keys]
+        # Build menu items.
         menu_items = [
             f"[{idx}] {preset.get('description', 'No description')}"
-            for idx, (key, preset) in enumerate(filtered, start=1)
+            for idx, (key, preset) in enumerate(preset_list, start=1)
         ]
         logger.debug(f"select_preset: Generated menu items: {menu_items}")
         menu_items.append("[0] Back")
 
-        # Create a new menu window for the preset selection.
         menu_win = self.draw_menu(parent_win, "Select Scan Preset", menu_items)
 
         while True:
@@ -290,8 +291,8 @@ class HcxToolSubmenu:
                 if selection == 0:
                     logger.debug("select_preset: User selected Back")
                     return None
-                elif 1 <= selection <= len(filtered):
-                    selected_key, selected_preset = filtered[selection - 1]
+                elif 1 <= selection <= len(preset_list):
+                    selected_key, selected_preset = preset_list[selection - 1]
                     logger.debug(f"select_preset: User selected preset key '{selected_key}': {selected_preset}")
                     return selected_preset
                 else:
