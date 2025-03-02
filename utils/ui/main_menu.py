@@ -1,6 +1,8 @@
 import curses
 import logging
+import os
 
+from common.logging_setup import get_log_queue, worker_configurer
 from config.constants import TOOL_PATHS
 from utils import ipc
 from utils.tool_registry import tool_registry
@@ -12,8 +14,6 @@ from tools.hcxtool import hcxtool
 ##### they load via tool_registry / decorators #####
 ####################################################
 
-
-logging.basicConfig(level=logging.DEBUG)
 
 def draw_menu(stdscr, title, menu_items):
     h, w = stdscr.getmaxyx()
@@ -48,22 +48,19 @@ def exit_menu(stdscr):
             # Send detach command via IPC.
             message = {"action": "DETACH_UI"}
             response = ipc.send_ipc_command(message)
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Detach command sent. Detaching UI...")
-            stdscr.refresh()
-            curses.napms(1500)
-            # Exit the UI after detach.
-            exit(0)
+            if response:
+                stdscr.clear()
+                stdscr.addstr(0, 0, "Detach command sent. Detaching UI...")
+                stdscr.refresh()
+                return
         elif ch == "2":
             # Send kill command via IPC.
             message = {"action": "KILL_UI"}
             response = ipc.send_ipc_command(message)
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Kill command sent. Killing UI...")
-            stdscr.refresh()
-            curses.napms(1500)
-            # Exit the UI after kill.
-            exit(0)
+            if response:
+                stdscr.clear()
+                stdscr.addstr(0, 0, "Kill command sent. Killing UI...")
+                stdscr.refresh()
         elif ch == "0" or key == 27:
             # Return to main menu.
             break
@@ -124,6 +121,11 @@ def tools_menu(stdscr):
 
 
 def main_menu(stdscr):
+    # Get the shared queue
+    log_queue = get_log_queue()
+    worker_configurer(log_queue)
+    logging.getLogger(__name__).debug("IPC process logging configured")
+
     curses.curs_set(0)
     stdscr.clear()
     stdscr.refresh()

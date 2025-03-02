@@ -1,4 +1,5 @@
 # ipc.py
+import logging
 import socket
 import os
 import time
@@ -7,16 +8,17 @@ from common.ipc_protocol import (
     handle_send_scan, handle_swap_scan, handle_update_lock,
     handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui
 )
+from common.logging_setup import worker_configurer, get_log_queue
 from config.constants import IPC_CONSTANTS, DEFAULT_SOCKET_PATH, RETRY_DELAY
 
-ACTION_KEY    = IPC_CONSTANTS["keys"]["ACTION_KEY"]
-ERROR_KEY     = IPC_CONSTANTS["keys"]["ERROR_KEY"]
-TOOL_KEY      = IPC_CONSTANTS["keys"]["TOOL_KEY"]
+ACTION_KEY       = IPC_CONSTANTS["keys"]["ACTION_KEY"]
+ERROR_KEY        = IPC_CONSTANTS["keys"]["ERROR_KEY"]
+TOOL_KEY         = IPC_CONSTANTS["keys"]["TOOL_KEY"]
 SCAN_PROFILE_KEY = IPC_CONSTANTS["keys"]["SCAN_PROFILE_KEY"]
-COMMAND_KEY   = IPC_CONSTANTS["keys"]["COMMAND_KEY"]
-TIMESTAMP_KEY = IPC_CONSTANTS["keys"]["TIMESTAMP_KEY"]
-STATUS_KEY    = IPC_CONSTANTS["keys"]["STATUS_KEY"]
-RESULT_KEY    = IPC_CONSTANTS["keys"]["RESULT_KEY"]
+COMMAND_KEY      = IPC_CONSTANTS["keys"]["COMMAND_KEY"]
+TIMESTAMP_KEY    = IPC_CONSTANTS["keys"]["TIMESTAMP_KEY"]
+STATUS_KEY       = IPC_CONSTANTS["keys"]["STATUS_KEY"]
+RESULT_KEY       = IPC_CONSTANTS["keys"]["RESULT_KEY"]
 
 GET_STATE     = IPC_CONSTANTS["actions"]["GET_STATE"]
 GET_SCANS     = IPC_CONSTANTS["actions"]["GET_SCANS"]
@@ -88,6 +90,8 @@ def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
                 response = handle_detach_ui(ui_instance, request)
             else:
                 response = {ERROR_KEY: "UNKNOWN_COMMAND"}
+                logging.debug(f"Received unknown command: {data}")
+            logging.debug(f"Response: {response}")
             response_str = pack_message(response)
             conn.send(response_str.encode())
             conn.shutdown(socket.SHUT_WR)
@@ -101,5 +105,10 @@ def start_ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> Non
     Starts the IPC server in a separate daemon thread.
     """
     import threading
+
+    log_queue = get_log_queue()
+    worker_configurer(log_queue)
+    logging.getLogger(__name__).debug("IPC process logging configured")
+
     thread = threading.Thread(target=ipc_server, args=(ui_instance, socket_path), daemon=True)
     thread.start()

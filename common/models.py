@@ -3,6 +3,15 @@ from dataclasses import dataclass, field, asdict
 import time
 
 @dataclass
+class ProcessData:
+    pid: int
+    role: str  # e.g. "menu", "background", "ipc"
+    started_at: float = time.time()
+
+    def to_dict(self):
+        return asdict(self)
+
+@dataclass
 class SessionData:
     session_name: str
     created_at: float = time.time()

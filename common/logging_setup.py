@@ -1,34 +1,38 @@
+import sys
 import logging
-
-# local
+import logging.handlers
+from multiprocessing import Queue
+from pathlib import Path
 from config.constants import LOG_DIR, LOG_FILE
 
 
-def setup_logging():
-    """Configure logging to only log to a file and suppress unnecessary tmux logs."""
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_QUEUE = Queue(-1)
 
-    logger = logging.getLogger()  # Root logger
-    logger.setLevel(logging.DEBUG)
+def get_log_queue():
+    return LOG_QUEUE
 
-    # Remove all handlers to prevent duplication
-    if logger.hasHandlers():
-        logger.handlers.clear()
+def configure_listener_handlers():
+    """Set up file and console handlers for the listener."""
+    Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(name)s:%(process)d] %(message)s')
 
-    # File Handler
+    # File handler
     file_handler = logging.FileHandler(str(LOG_FILE))
     file_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(name)s] %(message)s')
     file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
 
-    # Completely suppress `libtmux` debug output
-    logging.getLogger("libtmux").setLevel(logging.WARNING)  # Only log warnings/errors
-    logging.getLogger("libtmux._internal").setLevel(logging.WARNING)
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG)
+    console_handler.setFormatter(formatter)
 
-    # Suppress excessive tmux debugging from subprocess calls
-    class SuppressTmuxDebugFilter(logging.Filter):
-        def filter(self, record):
-            return "self.stdout for /usr/bin/tmux" not in record.getMessage()
+    return [file_handler, console_handler]
 
-    file_handler.addFilter(SuppressTmuxDebugFilter())
+def worker_configurer(log_queue):
+    """Configure logging for a worker process using a QueueHandler."""
+    queue_handler = logging.handlers.QueueHandler(log_queue)
+    root = logging.getLogger()
+    # Clear any existing handlers.
+    root.handlers = []
+    root.addHandler(queue_handler)
+    root.setLevel(logging.DEBUG)

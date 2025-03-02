@@ -26,7 +26,7 @@ TOOL_PATHS = {
 ########################
 
 ## DEFAULT SETTINGS ##
-DEFAULT_SOCKET_PATH = "/tmp/tmuxp-kalipifi.sock"
+DEFAULT_SOCKET_PATH = "/tmp/tmuxp-kalipyfi.sock"
 RETRY_DELAY = 1
 
 ## keys and commands ##

@@ -2,9 +2,11 @@
 import logging
 from typing import Any, Callable, Dict
 
-# locals
-from common.logging_setup import setup_logging
-setup_logging()
+from common.logging_setup import get_log_queue, worker_configurer
+
+log_queue = get_log_queue()
+worker_configurer(log_queue)
+logging.getLogger(__name__).debug("IPC process logging configured")
 
 class ToolRegistry:
     def __init__(self) -> None:

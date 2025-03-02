@@ -1,6 +1,5 @@
 # utils/ui/ui_manager.py
 import os
-import subprocess
 import sys
 import time
 import logging
@@ -9,7 +8,7 @@ from typing import Dict, Optional, Tuple
 import libtmux
 import jinja2
 
-from common.models import ScanData, InterfaceData, SessionData
+from common.models import ScanData, InterfaceData, SessionData, ProcessData
 from config.constants import BG_YAML_PATH
 
 class UIManager:
