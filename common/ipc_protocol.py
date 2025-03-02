@@ -1,4 +1,7 @@
 import json
+import logging
+import sys
+
 from config.constants import IPC_CONSTANTS
 
 ERROR_KEY = IPC_CONSTANTS["keys"]["ERROR_KEY"]
@@ -6,227 +9,207 @@ ERROR_KEY = IPC_CONSTANTS["keys"]["ERROR_KEY"]
 def pack_message(message: dict) -> str:
     """
     Converts a message dictionary into a JSON string.
-
-    :param message: The dictionary to convert.
-    :return: A JSON string representation of the message.
+    Extensive logging added.
     """
-    return json.dumps(message)
-
+    logger = logging.getLogger(__name__)
+    logger.debug(f"pack_message: Packing message: {message}")
+    try:
+        json_str = json.dumps(message)
+        logger.debug(f"pack_message: Resulting JSON string: {json_str}")
+        return json_str
+    except Exception as e:
+        logger.exception("pack_message: Exception while packing message")
+        raise
 
 def unpack_message(message_str: str) -> dict:
     """
     Converts a JSON string into a message dictionary.
     Returns a dictionary with an error key if JSON decoding fails.
-
-    :param message_str: The JSON string to decode.
-    :return: A dictionary representing the message.
+    Extensive logging added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"unpack_message: Unpacking message string: {message_str}")
     try:
-        return json.loads(message_str)
+        message = json.loads(message_str)
+        logger.debug(f"unpack_message: Unpacked message: {message}")
+        return message
     except json.JSONDecodeError:
+        logger.error("unpack_message: Invalid JSON format")
         return {ERROR_KEY: "Invalid JSON format"}
-
+    except Exception as e:
+        logger.exception("unpack_message: Exception while unpacking message")
+        return {ERROR_KEY: str(e)}
 
 def handle_get_state(ui_instance, request: dict) -> dict:
     """
     Handles the GET_STATE command.
-
-    Expected keys in request: none.
-
-    :param ui_instance: The UIManager instance.
-    :param request: The request dictionary.
-    :return: A dict containing status and the current UI state.
+    Extensive logging added.
     """
-    state = {"active_scans": ui_instance.active_scans}
-    return {"status": "OK", "state": state}
-
+    logger = logging.getLogger(__name__)
+    logger.debug("handle_get_state: Called")
+    try:
+        state = {"active_scans": ui_instance.active_scans}
+        logger.debug(f"handle_get_state: Returning state: {state}")
+        return {"status": "OK", "state": state}
+    except Exception as e:
+        logger.exception("handle_get_state: Exception")
+        return {ERROR_KEY: str(e)}
 
 def handle_send_scan(ui_instance, request: dict) -> dict:
     """
     Handles the SEND_SCAN command.
-
-    Expected keys in request:
-        - "tool": The tool name (str).
-        - "scan_profile": The scan profile to use (str).
-        - "command": A command dictionary containing keys 'executable' (str) and 'arguments' (List[str]),
-                     and also an "interface" key indicating the scanning interface.
-
-    This function calls the UIManager to allocate a pane and run the command.
-
-    :param ui_instance: The UIManager instance.
-    :param request: The request dictionary.
-    :return: A dict with a "status" key (e.g., "SEND_SCAN_OK") and a "pane_id" if successful,
-             otherwise an "error" key.
+    Extensive logging added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"handle_send_scan: Received request: {request}")
     tool_name = request.get("tool")
     scan_profile = request.get("scan_profile")
     cmd_dict = request.get("command")
     if not all([tool_name, scan_profile, cmd_dict]):
+        logger.error("handle_send_scan: Missing parameters")
         return {ERROR_KEY: "Missing parameters for SEND_SCAN"}
-    pane_id = ui_instance.allocate_scan_pane(tool_name, scan_profile, cmd_dict)
-    if pane_id:
-        return {"status": "SEND_SCAN_OK", "pane_id": pane_id}
-    else:
-        return {ERROR_KEY: "Failed to allocate scan pane"}
-
+    try:
+        pane_id = ui_instance.allocate_scan_pane(tool_name, scan_profile, cmd_dict)
+        if pane_id:
+            logger.debug(f"handle_send_scan: Successfully allocated pane: {pane_id}")
+            return {"status": "SEND_SCAN_OK", "pane_id": pane_id}
+        else:
+            logger.error("handle_send_scan: Failed to allocate scan pane")
+            return {ERROR_KEY: "Failed to allocate scan pane"}
+    except Exception as e:
+        logger.exception("handle_send_scan: Exception occurred")
+        return {ERROR_KEY: str(e)}
 
 def handle_get_scans(ui_instance, request: dict) -> dict:
     """
     Handles the GET_SCANS command.
-
-    Expected keys in request:
-        - "tool": The tool name (str).
-
-    Returns a list of active scan data (as dicts) for the specified tool.
-
-    :param ui_instance: The UIManager instance.
-    :param request: The request dictionary.
-    :return: A dict with "status": "OK" and "scans": [list of scan data dicts],
-             or an "error" key if parameters are missing.
+    Extensive logging added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"handle_get_scans: Received request: {request}")
     tool_name = request.get("tool")
     if not tool_name:
+        logger.error("handle_get_scans: Missing tool parameter")
         return {ERROR_KEY: "Missing tool parameter for GET_SCANS"}
-    scans = [scan.to_dict() for scan in ui_instance.active_scans.values()
-             if scan.tool.lower() == tool_name.lower()]
-    return {"status": "OK", "scans": scans}
-
+    try:
+        scans = [scan.to_dict() for scan in ui_instance.active_scans.values()
+                 if scan.tool.lower() == tool_name.lower()]
+        logger.debug(f"handle_get_scans: Found scans: {scans}")
+        return {"status": "OK", "scans": scans}
+    except Exception as e:
+        logger.exception("handle_get_scans: Exception occurred")
+        return {ERROR_KEY: str(e)}
 
 def handle_swap_scan(ui_instance, request: dict) -> dict:
     """
     Handles the SWAP_SCAN command.
-
-    Expected keys in request:
-        - "tool": The tool name (str).
-        - "pane_id": The pane ID (str) to swap.
-        - "new_title": The new internal title (str) to assign.
-
-    Calls the UIManager to swap the specified pane into the main UI.
-
-    :param ui_instance: The UIManager instance.
-    :param request: The request dictionary.
-    :return: A dict with "status": "SWAP_SCAN_OK" if successful,
-             or an "error" key describing the issue.
+    Extensive logging added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"handle_swap_scan: Received request: {request}")
     tool_name = request.get("tool")
     pane_id = request.get("pane_id")
     new_title = request.get("new_title")
     if not all([tool_name, pane_id, new_title]):
+        logger.error("handle_swap_scan: Missing parameters")
         return {ERROR_KEY: "Missing parameters for SWAP_SCAN"}
     try:
         ui_instance.swap_scan(tool_name, pane_id, new_title)
+        logger.debug("handle_swap_scan: Swap successful")
         return {"status": "SWAP_SCAN_OK"}
     except Exception as e:
+        logger.exception("handle_swap_scan: Exception occurred")
         return {ERROR_KEY: f"SWAP_SCAN error: {e}"}
-
 
 def handle_stop_scan(ui_instance, request: dict) -> dict:
     """
     Handles the STOP_SCAN command.
-
-    Expected keys in request:
-        - "tool": The tool name (str).
-        - "pane_id": The pane ID (str) of the scan to stop.
-
-    :param ui_instance: The UIManager instance.
-    :param request: The request dictionary.
-    :return: A dict with "status": "STOP_SCAN_OK" if successful,
-             or an "error" key if parameters are missing or an error occurs.
+    Extensive logging added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"handle_stop_scan: Received request: {request}")
     tool_name = request.get("tool")
     pane_id = request.get("pane_id")
     if not all([tool_name, pane_id]):
+        logger.error("handle_stop_scan: Missing parameters")
         return {ERROR_KEY: "Missing parameters for STOP_SCAN"}
     try:
         ui_instance.stop_scan(pane_id)
+        logger.debug("handle_stop_scan: Scan stopped successfully")
         return {"status": "STOP_SCAN_OK"}
     except Exception as e:
+        logger.exception("handle_stop_scan: Exception occurred")
         return {ERROR_KEY: f"STOP_SCAN error: {e}"}
-
 
 def handle_update_lock(ui_instance, request: dict) -> dict:
     """
     Handles the UPDATE_LOCK command.
-
-    Expected keys in request:
-        - "iface": The interface to lock (str).
-        - "tool": The tool name (str) requesting the lock.
-
-    Updates the UIManager's interface registry to mark the interface as locked.
-
-    :param ui_instance: The UIManager instance.
-    :param request: The request dictionary.
-    :return: A dict with "status": "UPDATE_LOCK_OK" if successful,
-             or an "error" key if parameters are missing or an error occurs.
+    Extensive logging added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"handle_update_lock: Received request: {request}")
     iface = request.get("iface")
     tool_name = request.get("tool")
     if not all([iface, tool_name]):
+        logger.error("handle_update_lock: Missing parameters")
         return {ERROR_KEY: "Missing parameters for UPDATE_LOCK"}
     try:
         ui_instance.update_interface(iface, True)
+        logger.debug(f"handle_update_lock: Interface {iface} locked")
         return {"status": "UPDATE_LOCK_OK"}
     except Exception as e:
+        logger.exception("handle_update_lock: Exception occurred")
         return {ERROR_KEY: f"UPDATE_LOCK error: {e}"}
-
 
 def handle_remove_lock(ui_instance, request: dict) -> dict:
     """
     Handles the REMOVE_LOCK command.
-
-    Expected keys in request:
-        - "iface": The interface to unlock (str).
-
-    Updates the UIManager's interface registry to mark the interface as unlocked.
-
-    :param ui_instance: The UIManager instance.
-    :param request: The request dictionary.
-    :return: A dict with "status": "REMOVE_LOCK_OK" if successful,
-             or an "error" key if parameters are missing or an error occurs.
+    Extensive logging added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"handle_remove_lock: Received request: {request}")
     iface = request.get("iface")
     if not iface:
+        logger.error("handle_remove_lock: Missing iface parameter")
         return {ERROR_KEY: "Missing iface parameter for REMOVE_LOCK"}
     try:
         ui_instance.update_interface(iface, False)
+        logger.debug(f"handle_remove_lock: Interface {iface} unlocked")
         return {"status": "REMOVE_LOCK_OK"}
     except Exception as e:
+        logger.exception("handle_remove_lock: Exception occurred")
         return {ERROR_KEY: f"REMOVE_LOCK error: {e}"}
-
 
 def handle_kill_ui(ui_instance, request: dict) -> dict:
     """
     Handles the KILL_UI command.
-
-    No additional parameters are expected.
-    This should terminate the UI session.
-
-    :param ui_instance: The UIManager instance.
-    :param request: The request dictionary.
-    :return: A dict with "status": "KILL_UI_OK" if successful,
-             or an "error" key if an error occurs.
+    Extensive logging added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"handle_kill_ui: Received request: {request}")
     try:
+        session_name = ui_instance.session_data.session_name
+        logger.debug(f"handle_kill_ui: Killing UI session: {session_name}")
         ui_instance.kill_ui()
+        logger.debug("handle_kill_ui: Kill command executed successfully")
         return {"status": "KILL_UI_OK"}
     except Exception as e:
+        logger.exception("handle_kill_ui: Exception occurred")
         return {ERROR_KEY: f"KILL_UI error: {e}"}
-
 
 def handle_detach_ui(ui_instance, request: dict) -> dict:
     """
     Handles the DETACH_UI command.
-
-    No additional parameters are expected.
-    This should detach the UI session.
-
-    :param ui_instance: The UIManager instance.
-    :param request: The request dictionary.
-    :return: A dict with "status": "DETACH_UI_OK" if successful,
-             or an "error" key if an error occurs.
+    Extensive logging added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"handle_detach_ui: Received request: {request}")
     try:
+        session_name = ui_instance.session_data.session_name
+        logger.debug(f"handle_detach_ui: Detaching UI session: {session_name}")
         ui_instance.detach_ui()
+        logger.debug("handle_detach_ui: Detach command executed successfully")
         return {"status": "DETACH_UI_OK"}
     except Exception as e:
+        logger.exception("handle_detach_ui: Exception occurred")
         return {ERROR_KEY: f"DETACH_UI error: {e}"}

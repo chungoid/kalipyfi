@@ -3,7 +3,6 @@ windows:
   - window_name: kalipyfi
     layout: main-horizontal
     options:
-      remain-on-exit: true
       main-pane-height: 70%
     panes:
       - shell_command: "{{ UI_DIR }}/tmuxp/show_ascii.sh"

@@ -21,12 +21,7 @@ def configure_listener_handlers():
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
-    console_handler.setFormatter(formatter)
-
-    return [file_handler, console_handler]
+    return [file_handler]
 
 def worker_configurer(log_queue):
     """Configure logging for a worker process using a QueueHandler."""

@@ -34,42 +34,69 @@ DETACH_UI     = IPC_CONSTANTS["actions"]["DETACH_UI"]
 def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> dict:
     """
     Sends a structured message (as dict) to the IPC server and returns the response as a dict.
+    Extensive debugging is added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"send_ipc_command: Called with message: {message} and socket_path: {socket_path}")
     attempt = 0
     while attempt < 50:
         try:
+            logger.debug(f"send_ipc_command: Attempt {attempt+1}: Creating socket.")
             client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            logger.debug("send_ipc_command: Attempting to connect...")
             client.connect(socket_path)
             message_str = pack_message(message)
+            logger.debug(f"send_ipc_command: Sending message string: {message_str}")
             client.send(message_str.encode())
-            response_str = client.recv(1024).decode().strip()
+            response_bytes = client.recv(1024)
+            response_str = response_bytes.decode().strip()
+            logger.debug(f"send_ipc_command: Received response string: {response_str}")
             client.close()
-            return unpack_message(response_str)
+            unpacked = unpack_message(response_str)
+            logger.debug(f"send_ipc_command: Unpacked response: {unpacked}")
+            return unpacked
         except (ConnectionResetError, ConnectionRefusedError) as e:
             attempt += 1
+            logger.warning(f"send_ipc_command: Connection error on attempt {attempt}: {e}. Retrying in {RETRY_DELAY} seconds.")
             time.sleep(RETRY_DELAY)
         except Exception as e:
+            logger.exception("send_ipc_command: Exception occurred")
             return {ERROR_KEY: str(e)}
+    logger.error(f"send_ipc_command: Failed after {attempt} attempts")
     return {ERROR_KEY: f"Failed after {attempt} attempts"}
-
 
 def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
     """
     Starts the IPC server, listens for connections, and processes messages.
+    Extensive debugging is added.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"ipc_server: Starting with socket_path: {socket_path}")
     if os.path.exists(socket_path):
+        logger.debug(f"ipc_server: Removing existing socket at {socket_path}")
         os.remove(socket_path)
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(socket_path)
-    server.listen(1)
+    try:
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(socket_path)
+        server.listen(1)
+        logger.info("ipc_server: Listening for connections...")
+    except Exception as e:
+        logger.exception(f"ipc_server: Failed to bind or listen on {socket_path}")
+        return
 
     while True:
         try:
+            logger.debug("ipc_server: Waiting for incoming connection...")
             conn, _ = server.accept()
+            logger.debug("ipc_server: Connection accepted.")
             data = conn.recv(1024).decode().strip()
+            logger.debug(f"ipc_server: Raw data received: {data}")
             request = unpack_message(data)
+            logger.debug(f"ipc_server: Unpacked request: {request}")
             action = request.get("action", "UNKNOWN")
-            # Dispatch
+            logger.debug(f"ipc_server: Action determined: {action}")
+
+            # Dispatch based on action.
             if action == GET_STATE:
                 response = handle_get_state(ui_instance, request)
             elif action == GET_SCANS:
@@ -90,14 +117,21 @@ def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
                 response = handle_detach_ui(ui_instance, request)
             else:
                 response = {ERROR_KEY: "UNKNOWN_COMMAND"}
-                logging.debug(f"Received unknown command: {data}")
-            logging.debug(f"Response: {response}")
+                logger.debug(f"ipc_server: Received unknown command: {data}")
+
+            logger.debug(f"ipc_server: Response generated: {response}")
             response_str = pack_message(response)
+            logger.debug(f"ipc_server: Sending response string: {response_str}")
             conn.send(response_str.encode())
             conn.shutdown(socket.SHUT_WR)
             conn.close()
+            logger.debug("ipc_server: Connection closed.")
+        except KeyboardInterrupt:
+            logger.info("ipc_server: KeyboardInterrupt received, shutting down IPC server.")
+            break
         except Exception as e:
-            print(f"IPC server error: {e}")
+            logger.exception("ipc_server: Exception in main loop")
+
 
 
 def start_ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:

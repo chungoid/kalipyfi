@@ -3,9 +3,13 @@ import curses
 import logging
 from typing import Any, List
 
+from common.logging_setup import get_log_queue, worker_configurer
+from config.constants import DEFAULT_SOCKET_PATH
 # local
 from utils import ipc
 
+log_queue = get_log_queue()
+worker_configurer(log_queue)
 
 class HcxToolSubmenu:
     def __init__(self, tool_instance):
@@ -74,7 +78,7 @@ class HcxToolSubmenu:
         """
         tool_name = getattr(self.tool, 'name', 'hcxtool')
         message = {"action": "GET_SCANS", "tool": tool_name}
-        response = ipc.send_ipc_command(message)
+        response = ipc.send_ipc_command(message, DEFAULT_SOCKET_PATH)
         scans = response.get("scans", [])
         if not scans:
             parent_win.clear()
@@ -114,7 +118,7 @@ class HcxToolSubmenu:
                         "pane_id": selected_scan.get("pane_id"),
                         "new_title": new_title
                     }
-                    swap_response = ipc.send_ipc_command(swap_message)
+                    swap_response = ipc.send_ipc_command(swap_message, DEFAULT_SOCKET_PATH)
                     parent_win.clear()
                     if swap_response.get("status") == "SWAP_SCAN_OK":
                         parent_win.addstr(0, 0, "Scan swapped successfully!")
@@ -236,35 +240,64 @@ class HcxToolSubmenu:
 
     def select_preset(self, parent_win, selected_interface: str) -> Any:
         """
-        Original scan preset selection routine.
+        Presents a menu of scan presets filtered by the selected interface.
+        The menu is independent and separate from other submenus.
+        Returns the selected preset dictionary or None if cancelled.
         """
+        logger = logging.getLogger(__name__)
+        logger.debug(f"select_preset: Filtering presets for interface '{selected_interface}'")
+
+        # Log the entire presets configuration for debugging.
         presets_dict = self.tool.presets
-        filtered = {}
-        for key, preset in presets_dict.items():
-            preset_iface = preset.get("interface", "").lower()
-            if preset_iface == selected_interface.lower() or preset_iface == "any":
-                filtered[key] = preset
+        logger.debug(f"select_preset: Full presets config: {presets_dict}")
+
+        # Filter presets into a list of (key, preset) tuples.
+        filtered = [
+            (key, preset)
+            for key, preset in presets_dict.items()
+            if preset.get("interface", "").lower() in (selected_interface.lower(), "any")
+        ]
+        logger.debug(f"select_preset: Filtered presets: {filtered}")
+
         if not filtered:
             parent_win.clear()
             parent_win.addstr(0, 0, "No presets available for this interface!")
             parent_win.refresh()
             parent_win.getch()
             return None
-        menu_items = [f"[{key}] {preset.get('description', 'No description')}" for key, preset in filtered.items()]
+
+        # Build menu items from the filtered list.
+        menu_items = [
+            f"[{idx}] {preset.get('description', 'No description')}"
+            for idx, (key, preset) in enumerate(filtered, start=1)
+        ]
+        logger.debug(f"select_preset: Generated menu items: {menu_items}")
         menu_items.append("[0] Back")
+
+        # Create a new menu window for the preset selection.
         menu_win = self.draw_menu(parent_win, "Select Scan Preset", menu_items)
+
         while True:
-            key = menu_win.getch()
+            key_input = menu_win.getch()
             try:
-                ch = chr(key)
+                ch = chr(key_input)
             except Exception:
                 continue
+            logger.debug(f"select_preset: Key pressed: {ch} (code {key_input})")
             if ch.isdigit():
-                if ch == "0":
+                selection = int(ch)
+                logger.debug(f"select_preset: Numeric selection: {selection}")
+                if selection == 0:
+                    logger.debug("select_preset: User selected Back")
                     return None
-                elif ch in filtered:
-                    return filtered[ch]
-            elif key == 27:
+                elif 1 <= selection <= len(filtered):
+                    selected_key, selected_preset = filtered[selection - 1]
+                    logger.debug(f"select_preset: User selected preset key '{selected_key}': {selected_preset}")
+                    return selected_preset
+                else:
+                    logger.debug("select_preset: Invalid numeric selection; waiting for valid input.")
+            elif key_input == 27:  # ESC key
+                logger.debug("select_preset: User pressed ESC, cancelling selection")
                 return None
 
     def __call__(self, stdscr) -> None:

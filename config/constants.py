@@ -15,6 +15,7 @@ LOG_FILE = LOG_DIR / "kalipyfi.log"
 MAIN_UI_YAML_PATH = UI_DIR / "tmuxp" / "main_tmuxp.yaml"
 BG_YAML_PATH = UI_DIR / "tmuxp" / "background_tmuxp.yaml"
 DEFAULT_ASCII = UI_DIR / "tmuxp" / "ascii.txt"
+CLEANUP_SCRIPT = UI_DIR / "tmuxp" / "cleanup.py"
 
 TOOL_PATHS = {
     "hcxtool": TOOLS_DIR / "hcxtool",

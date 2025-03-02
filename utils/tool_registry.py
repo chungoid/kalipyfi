@@ -6,7 +6,6 @@ from common.logging_setup import get_log_queue, worker_configurer
 
 log_queue = get_log_queue()
 worker_configurer(log_queue)
-logging.getLogger(__name__).debug("IPC process logging configured")
 
 class ToolRegistry:
     def __init__(self) -> None:

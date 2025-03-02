@@ -1,12 +1,13 @@
 import curses
 import logging
 import os
+from logging.handlers import QueueListener
 
-from common.logging_setup import get_log_queue, worker_configurer
-from config.constants import TOOL_PATHS
+from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
+from config.constants import TOOL_PATHS, DEFAULT_SOCKET_PATH
 from utils import ipc
-from utils.tool_registry import tool_registry
-from tools.hcxtool import hcxtool
+#from utils.tool_registry import tool_registry
+#from tools.hcxtool import hcxtool
 
 ####################################################
 ##### ensure you import each tools module here #####
@@ -14,6 +15,8 @@ from tools.hcxtool import hcxtool
 ##### they load via tool_registry / decorators #####
 ####################################################
 
+log_queue = get_log_queue()
+worker_configurer(log_queue)
 
 def draw_menu(stdscr, title, menu_items):
     h, w = stdscr.getmaxyx()
@@ -47,7 +50,7 @@ def exit_menu(stdscr):
         if ch == "1":
             # Send detach command via IPC.
             message = {"action": "DETACH_UI"}
-            response = ipc.send_ipc_command(message)
+            response = ipc.send_ipc_command(message, DEFAULT_SOCKET_PATH)
             if response:
                 stdscr.clear()
                 stdscr.addstr(0, 0, "Detach command sent. Detaching UI...")
@@ -56,7 +59,7 @@ def exit_menu(stdscr):
         elif ch == "2":
             # Send kill command via IPC.
             message = {"action": "KILL_UI"}
-            response = ipc.send_ipc_command(message)
+            response = ipc.send_ipc_command(message, DEFAULT_SOCKET_PATH)
             if response:
                 stdscr.clear()
                 stdscr.addstr(0, 0, "Kill command sent. Killing UI...")
@@ -162,4 +165,12 @@ def main_menu(stdscr):
 
 
 if __name__ == "__main__":
+    from utils.tool_registry import tool_registry
+    from tools.hcxtool import hcxtool
+    log_queue = get_log_queue()
+    listener_handlers = configure_listener_handlers()
+    listener = QueueListener(log_queue, *listener_handlers)
+    listener.start()
+    worker_configurer(log_queue)
+    logging.getLogger(__name__).debug("Main process logging configured using QueueHandler")
     curses.wrapper(main_menu)

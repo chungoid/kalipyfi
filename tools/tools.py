@@ -8,9 +8,9 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 from abc import abstractmethod
 
-
+from common.logging_setup import get_log_queue, worker_configurer
 # local
-from config.constants import BASE_DIR
+from config.constants import BASE_DIR, DEFAULT_SOCKET_PATH
 from common.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
 from utils.ipc import send_ipc_command
@@ -31,7 +31,7 @@ class Tool:
         # Ensure required directories exist.
         self._setup_directories()
 
-        # Setup logger.
+        #Setup logger.
         self.logger = logging.getLogger(f"{self.name.upper()}")
         self.logger.info(f"Initialized tool: {self.name}")
 
@@ -115,7 +115,7 @@ class Tool:
         self.logger.debug("Sending IPC scan command: %s", ipc_message)
 
         # Send the structured message; assume send_ipc_command handles JSON.
-        response = send_ipc_command(ipc_message)
+        response = send_ipc_command(ipc_message, DEFAULT_SOCKET_PATH)
 
         if isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             pane_id = response.get("pane_id")
