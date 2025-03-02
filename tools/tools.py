@@ -46,6 +46,7 @@ class Tool:
         self.interfaces = self.config_data.get("interfaces", {})
         self.presets = self.config_data.get("presets", {})
         self.defaults = self.config_data.get("defaults", {})
+        self.selected_interface = None # set in submenu
 
         # Optional Overrides.
         if interfaces:

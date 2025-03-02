@@ -72,7 +72,7 @@ class Hcxtool(Tool, ABC):
         cmd = ["hcxdumptool"]
 
         # 1. Determine the interface
-        scan_interface = self.get_scan_interface()
+        scan_interface = self.selected_interface
         cmd.extend(["-i", scan_interface])
 
         # 2. Determine the output prefix
@@ -158,7 +158,7 @@ class Hcxtool(Tool, ABC):
             self.logger.debug("Command dict built: %s", cmd_dict)
 
             # Create a pane title; the UI manager will handle pane creation
-            pane_title = f"{self.get_scan_interface()}_#{profile}"
+            pane_title = f"{self.selected_interface}_#{profile}"
             self.logger.debug(f"Using pane title: {pane_title}")
 
             # Send the structured command to the IPC server

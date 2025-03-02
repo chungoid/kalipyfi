@@ -138,6 +138,8 @@ def start_ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> Non
     """
     Starts the IPC server in a separate daemon thread.
     """
+    from utils.tool_registry import tool_registry
+    from tools.hcxtool import hcxtool
     import threading
     log_queue = get_log_queue()
     worker_configurer(log_queue)

@@ -210,10 +210,6 @@ class HcxToolSubmenu:
                 return
 
     def select_interface(self, parent_win) -> Any:
-        """
-        Presents a menu of available interfaces from the 'wlan' category.
-        Returns the selected interface name or None if cancelled.
-        """
         interfaces = self.tool.interfaces.get("wlan", [])
         available = [iface.get("name") for iface in interfaces if iface.get("name")]
         if not available:
@@ -236,7 +232,10 @@ class HcxToolSubmenu:
                     return None
                 num = int(ch)
                 if 1 <= num <= len(available):
-                    return available[num - 1]
+                    selected = available[num - 1]
+                    # Save state for later use.
+                    self.tool.selected_interface = selected
+                    return selected
             elif key == 27:
                 return None
 
