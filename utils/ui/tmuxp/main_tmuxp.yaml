@@ -1,11 +1,19 @@
 session_name: kalipyfi
+shell_command_before:
+  - cmd: source {{ BASE_DIR }}/.venv/bin/activate
+    sleep_before: 1
+    sleep_after: 1
 windows:
   - window_name: kalipyfi
     layout: main-horizontal
     options:
       main-pane-height: 70%
     panes:
-      - shell_command: "{{ UI_DIR }}/tmuxp/show_ascii.sh"
-      - shell_command: "{{ UI_DIR }}/tmuxp/main_menu.sh"
+      - shell_command:
+          - "{{ TMUXP_DIR }}/show_ascii.py"
+      - shell_command:
+          - "{{ TMUXP_DIR }}/menu_launcher.py"
         focus: true
-      - shell_command: "LOG_FILE={{ BASE_DIR }}logs/kalipyfi.log {{ UI_DIR }}/tmuxp/tail_log.sh"
+      - shell_command:
+          - "{{ TMUXP_DIR }}/tail_log.py"
+

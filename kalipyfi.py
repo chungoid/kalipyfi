@@ -1,53 +1,82 @@
-import curses
 import logging
 import os
+import signal
+import subprocess
 import time
 from pathlib import Path
 import jinja2
-from logging.handlers import QueueListener
 
-from config.constants import UI_DIR, MAIN_UI_YAML_PATH, CLEANUP_SCRIPT
+from common.process_manager import process_manager
+from config.constants import MAIN_UI_YAML_PATH, TMUXP_DIR, BASE_DIR
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
+from utils.helper import setup_signal_handlers, shutdown_flag
 from utils.ipc import start_ipc_server
-from utils.ui.main_menu import main_menu
 from utils.ui.ui_manager import UIManager
+from common.config_utils import test_config_paths
 from tools.hcxtool import hcxtool
 
 
 def main():
-    # Set up the shared log queue and start the QueueListener.
+    process_manager.register_process("main", os.getpid())
+    setup_signal_handlers()
+
+    # Set up logging with the shared log queue.
     log_queue = get_log_queue()
+    from logging.handlers import QueueListener
     listener_handlers = configure_listener_handlers()
     listener = QueueListener(log_queue, *listener_handlers)
     listener.start()
-
-    # Configure logging for the main process.
     worker_configurer(log_queue)
-    logging.getLogger(__name__).debug("Main process logging configured using QueueHandler")
+    logging.getLogger("kalipyfi_main()").debug("Main process logging configured using QueueHandler")
 
     # Load and render the tmuxp YAML template.
     with open(MAIN_UI_YAML_PATH, "r") as f:
         template_str = f.read()
     template = jinja2.Template(template_str)
-    rendered_yaml = template.render(UI_DIR=str(UI_DIR.resolve()))
+    rendered_yaml = template.render(
+        BASE_DIR=str(BASE_DIR.resolve()),
+        TMUXP_DIR=str(TMUXP_DIR.resolve())
+    )
     tmp_yaml = Path("/tmp/kalipyfi_main.yaml")
     with open(tmp_yaml, "w") as f:
         f.write(rendered_yaml)
 
-    # Launch the tmux session (this should create your UI).
-    os.system(f"tmuxp load {tmp_yaml}")
+    # Launch the tmux session using subprocess.
+    tmuxp_cmd = f"tmuxp load {tmp_yaml}"
+    logging.info(f"Launching tmux session with command: {tmuxp_cmd}")
+    tmuxp_proc = subprocess.Popen(
+        tmuxp_cmd,
+        shell=True,
+        executable="/bin/bash",
+        preexec_fn=os.setsid,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    process_manager.register_process("tmuxp", tmuxp_proc.pid)
 
-    # Now instantiate the UIManager and start the IPC server.
+    time.sleep(2)
+
+    # Instantiate UIManager and start the IPC server.
     ui_manager = UIManager(session_name="kalipyfi")
     start_ipc_server(ui_manager)
 
-    # Block to keep the main process alive.
+    time.sleep(2)
+
+    # Main loop to keep the process alive until a shutdown signal is received.
     try:
-        while True:
+        logging.info("Main process running. Press Ctrl+C to shutdown.")
+        while not shutdown_flag:
             time.sleep(1)
     except KeyboardInterrupt:
-        logging.getLogger(__name__).info("Shutting down...")
+        logging.info("KeyboardInterrupt received.")
     finally:
+        logging.info("Shutting down gracefully.")
+        try:
+            os.killpg(tmuxp_proc.pid, signal.SIGTERM)
+            logging.info("tmuxp process group terminated.")
+        except Exception as e:
+            logging.error(f"Error terminating tmuxp process group: {e}")
+        process_manager.shutdown_all()
         listener.stop()
 
 

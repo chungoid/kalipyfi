@@ -14,7 +14,7 @@ def load_yaml_config(config_path: Path, logger: logging.Logger = None) -> Dict:
     :return: The configuration as a dict, or {} on failure.
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger("config_utils:load_yaml_config")
     if not config_path.exists():
         logger.critical(f"Config file NOT FOUND at {config_path}")
         return {}

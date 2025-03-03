@@ -6,7 +6,7 @@ import time
 from common.ipc_protocol import (
     pack_message, unpack_message, handle_get_state, handle_get_scans,
     handle_send_scan, handle_swap_scan, handle_update_lock,
-    handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui
+    handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui, handle_debug_status
 )
 from common.logging_setup import worker_configurer, get_log_queue
 from config.constants import IPC_CONSTANTS, DEFAULT_SOCKET_PATH, RETRY_DELAY
@@ -29,6 +29,7 @@ UPDATE_LOCK   = IPC_CONSTANTS["actions"]["UPDATE_LOCK"]
 REMOVE_LOCK   = IPC_CONSTANTS["actions"]["REMOVE_LOCK"]
 KILL_UI       = IPC_CONSTANTS["actions"]["KILL_UI"]
 DETACH_UI     = IPC_CONSTANTS["actions"]["DETACH_UI"]
+DEBUG_STATUS = IPC_CONSTANTS["actions"]["DEBUG_STATUS"]
 
 
 def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> dict:
@@ -36,7 +37,7 @@ def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> d
     Sends a structured message (as dict) to the IPC server and returns the response as a dict.
     Extensive debugging is added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc:send_ipc_command")
     logger.debug(f"send_ipc_command: Called with message: {message} and socket_path: {socket_path}")
     attempt = 0
     while attempt < 3:
@@ -65,20 +66,19 @@ def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> d
     logger.error(f"send_ipc_command: Failed after {attempt} attempts")
     return {ERROR_KEY: f"Failed after {attempt} attempts"}
 
+
 def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
-    """
-    Starts the IPC server, listens for connections, and processes messages.
-    Extensive debugging is added.
-    """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc:ipc_server")
     logger.debug(f"ipc_server: Starting with socket_path: {socket_path}")
+
     if os.path.exists(socket_path):
         logger.debug(f"ipc_server: Removing existing socket at {socket_path}")
         os.remove(socket_path)
+
     try:
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         server.bind(socket_path)
-        server.listen(1)
+        server.listen(10)
         logger.info("ipc_server: Listening for connections...")
     except Exception as e:
         logger.exception(f"ipc_server: Failed to bind or listen on {socket_path}")
@@ -89,61 +89,83 @@ def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
             logger.debug("ipc_server: Waiting for incoming connection...")
             conn, _ = server.accept()
             logger.debug("ipc_server: Connection accepted.")
-            data = conn.recv(1024).decode().strip()
-            logger.debug(f"ipc_server: Raw data received: {data}")
-            request = unpack_message(data)
-            logger.debug(f"ipc_server: Unpacked request: {request}")
-            action = request.get("action", "UNKNOWN")
-            logger.debug(f"ipc_server: Action determined: {action}")
 
-            # Dispatch based on action.
-            if action == GET_STATE:
-                response = handle_get_state(ui_instance, request)
-            elif action == GET_SCANS:
-                response = handle_get_scans(ui_instance, request)
-            elif action == SEND_SCAN:
-                response = handle_send_scan(ui_instance, request)
-            elif action == SWAP_SCAN:
-                response = handle_swap_scan(ui_instance, request)
-            elif action == UPDATE_LOCK:
-                response = handle_update_lock(ui_instance, request)
-            elif action == REMOVE_LOCK:
-                response = handle_remove_lock(ui_instance, request)
-            elif action == STOP_SCAN:
-                response = handle_stop_scan(ui_instance, request)
-            elif action == KILL_UI:
-                response = handle_kill_ui(ui_instance, request)
-            elif action == DETACH_UI:
-                response = handle_detach_ui(ui_instance, request)
-            else:
-                response = {ERROR_KEY: "UNKNOWN_COMMAND"}
-                logger.debug(f"ipc_server: Received unknown command: {data}")
+            try:
+                data = conn.recv(1024).decode().strip()
+                if not data:
+                    logger.error("ipc_server: Received empty data, closing connection.")
+                    conn.close()
+                    continue
 
-            logger.debug(f"ipc_server: Response generated: {response}")
-            response_str = pack_message(response)
-            logger.debug(f"ipc_server: Sending response string: {response_str}")
-            conn.send(response_str.encode())
-            conn.shutdown(socket.SHUT_WR)
-            conn.close()
-            logger.debug("ipc_server: Connection closed.")
-        except KeyboardInterrupt:
-            logger.info("ipc_server: KeyboardInterrupt received, shutting down IPC server.")
-            break
-        except Exception as e:
+                logger.debug(f"ipc_server: Raw data received: {data}")
+                request = unpack_message(data)
+                logger.debug(f"ipc_server: Unpacked request: {request}")
+
+                action = request.get("action", "UNKNOWN")
+                logger.debug(f"ipc_server: Action determined: {action}")
+
+                if action == GET_STATE:
+                    response = handle_get_state(ui_instance, request)
+                elif action == DEBUG_STATUS:
+                    response = handle_debug_status(ui_instance, request)
+                elif action == GET_SCANS:
+                    response = handle_get_scans(ui_instance, request)
+                elif action == SEND_SCAN:
+                    response = handle_send_scan(ui_instance, request)
+                elif action == SWAP_SCAN:
+                    response = handle_swap_scan(ui_instance, request)
+                elif action == UPDATE_LOCK:
+                    response = handle_update_lock(ui_instance, request)
+                elif action == REMOVE_LOCK:
+                    response = handle_remove_lock(ui_instance, request)
+                elif action == STOP_SCAN:
+                    response = handle_stop_scan(ui_instance, request)
+                elif action == KILL_UI:
+                    response = handle_kill_ui(ui_instance, request)
+                elif action == DETACH_UI:
+                    response = handle_detach_ui(ui_instance, request)
+                else:
+                    response = {ERROR_KEY: "UNKNOWN_COMMAND"}
+                    logger.debug(f"ipc_server: Received unknown command: {data}")
+
+                logger.debug(f"ipc_server: Response generated: {response}")
+                response_str = pack_message(response)
+                logger.debug(f"ipc_server: Sending response string: {response_str}")
+                conn.send(response_str.encode())
+            except Exception as conn_e:
+                logger.exception("ipc_server: Exception during connection processing")
+            finally:
+                try:
+                    conn.shutdown(socket.SHUT_WR)
+                except Exception as e:
+                    logger.debug(f"ipc_server: Error during connection shutdown: {e}")
+                conn.close()
+                logger.debug("ipc_server: Connection closed.")
+        except Exception as loop_e:
             logger.exception("ipc_server: Exception in main loop")
 
 
-
 def start_ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
-    """
-    Starts the IPC server in a separate daemon thread.
-    """
-    from utils.tool_registry import tool_registry
-    from tools.hcxtool import hcxtool
-    import threading
+    from threading import Thread
+    thread = Thread(target=ipc_server, args=(ui_instance, socket_path), daemon=True)
+    thread.start()
+
     log_queue = get_log_queue()
     worker_configurer(log_queue)
-    logging.getLogger(__name__).debug("IPC process logging configured")
+    logging.getLogger("start_ipc_server()").debug("IPC process logging configured")
 
-    thread = threading.Thread(target=ipc_server, args=(ui_instance, socket_path), daemon=True)
-    thread.start()
+    # Wait until we can actually connect
+    timeout = 1
+    start_time = time.time()
+    while True:
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.connect(socket_path)
+            s.close()
+            break
+        except socket.error:
+            if time.time() - start_time > timeout:
+                break
+            time.sleep(0.1)
+
+

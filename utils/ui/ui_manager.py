@@ -1,5 +1,6 @@
 # utils/ui/ui_manager.py
 import os
+import signal
 import sys
 import time
 import logging
@@ -14,10 +15,10 @@ from config.constants import BG_YAML_PATH
 class UIManager:
     def __init__(self, session_name: str = "kalipyfi") -> None:
         """
-        Initializes the UIManager by connecting to a tmux server and ensuring
-        a tmux session with the given session_name exists.
+        Initializes the UIManager by connecting to a tmuxp server and ensuring
+        a tmuxp session with the given session_name exists.
 
-        :param session_name: The name of the tmux session to use/create.
+        :param session_name: The name of the tmuxp session to use/create.
         """
         self.logger = logging.getLogger("UIManager")
         self.server = libtmux.Server()
@@ -85,16 +86,16 @@ class UIManager:
 
     def get_session(self, session_name: str) -> Optional[libtmux.Session]:
         """
-        Retrieves an existing tmux session by name.
+        Retrieves an existing tmuxp session by name.
 
-        :param session_name: The name of the tmux session.
+        :param session_name: The name of the tmuxp session.
         :return: The libtmux.Session if found, otherwise None.
         """
         return self.server.find_where({"session_name": session_name})
 
     def create_session(self, session_name: str) -> libtmux.Session:
         """
-        Creates a new tmux session with the given name.
+        Creates a new tmuxp session with the given name.
 
         :param session_name: The desired session name.
         :return: The newly created libtmux.Session.
@@ -170,7 +171,7 @@ class UIManager:
         """
         Generates a canonical internal name for the pane.
 
-        Note: tmux does not support renaming individual panes directly. This function
+        Note: tmuxp does not support renaming individual panes directly. This function
         generates an internal name for UI mapping purposes only.
 
         :param pane: The libtmux.Pane (unused in renaming, but provided for consistency).
@@ -187,7 +188,7 @@ class UIManager:
         Creates a new pane in the specified window and generates a canonical internal name for it.
 
         Note:
-            tmux does not support renaming individual panes.
+            tmuxp does not support renaming individual panes.
 
         :param window: The libtmux.Window to create the pane in.
         :param tool_name: The name of the tool initiating the scan.
@@ -310,25 +311,25 @@ class UIManager:
 
     def detach_ui(self) -> None:
         """
-        Detaches the UI session by invoking the tmux detach-client command.
+        Detaches the UI session by invoking the tmuxp detach-client command.
         This leaves the session running in the background.
         After detaching, exit the process.
         """
         session_name = self.session_data.session_name
         self.logger.info(f"Detaching UI session: {session_name}")
-        os.system(f"tmux detach-client -s {session_name}")
-        sys.exit(0)
+        os.system(f"tmuxp detach-client -s {session_name}")
 
     def kill_ui(self) -> None:
-        """
-        Kills the UI session and all associated windows.
-        After killing the session, exit the process.
-        """
         session_name = self.session_data.session_name
         self.logger.info(f"Killing UI session: {session_name}")
-        self.session.kill_session()
+        os.system(f"tmuxp kill-server") #test, below is prior
+        #self.session.kill_session()
+        try:
+            # Kill all processes in the current process group.
+            os.killpg(os.getpgrp(), signal.SIGTERM)
+        except Exception as e:
+            self.logger.exception("Error killing process group: %s", e)
         sys.exit(0)
-
 
     #############################
     ##### STATE & DEBUGGING #####

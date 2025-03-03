@@ -1,6 +1,5 @@
 import json
 import logging
-import sys
 
 from config.constants import IPC_CONSTANTS
 
@@ -11,7 +10,7 @@ def pack_message(message: dict) -> str:
     Converts a message dictionary into a JSON string.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:pack_message")
     logger.debug(f"pack_message: Packing message: {message}")
     try:
         json_str = json.dumps(message)
@@ -27,7 +26,7 @@ def unpack_message(message_str: str) -> dict:
     Returns a dictionary with an error key if JSON decoding fails.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:unpack_message")
     logger.debug(f"unpack_message: Unpacking message string: {message_str}")
     try:
         message = json.loads(message_str)
@@ -45,7 +44,7 @@ def handle_get_state(ui_instance, request: dict) -> dict:
     Handles the GET_STATE command.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:handle_get_state")
     logger.debug("handle_get_state: Called")
     try:
         state = {"active_scans": ui_instance.active_scans}
@@ -60,7 +59,7 @@ def handle_send_scan(ui_instance, request: dict) -> dict:
     Handles the SEND_SCAN command.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:handle_send_scan")
     logger.debug(f"handle_send_scan: Received request: {request}")
     tool_name = request.get("tool")
     scan_profile = request.get("scan_profile")
@@ -85,7 +84,7 @@ def handle_get_scans(ui_instance, request: dict) -> dict:
     Handles the GET_SCANS command.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:handle_get_scans")
     logger.debug(f"handle_get_scans: Received request: {request}")
     tool_name = request.get("tool")
     if not tool_name:
@@ -105,7 +104,7 @@ def handle_swap_scan(ui_instance, request: dict) -> dict:
     Handles the SWAP_SCAN command.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:handle_swap_scan")
     logger.debug(f"handle_swap_scan: Received request: {request}")
     tool_name = request.get("tool")
     pane_id = request.get("pane_id")
@@ -126,7 +125,7 @@ def handle_stop_scan(ui_instance, request: dict) -> dict:
     Handles the STOP_SCAN command.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:handle_stop_scan")
     logger.debug(f"handle_stop_scan: Received request: {request}")
     tool_name = request.get("tool")
     pane_id = request.get("pane_id")
@@ -146,7 +145,7 @@ def handle_update_lock(ui_instance, request: dict) -> dict:
     Handles the UPDATE_LOCK command.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:handle_update_lock")
     logger.debug(f"handle_update_lock: Received request: {request}")
     iface = request.get("iface")
     tool_name = request.get("tool")
@@ -166,7 +165,7 @@ def handle_remove_lock(ui_instance, request: dict) -> dict:
     Handles the REMOVE_LOCK command.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:handle_remove_lock")
     logger.debug(f"handle_remove_lock: Received request: {request}")
     iface = request.get("iface")
     if not iface:
@@ -185,7 +184,7 @@ def handle_kill_ui(ui_instance, request: dict) -> dict:
     Handles the KILL_UI command.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:handle_kill_ui")
     logger.debug(f"handle_kill_ui: Received request: {request}")
     try:
         session_name = ui_instance.session_data.session_name
@@ -202,7 +201,7 @@ def handle_detach_ui(ui_instance, request: dict) -> dict:
     Handles the DETACH_UI command.
     Extensive logging added.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("ipc_proto:handle_detach_ui")
     logger.debug(f"handle_detach_ui: Received request: {request}")
     try:
         session_name = ui_instance.session_data.session_name
@@ -213,3 +212,15 @@ def handle_detach_ui(ui_instance, request: dict) -> dict:
     except Exception as e:
         logger.exception("handle_detach_ui: Exception occurred")
         return {ERROR_KEY: f"DETACH_UI error: {e}"}
+
+def handle_debug_status(ui_instance, request: dict) -> dict:
+    """
+    Handles the DEBUG_STATUS command.
+    Retrieves a report of the current process status from the ProcessManager.
+    """
+    logger = logging.getLogger("ipc_proto:handle_debug_status")
+    logger.debug("handle_debug_status: Called")
+    from common.process_manager import process_manager
+    report = process_manager.get_status_report()
+    logger.debug(f"handle_debug_status: Report: {report}")
+    return {"status": "DEBUG_STATUS_OK", "report": report}

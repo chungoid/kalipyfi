@@ -1,25 +1,74 @@
+#!/main_menu.py
+import os
+import sys
+import math
+import time
+import libtmux
 import curses
 import logging
-import os
-import time
+from pathlib import Path
 from logging.handlers import QueueListener
+project_base = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_base))
 
+### locals ###
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
-from config.constants import TOOL_PATHS, DEFAULT_SOCKET_PATH
 from utils import ipc
-#from utils.tool_registry import tool_registry
-#from tools.hcxtool import hcxtool
+from config.constants import TOOL_PATHS, DEFAULT_SOCKET_PATH
+from utils.helper import wait_for_ipc_socket, setup_signal_handlers, shutdown_flag
 
+def wait_for_tmux_session(session_name: str, timeout: int = 30, poll_interval: float = 0.5) -> libtmux.Session:
+    """
+    Waits until a tmux session with the given name exists and all its panes have valid (non-zero)
+    dimensions. Returns the session if found within the timeout, or raises a TimeoutError.
+    """
+    server = libtmux.Server()
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        session = server.find_where({"session_name": session_name})
+        if session:
+            valid = True
+            for window in session.windows:
+                for pane in window.panes:
+                    try:
+                        height = int(pane["pane_height"])
+                        width = int(pane["pane_width"])
+                    except (KeyError, ValueError) as e:
+                        valid = False
+                        logging.debug(f"Pane {pane['pane_id']} missing or invalid dimensions: {e}")
+                        break
+                    if height <= 0 or width <= 0:
+                        valid = False
+                        logging.debug(f"Pane {pane['pane_id']} has non-positive dimensions: height={height}, width={width}")
+                        break
+                if not valid:
+                    break
+            if valid:
+                logging.info(f"Found valid session '{session_name}' with proper pane dimensions.")
+                return session
+            else:
+                logging.debug(f"Session '{session_name}' found but waiting for valid pane dimensions.")
+        else:
+            logging.debug(f"Session '{session_name}' not found yet.")
+        time.sleep(poll_interval)
+    raise TimeoutError(f"Timeout waiting for tmux session '{session_name}' to be fully ready.")
 
-log_queue = get_log_queue()
-worker_configurer(log_queue)
 
 def draw_menu(stdscr, title, menu_items):
     h, w = stdscr.getmaxyx()
+    logging.debug(f"Terminal size: height={h}, width={w}")
+
     box_height = len(menu_items) + 4
     box_width = max(len(title), *(len(item) for item in menu_items)) + 4
     start_y = (h - box_height) // 2
     start_x = (w - box_width) // 2
+
+    logging.debug(f"Computed window dimensions: box_height={box_height}, box_width={box_width}, start_y={start_y}, start_x={start_x}")
+
+    if box_height <= 0 or box_width <= 0 or start_y < 0 or start_x < 0:
+        logging.error("Invalid window dimensions, aborting draw_menu.")
+        return
+
     win = curses.newwin(box_height, box_width, start_y, start_x)
     win.keypad(True)
     win.box()
@@ -118,24 +167,65 @@ def tools_menu(stdscr):
         elif key == 27:
             break
 
+def debug_status_menu(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Fetching process status...", curses.A_BOLD)
+    stdscr.refresh()
+
+    # Send the debug command via IPC.
+    message = {"action": "DEBUG_STATUS"}
+    response = ipc.send_ipc_command(message, DEFAULT_SOCKET_PATH)
+
+    stdscr.clear()
+    if response.get("status") == "DEBUG_STATUS_OK":
+        report = response.get("report", "No report available.")
+        stdscr.addstr(0, 0, "Process Status Report:", curses.A_BOLD)
+        stdscr.addstr(1, 0, report)
+    else:
+        stdscr.addstr(0, 0, f"Error fetching status: {response.get('error', 'Unknown error')}", curses.A_BOLD)
+
+    stdscr.addstr(curses.LINES - 1, 0, "Press any key to return...")
+    stdscr.refresh()
+    stdscr.getch()
+
+def utils_menu(stdscr):
+    curses.curs_set(0)
+    menu_items = ["[1] Status", "[0] Back"]
+    title = "Utils Menu"
+    draw_menu(stdscr, title, menu_items)
+
+    while True:
+        key = stdscr.getch()
+        try:
+            char = chr(key)
+        except Exception:
+            continue
+        if char == "1":
+            debug_status_menu(stdscr)
+            stdscr.clear()
+            stdscr.refresh()
+            draw_menu(stdscr, title, menu_items)
+        elif char == "0" or key == 27:
+            break
 
 def main_menu(stdscr):
+    setup_signal_handlers()
     # Get the shared queue
     log_queue = get_log_queue()
     worker_configurer(log_queue)
-    logging.getLogger(__name__).debug("IPC process logging configured")
+    logging.getLogger("main_menu()").debug("Entered curses Main Menu")
 
     curses.curs_set(0)
     stdscr.clear()
     stdscr.refresh()
-    # Increase delay to allow tmux pane to settle.
+    # Increase delay to allow tmuxp pane to settle.
     curses.napms(300)  # 300 milliseconds delay; adjust as needed.
 
-    menu_items = ["[1] Tools", "[0] Exit"]
+    menu_items = ["[1] Tools", "[2] Utils", "[0] Exit"]
     title = "Main Menu"
     draw_menu(stdscr, title, menu_items)
 
-    while True:
+    while not shutdown_flag:
         key = stdscr.getch()
         if key == curses.KEY_RESIZE:
             stdscr.clear()
@@ -148,49 +238,49 @@ def main_menu(stdscr):
             continue
         if char == "1":
             tools_menu(stdscr)
-            # After returning from a submenu, clear and redraw the main menu.
+            stdscr.clear()
+            stdscr.refresh()
+            draw_menu(stdscr, title, menu_items)
+        elif char == "2":
+            utils_menu(stdscr)
             stdscr.clear()
             stdscr.refresh()
             draw_menu(stdscr, title, menu_items)
         elif char == "0":
             exit_menu(stdscr)
-            # After the exit menu, if the user chose Back, redraw the main menu.
             stdscr.clear()
             stdscr.refresh()
             draw_menu(stdscr, title, menu_items)
 
 
 if __name__ == "__main__":
-
-    def wait_for_ipc_socket(socket_path, timeout=5):
-        start_time = time.time()
-        while not os.path.exists(socket_path):
-            if time.time() - start_time > timeout:
-                return False
-            time.sleep(0.1)
-        return True
-
-####################################################
-##### ensure you import each tools module here #####
-##### e.g. (from tools.hcxtool import hcxtool) #####
-##### they load via tool_registry / decorators #####
-####################################################
-
-    # import tools & registry
+### immediate process tracking
+    from common.process_manager import process_manager
+    process_manager.register_process("main_menu__main__", os.getpid())
+    setup_signal_handlers()
+### import tools to register via decorators
+### will add to tools module init later when there's more
     from utils.tool_registry import tool_registry
     from tools.hcxtool import hcxtool
-
-    # setup logs for curses menu processes
+####################################################
+##### ensure you import each tools module here #####
+####################################################
+# setup logs for curses menu processes
     log_queue = get_log_queue()
     listener_handlers = configure_listener_handlers()
     listener = QueueListener(log_queue, *listener_handlers)
     listener.start()
     worker_configurer(log_queue)
-    logging.getLogger(__name__).debug("Main process logging configured using QueueHandler")
+    logging.getLogger("main_menu").debug("Main process logging configured using QueueHandler")
+    try:
+        # let tmuxp load
+        session = wait_for_tmux_session("kalipyfi", timeout=30)
+    except TimeoutError as e:
+        logging.error(e)
+        sys.exit(1)
 
-    # wait for ipc
-    wait_for_ipc_socket(DEFAULT_SOCKET_PATH)
-
-    # run menu
+    # let ipc server startup
+    wait_for_ipc_socket()
+    # ok now go
     curses.wrapper(main_menu)
 

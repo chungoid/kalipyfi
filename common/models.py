@@ -1,4 +1,3 @@
-import sys
 from dataclasses import dataclass, field, asdict
 import time
 
@@ -41,3 +40,4 @@ class ScanData:
 
     def to_dict(self):
         return asdict(self)
+
