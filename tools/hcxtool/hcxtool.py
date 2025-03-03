@@ -28,32 +28,85 @@ class Hcxtool(Tool, ABC):
         self.logger = logging.getLogger(self.name)
         self.submenu = HcxToolSubmenu(self)
 
-
     def build_command(self) -> list:
-        preset = self.presets
-        cmd = ["hcxdumptool"]
+        """
+        Builds the hcxdumptool command based solely on the selected interface and the
+        options defined in the preset. Only options explicitly provided in the preset
+        will be added.
 
-        # 1. Determine the interface and add -i
+        Expected Behavior:
+            - The command starts with "hcxdumptool".
+            - The selected interface is appended using the "-i" flag.
+            - The output file is set using the "-w" flag, with a .pcapng extension.
+            - If "--gpsd" is True in the preset options, the command will also include
+              "--gpsd", "--nmea_pcapng", and a corresponding "--nmea_out=" argument.
+            - If "autobpf" is True in the preset options, a "--bpf=" option is added.
+            - Any other options in the preset’s "options" dictionary are processed as follows:
+                  * For boolean options: the flag is appended only if the value is True.
+                  * For non-boolean options: the flag is appended in the format "flag=value".
+
+        Returns
+        -------
+        list
+            The list of command-line arguments forming the full hcxdumptool command.
+        """
+        # Init & sudo check
+        preset = self.presets
+        if Tool.check_uuid_for_root():
+            cmd = ["hcxdumptool"]
+        else:
+            cmd = ["sudo", "hcxdumptool"]
+
+        # 1. Append the selected interface.
         scan_interface = self.selected_interface
         cmd.extend(["-i", scan_interface])
         self.logger.debug(f"Scan interface: {scan_interface}")
 
-        # 2. Generate the output prefix and add -w
+        # 2. Determine the output prefix and add the "-w" option.
         prefix = self.results_dir / self.generate_default_prefix()
+        # You might want to record the prefix for future reference.
         self.presets["output_prefix"] = str(prefix)
         pcap_file = str(prefix.with_suffix('.pcapng'))
         cmd.extend(["-w", pcap_file])
         self.logger.debug(f"Setting pcapng filepath: {pcap_file}")
 
-        # 3. Add GPS options if set
-        if preset.get("options", {}).get("--gpsd", False):
+        # 3. Process options dictionary
+        options = preset.get("options", {})
+
+        # if the preset enables GPSD, add related flags.
+        if options.get("--gpsd", False):
             cmd.append("--gpsd")
             cmd.append("--nmea_pcapng")
-            nmea_path = f"--nmea_out={prefix.with_suffix('.nmea')}"
-            cmd.append(nmea_path)
-            self.logger.debug(f"Setting NMEA filepath: {nmea_path}")
+            nmea_arg = f"--nmea_out={prefix.with_suffix('.nmea')}"
+            cmd.append(nmea_arg)
+            self.logger.debug(f"GPS options enabled: --gpsd, --nmea_pcapng, {nmea_arg}")
 
-        # 4. Add channel if set
+        # if autobpf is enabled, add the --bpf option.
+        if options.get("autobpf", False):
+            bpf_file = self.config_dir / "filter.bpf"
+            try:
+                self.autobpf_helper(scan_interface = self.selected_interface, filter_path=bpf_file,
+                                    interfaces=self.interfaces, extra_macs=self.extra_macs)
+            except Exception as e:
+                self.logger.error("Error building bpf filter in build command: " + str(e))
+            finally:
+                cmd.append(f"--bpf={bpf_file}")
+                self.logger.debug(f"Using autobpf option; adding --bpf={bpf_file}")
+
+        # Process any remaining options.
+        # (Keys we already handled are skipped.)
+        for opt, val in options.items():
+            if opt in ["--gpsd", "autobpf"]:
+                continue
+            if isinstance(val, bool):
+                if val:
+                    cmd.append(opt)
+                    self.logger.debug(f"Added flag: {opt}")
+            elif val is not None:
+                cmd.append(f"{opt}={val}")
+                self.logger.debug(f"Added option: {opt}={val}")
+
+        # 4. (Optional) Process channel options if defined outside of options.
         if "channel" in preset:
             channel_value = preset["channel"]
             if isinstance(channel_value, list):
@@ -64,22 +117,6 @@ class Hcxtool(Tool, ABC):
                     channel_str = ",".join(channel_str.split())
             cmd.extend(["-c", channel_str])
             self.logger.debug(f"Setting channel(s): {channel_str}")
-
-        # 5. Add autobpf option if true
-        if preset.get("autobpf", False):
-            bpf_file = self.config_dir / "filter.bpf"
-            self.logger.debug(f"Using auto-generated BPF filter: {bpf_file}")
-            cmd.append(f"--bpf={bpf_file}")
-
-        # 6. Build
-        if "options" in preset:
-            for opt, val in preset["options"].items():
-                # Only add the option if val is not false.
-                if isinstance(val, bool):
-                    if val:
-                        cmd.append(opt)
-                elif val is not None:
-                    cmd.append(f"{opt}={val}")
 
         self.logger.debug("Finished building command: " + " ".join(cmd))
         return cmd

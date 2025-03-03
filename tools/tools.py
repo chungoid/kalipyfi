@@ -50,6 +50,7 @@ class Tool:
         self.presets = self.config_data.get("presets", {})
         self.defaults = self.config_data.get("defaults", {})
         self.selected_interface = None # set in submenu
+        self.extra_macs = None # set in submenu (future addon)
 
         # Optional Overrides
         if interfaces:
@@ -221,8 +222,7 @@ class Tool:
 
     @staticmethod
     def check_uuid_for_root() -> bool:
-        if os.getuid() == 0:
-            return True
+        return os.getuid() == 0
 
     @staticmethod
     def normalize_cmd_options(key: str) -> str:

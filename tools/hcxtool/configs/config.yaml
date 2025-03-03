@@ -19,45 +19,43 @@ interfaces:
 presets:
   1:
     description: "aggressive"
-    autobpf: True
     options:
+      "autobpf": True
       "--gpsd": True
       "-A": True
       "-F": True
 
   2:
     description: "passive"
-    autobpf: True
     options:
+      "autobpf": True
       "--gpsd": True
       "--attemptapmax": 0
       "-F": True
 
   3:
-    description: "rca a"
-    autobpf: True
+    description: "silent"
     options:
+      "--gpsd": True
+      "--attemptapmax": 0
+      "--disable_beacon": True
+      "-F": True
+
+  4:
+    description: "rca a"
+    options:
+      "autobpf": True
       "--gpsd": True
       "--rcascan": a
       "-A": True
       "-F": True
 
-  4:
-    description: "rca p"
-    autobpf: true
-    options:
-      "--gpsd": true
-      "--rcascan": p
-      "-F": true
-      "-A": true
-
   5:
-    description: "auto iface essid"
-    autobpf: true
+    description: "rca p"
     options:
-      "--gpsd": true
-      "--essidlist": default
-      "-A": true
-      "-F": true
-
+      "autobpf": True
+      "--gpsd": True
+      "--rcascan": p
+      "-F": True
+      "-A": True
 
