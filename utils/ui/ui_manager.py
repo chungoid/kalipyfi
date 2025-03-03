@@ -322,8 +322,7 @@ class UIManager:
     def kill_ui(self) -> None:
         session_name = self.session_data.session_name
         self.logger.info(f"Killing UI session: {session_name}")
-        os.system(f"tmuxp kill-server") #test, below is prior
-        #self.session.kill_session()
+        self.session.kill_session()
         try:
             # Kill all processes in the current process group.
             os.killpg(os.getpgrp(), signal.SIGTERM)

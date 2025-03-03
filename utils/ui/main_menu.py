@@ -15,43 +15,8 @@ sys.path.insert(0, str(project_base))
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
 from utils import ipc
 from config.constants import TOOL_PATHS, DEFAULT_SOCKET_PATH
-from utils.helper import wait_for_ipc_socket, setup_signal_handlers, shutdown_flag
-
-def wait_for_tmux_session(session_name: str, timeout: int = 30, poll_interval: float = 0.5) -> libtmux.Session:
-    """
-    Waits until a tmux session with the given name exists and all its panes have valid (non-zero)
-    dimensions. Returns the session if found within the timeout, or raises a TimeoutError.
-    """
-    server = libtmux.Server()
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        session = server.find_where({"session_name": session_name})
-        if session:
-            valid = True
-            for window in session.windows:
-                for pane in window.panes:
-                    try:
-                        height = int(pane["pane_height"])
-                        width = int(pane["pane_width"])
-                    except (KeyError, ValueError) as e:
-                        valid = False
-                        logging.debug(f"Pane {pane['pane_id']} missing or invalid dimensions: {e}")
-                        break
-                    if height <= 0 or width <= 0:
-                        valid = False
-                        logging.debug(f"Pane {pane['pane_id']} has non-positive dimensions: height={height}, width={width}")
-                        break
-                if not valid:
-                    break
-            if valid:
-                logging.info(f"Found valid session '{session_name}' with proper pane dimensions.")
-                return session
-            else:
-                logging.debug(f"Session '{session_name}' found but waiting for valid pane dimensions.")
-        else:
-            logging.debug(f"Session '{session_name}' not found yet.")
-        time.sleep(poll_interval)
-    raise TimeoutError(f"Timeout waiting for tmux session '{session_name}' to be fully ready.")
+from utils.helper import (wait_for_ipc_socket, wait_for_tmux_session,
+                          setup_signal_handlers, shutdown_flag)
 
 
 def draw_menu(stdscr, title, menu_items):
@@ -109,6 +74,8 @@ def exit_menu(stdscr):
                 stdscr.clear()
                 stdscr.addstr(0, 0, "Kill command sent. Killing UI...")
                 stdscr.refresh()
+                process_manager.shutdown()
+                listener.stop()
         elif ch == "0" or key == 27:
             # Return to main menu.
             break
@@ -261,10 +228,10 @@ if __name__ == "__main__":
 ### import tools to register via decorators
 ### will add to tools module init later when there's more
     from utils.tool_registry import tool_registry
-    from tools.hcxtool import hcxtool
-####################################################
+    from tools.hcxtool import hcxtool # do this for all tools here
+
 ##### ensure you import each tools module here #####
-####################################################
+
 # setup logs for curses menu processes
     log_queue = get_log_queue()
     listener_handlers = configure_listener_handlers()

@@ -4,7 +4,9 @@ import time
 import logging
 import inspect
 import signal
+import libtmux
 
+# local
 from config.constants import DEFAULT_SOCKET_PATH
 
 shutdown_flag = False
@@ -17,6 +19,42 @@ def handle_shutdown_signal(signum, frame):
 def setup_signal_handlers():
     signal.signal(signal.SIGTERM, handle_shutdown_signal)
     signal.signal(signal.SIGINT, handle_shutdown_signal)
+
+def wait_for_tmux_session(session_name: str, timeout: int = 30, poll_interval: float = 0.5) -> libtmux.Session:
+    """
+    Waits until a tmux session with the given name exists and all its panes have valid (non-zero)
+    dimensions. Returns the session if found within the timeout, or raises a TimeoutError.
+    """
+    server = libtmux.Server()
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        session = server.find_where({"session_name": session_name})
+        if session:
+            valid = True
+            for window in session.windows:
+                for pane in window.panes:
+                    try:
+                        height = int(pane["pane_height"])
+                        width = int(pane["pane_width"])
+                    except (KeyError, ValueError) as e:
+                        valid = False
+                        logging.debug(f"Pane {pane['pane_id']} missing or invalid dimensions: {e}")
+                        break
+                    if height <= 0 or width <= 0:
+                        valid = False
+                        logging.debug(f"Pane {pane['pane_id']} has non-positive dimensions: height={height}, width={width}")
+                        break
+                if not valid:
+                    break
+            if valid:
+                logging.info(f"Found valid session '{session_name}' with proper pane dimensions.")
+                return session
+            else:
+                logging.debug(f"Session '{session_name}' found but waiting for valid pane dimensions.")
+        else:
+            logging.debug(f"Session '{session_name}' not found yet.")
+        time.sleep(poll_interval)
+    raise TimeoutError(f"Timeout waiting for tmux session '{session_name}' to be fully ready.")
 
 def wait_for_ipc_socket(socket_path: str=DEFAULT_SOCKET_PATH, timeout: float=5, retry_delay: float=0.1) -> bool:
     """
