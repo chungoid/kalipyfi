@@ -1,3 +1,5 @@
+import os
+import shutil
 import socket
 import subprocess
 import time
@@ -10,6 +12,10 @@ import libtmux
 from config.constants import DEFAULT_SOCKET_PATH
 
 shutdown_flag = False
+
+def cleanup_tmp():
+    if os.path.exists("/tmp/kalipyfi_main.yaml"):
+        os.remove("/tmp/kalipyfi_main.yaml")
 
 def handle_shutdown_signal(signum, frame):
     global shutdown_flag

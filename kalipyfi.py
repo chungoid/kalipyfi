@@ -11,7 +11,7 @@ import jinja2
 from common.process_manager import process_manager
 from config.constants import MAIN_UI_YAML_PATH, TMUXP_DIR, BASE_DIR
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
-from utils.helper import setup_signal_handlers, shutdown_flag, wait_for_tmux_session
+from utils.helper import setup_signal_handlers, shutdown_flag, wait_for_tmux_session, cleanup_tmp
 from utils.ipc import start_ipc_server
 from utils.ui.ui_manager import UIManager
 from common.config_utils import test_config_paths
@@ -22,6 +22,7 @@ def main():
     # process tracking / signal handler
     process_manager.register_process("main", os.getpid())
     setup_signal_handlers()
+    cleanup_tmp()
 
     # log queue
     log_queue = get_log_queue()
@@ -72,6 +73,7 @@ def main():
         logging.info("Kalipyfi successfully shutdown")
     except Exception as e:
         logging.error(f"Error shutting down: {e}")
+    cleanup_tmp()
     process_manager.shutdown_all()
     listener.stop()
     sys.exit(0)
