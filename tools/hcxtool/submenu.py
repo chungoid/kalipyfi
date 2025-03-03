@@ -300,6 +300,29 @@ class HcxToolSubmenu:
                 logger.debug("select_preset: User pressed ESC, cancelling selection")
                 return None
 
+    #####################
+    ##### UTILITIES #####
+    #####################
+
+    def configure_wpasec(self, stdscr):
+        stdscr.clear()
+        stdscr.addstr(0, 0, "Enter your WPA-sec API key: ")
+        stdscr.refresh()
+        curses.echo()
+        new_key = stdscr.getstr(1, 0).decode('utf-8').strip()
+        curses.noecho()
+
+        try:
+            self.set_key(["wpa-sec", "api_key"], new_key)
+            stdscr.clear()
+            stdscr.addstr(0, 0, "WPA-sec API key updated successfully!")
+        except Exception as e:
+            stdscr.clear()
+            stdscr.addstr(0, 0, f"Error updating WPA-sec API key: {e}")
+        stdscr.refresh()
+        stdscr.getch()
+
+
     def __call__(self, stdscr) -> None:
         """
         Launches the HCXTool submenu with top-level options.

@@ -193,6 +193,21 @@ class Tool:
         return
 
 
+    def set_key(self, key_path: list, new_value) -> None:
+        """
+        Update the tool's configuration file by setting the nested key specified in key_path to new_value.
+
+        Example:
+            self.set_key(["wpa-sec", "api_key"], "your-new-key")
+
+        Args:
+            key_path (list): List of keys for the nested config (e.g. ["wpa-sec", "api_key"]).
+            new_value: The new value to set.
+        """
+        config_path = self.config_file
+        Tool.set_config_key(config_path, key_path, new_value)
+
+
     @staticmethod
     def normalize_cmd_options(key: str) -> str:
         """Ensure an option key starts with appropriate dashes."""
@@ -217,8 +232,8 @@ class Tool:
     def cmd_to_string(cmd_list: list) -> str:
         """
         turn full cmd's from list format to string.
-        :param cmd_list:
-        :return:
+        :param cmd_list: list: the command to turn into string.
+        :return: str: the string representation of the command.
         """
         logging.debug(f"received command list: {cmd_list}")
         cmd_str = None
@@ -235,8 +250,8 @@ class Tool:
         """
         Execute a shell command and return its output.
 
-        Parameters:
-            command (str): The command to execute.
+        :param command: str: The command to execute.
+        :return: command string
 
         Returns:
             Optional[str]: The command output if successful; otherwise, None.
@@ -255,7 +270,45 @@ class Tool:
     def generate_default_prefix() -> str:
         """
         d-m-h-m format, same pcapng/nmea file prefix
-        Returns:
-            str: The generated prefix string.
+        :returns str: Default prefix
         """
         return datetime.now().strftime("%d-%m_%H:%M")
+
+
+    @staticmethod
+    def set_config_key(config_path: Path, key_path: list, new_value) -> None:
+        """
+        Update the configuration YAML file at config_path by setting the nested key specified
+        in key_path (a list of keys) to new_value. Used to help users create configs while
+        in the menu rather than independently editing the yaml.
+
+        :param config_path: Path to the configuration file.
+        :param key_path: List of keys to set.
+        :param new_value: New value to set.
+        """
+        import yaml
+
+        try:
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f) or {}
+        except Exception as e:
+            logging.error(f"Failed to load configuration file {config_path}: {e}")
+            raise
+
+        # Navigate to the nested key
+        sub_config = config
+        for key in key_path[:-1]:
+            if key not in sub_config or not isinstance(sub_config[key], dict):
+                sub_config[key] = {}
+            sub_config = sub_config[key]
+
+        # Update the key
+        sub_config[key_path[-1]] = new_value
+
+        try:
+            with open(config_path, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
+            logging.info(f"Updated {'.'.join(key_path)} to {new_value} in {config_path}")
+        except Exception as e:
+            logging.error(f"Failed to write updated configuration to {config_path}: {e}")
+            raise

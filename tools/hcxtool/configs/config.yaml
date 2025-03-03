@@ -4,24 +4,22 @@ user:
 interfaces:
   wlan:
     - name: wlan0
-      description: "Hotspot"
-      role: hotspot
+      description: "hotspot"
       locked: true
     - name: wlan1
-      description: "Monitor"
-      role: monitor
+      description: "monitor"
+      locked: false
     - name: wlan2
-      description: "Monitor"
-      role: monitor
+      description: "monitor"
+      locked: false
     - name: wlan3
-      description: "Client"
-      role: client
-      locked: true
+      description: "client"
+      locked: false
 
 presets:
   1:
     description: "aggressive"
-    auto_bpf: true
+    autobpf: true
     options:
       "--gpsd": true
       "-A": true
@@ -37,7 +35,7 @@ presets:
 
   3:
     description: "rca a"
-    auto_bpf: true
+    autobpf: true
     options:
       "--gpsd": true
       "--rcascan": a
@@ -46,7 +44,7 @@ presets:
 
   4:
     description: "rca p"
-    auto_bpf: true
+    autobpf: true
     options:
       "--gpsd": true
       "--rcascan": p
@@ -55,46 +53,47 @@ presets:
 
   5:
     description: "auto iface essid"
-    auto_bpf: true
+    autobpf: true
     options:
       "--gpsd": true
       "--essidlist": default
       "-A": true
       "-F": true
 
-
-### DO NOT TOUCH. THEY'RE DEFAULT OPTIONS HCXTOOL.PY LOADS FOR AWARENESS OF AVAILABLE OPTIONS. ###
+###############################################################################
+### IF YOU ADJUST DEFAULTS BELOW THEY WILL BE ADDED TO ALL SCANS BY DEFAULT ###
+###############################################################################
 
 defaults:
-      "--bpf": "default"
-      "--essidlist": None
-      "-c": None
-      "-f": None
-      "-F": False
-      "-t": None
-      "-A": False
-      "--gpsd": False
-      "--nmea_out": None
-      "--nmea_pcapng": False
-      "--nmea_dev": None
-      "--rcascan": None
-      "--rds": None
-      "--disable_deauthentication": False
-      "--disable_proberequest": False
-      "--disable_association": False
-      "--disable_reassociation": False
-      "--disable_beacon": False
-      "--proberesponsetx": None
-      "--errormax": None
-      "--watchdogmax": None
-      "--attemptclientmax": None
-      "--attemptapmax": None
-      "--tot": None
-      "--exitoneapol": None
-      "--onsigterm": None
-      "--ongpiobutton": None
-      "--ontot": None
-      "--onwatchdog": None
-      "--onerror": None
-      "--gpio_button": None
-      "--gpio_statusled": None
+  "--bpf": false
+  "--essidlist": false
+  "-c": false
+  "-f": false
+  "-F": false
+  "-t": false
+  "-A": false
+  "--gpsd": false
+  "--nmea_out": false
+  "--nmea_pcapng": false
+  "--nmea_dev": false
+  "--rcascan": false
+  "--rds": false
+  "--disable_deauthentication": false
+  "--disable_proberequest": false
+  "--disable_association": false
+  "--disable_reassociation": false
+  "--disable_beacon": false
+  "--proberesponsetx": false
+  "--errormax": false
+  "--watchdogmax": false
+  "--attemptclientmax": false
+  "--attemptapmax": false
+  "--tot": false
+  "--exitoneapol": false
+  "--onsigterm": false
+  "--ongpiobutton": false
+  "--ontot": false
+  "--onwatchdog": false
+  "--onerror": false
+  "--gpio_button": false
+  "--gpio_statusled": false
