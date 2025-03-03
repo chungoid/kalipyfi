@@ -8,7 +8,24 @@ ERROR_KEY = IPC_CONSTANTS["keys"]["ERROR_KEY"]
 def pack_message(message: dict) -> str:
     """
     Converts a message dictionary into a JSON string.
-    Extensive logging added.
+
+    Expected Format:
+        A Python dictionary representing the message to be sent.
+
+    Parameters
+    ----------
+    message : dict
+        The message data to be serialized into JSON.
+
+    Returns
+    -------
+    str
+        The resulting JSON string.
+
+    Raises
+    ------
+    Exception
+        If there is an error during JSON serialization.
     """
     logger = logging.getLogger("ipc_proto:pack_message")
     logger.debug(f"pack_message: Packing message: {message}")
@@ -23,8 +40,20 @@ def pack_message(message: dict) -> str:
 def unpack_message(message_str: str) -> dict:
     """
     Converts a JSON string into a message dictionary.
-    Returns a dictionary with an error key if JSON decoding fails.
-    Extensive logging added.
+
+    Expected Format:
+        A JSON-formatted string representing the message.
+
+    Parameters
+    ----------
+    message_str : str
+        The JSON string to be deserialized.
+
+    Returns
+    -------
+    dict
+        The resulting message dictionary. If JSON decoding fails, returns a dictionary
+        with an error key.
     """
     logger = logging.getLogger("ipc_proto:unpack_message")
     logger.debug(f"unpack_message: Unpacking message string: {message_str}")
@@ -41,8 +70,28 @@ def unpack_message(message_str: str) -> dict:
 
 def handle_get_state(ui_instance, request: dict) -> dict:
     """
-    Handles the GET_STATE command.
-    Extensive logging added.
+    Handles the GET_STATE command by retrieving the current state of the UI.
+
+    Expected Format:
+        {
+            "action": "GET_STATE",
+            // additional optional keys may be present
+        }
+
+    Parameters
+    ----------
+    ui_instance : object
+        The UI manager instance containing the current state.
+    request : dict
+        The request dictionary for the GET_STATE command.
+
+    Returns
+    -------
+    dict
+        A dictionary with keys:
+            "status": "OK" if successful,
+            "state": containing state information (e.g. active scans),
+        or an error dictionary if an exception occurs.
     """
     logger = logging.getLogger("ipc_proto:handle_get_state")
     logger.debug("handle_get_state: Called")
@@ -56,7 +105,30 @@ def handle_get_state(ui_instance, request: dict) -> dict:
 
 def handle_send_scan(ui_instance, request: dict) -> dict:
     """
-    Handles the SEND_SCAN command.
+    Handles the SEND_SCAN command by allocating a new scan pane and launching the scan command.
+
+    Expected Format:
+        {
+            "action": "SEND_SCAN",
+            "tool": <tool_name>,
+            "scan_profile": <scan_profile>,
+            "command": <cmd_dict>,  // A dictionary with keys 'executable' and 'arguments'
+            "timestamp": <timestamp>  // (Optional) A timestamp value
+        }
+
+    Parameters
+    ----------
+    ui_instance : object
+        The UI manager instance responsible for scan operations.
+    request : dict
+        The request dictionary for the SEND_SCAN command.
+
+    Returns
+    -------
+    dict
+        A dictionary with:
+            "status": "SEND_SCAN_OK" and "pane_id": <pane_id> if successful,
+        or an error dictionary with an appropriate error message.
     """
     logger = logging.getLogger("ipc_proto:handle_send_scan")
     logger.debug(f"handle_send_scan: Received request: {request}")
@@ -80,8 +152,27 @@ def handle_send_scan(ui_instance, request: dict) -> dict:
 
 def handle_get_scans(ui_instance, request: dict) -> dict:
     """
-    Handles the GET_SCANS command.
-    Extensive logging added.
+     Handles the GET_SCANS command by retrieving a list of active scans for a specified tool.
+
+    Expected Format:
+        {
+            "action": "GET_SCANS",
+            "tool": <tool_name>
+        }
+
+    Parameters
+    ----------
+    ui_instance : object
+        The UI manager instance containing scan information.
+    request : dict
+        The request dictionary for the GET_SCANS command.
+
+    Returns
+    -------
+    dict
+        A dictionary with:
+            "status": "OK" and "scans": <list of scans> if successful,
+        or an error dictionary if an exception occurs.
     """
     logger = logging.getLogger("ipc_proto:handle_get_scans")
     logger.debug(f"handle_get_scans: Received request: {request}")
@@ -98,11 +189,32 @@ def handle_get_scans(ui_instance, request: dict) -> dict:
         logger.exception("handle_get_scans: Exception occurred")
         return {ERROR_KEY: str(e)}
 
+
 def handle_swap_scan(ui_instance, request: dict) -> dict:
     """
     Handles the SWAP_SCAN command.
-    Extensive logging added.
+
+    Expected Format:
+        {
+            "tool": <tool_name>,
+            "pane_id": <pane_id>,
+            "new_title": <new_title>
+        }
+
+    Parameters
+    ----------
+    ui_instance : object
+        The UI manager instance that will process the command.
+    request : dict
+        A dictionary containing the SWAP_SCAN parameters.
+
+    Returns
+    -------
+    dict
+        A dictionary containing either a success status ("SWAP_SCAN_OK") or an error message
+        with the key specified by ERROR_KEY.
     """
+
     logger = logging.getLogger("ipc_proto:handle_swap_scan")
     logger.debug(f"handle_swap_scan: Received request: {request}")
     tool_name = request.get("tool")
@@ -119,10 +231,31 @@ def handle_swap_scan(ui_instance, request: dict) -> dict:
         logger.exception("handle_swap_scan: Exception occurred")
         return {ERROR_KEY: f"SWAP_SCAN error: {e}"}
 
+
 def handle_stop_scan(ui_instance, request: dict) -> dict:
     """
-    Handles the STOP_SCAN command.
-    Extensive logging added.
+     Handles the STOP_SCAN command by terminating the scan running in a specified pane.
+
+    Expected Format:
+        {
+            "action": "STOP_SCAN",
+            "tool": <tool_name>,
+            "pane_id": <pane_id>
+        }
+
+    Parameters
+    ----------
+    ui_instance : object
+        The UI manager instance that will stop the scan.
+    request : dict
+        A dictionary containing the STOP_SCAN parameters.
+
+    Returns
+    -------
+    dict
+        A dictionary with:
+            "status": "STOP_SCAN_OK" if successful,
+        or an error dictionary if parameters are missing or an exception occurs.
     """
     logger = logging.getLogger("ipc_proto:handle_stop_scan")
     logger.debug(f"handle_stop_scan: Received request: {request}")
@@ -139,10 +272,31 @@ def handle_stop_scan(ui_instance, request: dict) -> dict:
         logger.exception("handle_stop_scan: Exception occurred")
         return {ERROR_KEY: f"STOP_SCAN error: {e}"}
 
+
 def handle_update_lock(ui_instance, request: dict) -> dict:
     """
-    Handles the UPDATE_LOCK command.
-    Extensive logging added.
+     Handles the UPDATE_LOCK command by setting the lock status of a specified interface.
+
+    Expected Format:
+        {
+            "action": "UPDATE_LOCK",
+            "tool": <tool_name>,
+            "iface": <interface>
+        }
+
+    Parameters
+    ----------
+    ui_instance : object
+        The UI manager instance that manages interface locks.
+    request : dict
+        A dictionary containing the UPDATE_LOCK parameters.
+
+    Returns
+    -------
+    dict
+        A dictionary with:
+            "status": "UPDATE_LOCK_OK" if the interface is locked successfully,
+        or an error dictionary if parameters are missing or an exception occurs.
     """
     logger = logging.getLogger("ipc_proto:handle_update_lock")
     logger.debug(f"handle_update_lock: Received request: {request}")
@@ -159,10 +313,30 @@ def handle_update_lock(ui_instance, request: dict) -> dict:
         logger.exception("handle_update_lock: Exception occurred")
         return {ERROR_KEY: f"UPDATE_LOCK error: {e}"}
 
+
 def handle_remove_lock(ui_instance, request: dict) -> dict:
     """
-    Handles the REMOVE_LOCK command.
-    Extensive logging added.
+     Handles the REMOVE_LOCK command by unlocking a specified interface.
+
+    Expected Format:
+        {
+            "action": "REMOVE_LOCK",
+            "iface": <interface>
+        }
+
+    Parameters
+    ----------
+    ui_instance : object
+        The UI manager instance that manages interface locks.
+    request : dict
+        A dictionary containing the REMOVE_LOCK parameters.
+
+    Returns
+    -------
+    dict
+        A dictionary with:
+            "status": "REMOVE_LOCK_OK" if successful,
+        or an error dictionary if the interface parameter is missing or an exception occurs.
     """
     logger = logging.getLogger("ipc_proto:handle_remove_lock")
     logger.debug(f"handle_remove_lock: Received request: {request}")
@@ -178,10 +352,29 @@ def handle_remove_lock(ui_instance, request: dict) -> dict:
         logger.exception("handle_remove_lock: Exception occurred")
         return {ERROR_KEY: f"REMOVE_LOCK error: {e}"}
 
+
 def handle_kill_ui(ui_instance, request: dict) -> dict:
     """
-    Handles the KILL_UI command.
-    Extensive logging added.
+    Handles the KILL_UI command by terminating the UI session.
+
+    Expected Format:
+        {
+            "action": "KILL_UI"
+        }
+
+    Parameters
+    ----------
+    ui_instance : object
+        The UI manager instance that controls the UI session.
+    request : dict
+        A dictionary containing the KILL_UI command.
+
+    Returns
+    -------
+    dict
+        A dictionary with:
+            "status": "KILL_UI_OK" if the UI session is killed successfully,
+        or an error dictionary if an exception occurs.
     """
     logger = logging.getLogger("ipc_proto:handle_kill_ui")
     logger.debug(f"handle_kill_ui: Received request: {request}")
@@ -195,10 +388,29 @@ def handle_kill_ui(ui_instance, request: dict) -> dict:
         logger.exception("handle_kill_ui: Exception occurred")
         return {ERROR_KEY: f"KILL_UI error: {e}"}
 
+
 def handle_detach_ui(ui_instance, request: dict) -> dict:
     """
-    Handles the DETACH_UI command.
-    Extensive logging added.
+    Handles the DETACH_UI command by detaching the UI session.
+
+    Expected Format:
+        {
+            "action": "DETACH_UI"
+        }
+
+    Parameters
+    ----------
+    ui_instance : object
+        The UI manager instance that controls the UI session.
+    request : dict
+        A dictionary containing the DETACH_UI command.
+
+    Returns
+    -------
+    dict
+        A dictionary with:
+            "status": "DETACH_UI_OK" if the UI session is detached successfully,
+        or an error dictionary if an exception occurs.
     """
     logger = logging.getLogger("ipc_proto:handle_detach_ui")
     logger.debug(f"handle_detach_ui: Received request: {request}")
@@ -212,10 +424,29 @@ def handle_detach_ui(ui_instance, request: dict) -> dict:
         logger.exception("handle_detach_ui: Exception occurred")
         return {ERROR_KEY: f"DETACH_UI error: {e}"}
 
+
 def handle_debug_status(ui_instance, request: dict) -> dict:
     """
-    Handles the DEBUG_STATUS command.
-    Retrieves a report of the current process status from the ProcessManager.
+    Handles the DEBUG_STATUS command by retrieving a report of the current process status.
+
+    Expected Format:
+        {
+            "action": "DEBUG_STATUS"
+        }
+
+    Parameters
+    ----------
+    ui_instance : object
+        The UI manager instance that contains process tracking information.
+    request : dict
+        A dictionary containing the DEBUG_STATUS command.
+
+    Returns
+    -------
+    dict
+        A dictionary with:
+            "status": "DEBUG_STATUS_OK" and "report": <status report string>,
+        or an error dictionary if an exception occurs.
     """
     logger = logging.getLogger("ipc_proto:handle_debug_status")
     logger.debug("handle_debug_status: Called")

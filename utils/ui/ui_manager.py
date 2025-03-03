@@ -298,6 +298,53 @@ class UIManager:
     ############################
     ##### USER INTERACTION #####
     ############################
+
+    def swap_scan(self, tool_name: str, pane_id: str, new_title: str) -> None:
+        """
+        Updates the title (internal name) of a scan pane in the UI manager.
+
+        Expected Format:
+            {
+                "tool": <tool_name>,
+                "pane_id": <pane_id>,
+                "new_title": <new_title>
+            }
+
+        Parameters
+        ----------
+        tool_name : str
+            The name of the tool associated with the scan.
+        pane_id : str
+            The unique identifier of the pane whose title is to be updated.
+        new_title : str
+            The new title to assign to the scan pane for internal tracking.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        KeyError
+            If no active scan is found for the given pane_id.
+        """
+        # retrieve the active scan data from the UIManager's registry
+        if pane_id not in self.active_scans:
+            self.logger.error(f"No active scan found for pane_id: {pane_id}")
+            raise KeyError(f"No active scan found for pane_id: {pane_id}")
+
+        # verify the pane still exists
+        pane = self._find_pane_by_id(pane_id)
+        if not pane:
+            self.logger.warning(f"Pane {pane_id} is not currently found; updating internal record only.")
+
+        # update the internal name of the scan data
+        scan_data = self.active_scans[pane_id]
+        old_title = scan_data.internal_name
+        scan_data.internal_name = new_title
+        self.logger.info(f"Swapped scan title for pane {pane_id}: '{old_title}' -> '{new_title}'")
+
+
     def get_lock_status(self, interface: str) -> bool:
         """
         Retrieves the lock status for the given interface.
@@ -307,6 +354,7 @@ class UIManager:
         """
         iface_data = self.interfaces.get(interface)
         return iface_data.lock_status if iface_data else False
+
 
     def stop_scan(self, pane_id: str) -> None:
         """
@@ -325,6 +373,7 @@ class UIManager:
                     self.logger.info(f"Stopped scan in pane {pane_id} (window: {scan_data.window_name}).")
             del self.active_scans[pane_id]
 
+
     def detach_ui(self) -> None:
         """
         Detaches the UI session by invoking the tmuxp detach-client command.
@@ -334,6 +383,7 @@ class UIManager:
         session_name = self.session_data.session_name
         self.logger.info(f"Detaching UI session: {session_name}")
         os.system(f"tmuxp detach-client -s {session_name}")
+
 
     def kill_ui(self) -> None:
         session_name = self.session_data.session_name
