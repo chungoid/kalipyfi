@@ -26,42 +26,14 @@ class Hcxtool(Tool, ABC):
 
         self.submenu = HcxToolSubmenu(self)
 
-
     def get_scan_interface(self) -> str:
         """
-        Determine the scanning interface based on the available presets and global interface configuration.
-
-        If the preset interface is set to "any", this function chooses the first available unlocked interface
-        from self.interfaces (from the "wlan" category). Otherwise, it validates and returns the preset interface.
-
-        Raises:
-            ValueError: If no suitable interface is found.
+        Returns the selected interface that was set via the submenu.
         """
-        preset_iface = self.presets.get("interface")
-        if not preset_iface:
-            raise ValueError("No interface specified in the scan settings.")
-
-        # If the preset is "any", choose an unlocked interface.
-        if preset_iface.lower() == "any":
-            # interfaces from config.yaml as dict
-            for category, iface_list in self.interfaces.items():
-                for iface in iface_list:
-                    iface_name = iface.get("name")
-                    if iface_name:
-                        # Ensure interface isn't marked as locked.
-                        if not iface.get("locked", False):
-                            # Additionally, ensure the interface exists on the system.
-                            if os.path.isdir(f"/sys/class/net/{iface_name}"):
-                                self.logger.info(f"Selected unlocked interface: {iface_name}")
-                                return iface_name
-            raise ValueError("No unlocked interface available.")
+        if self.selected_interface:
+            return self.selected_interface
         else:
-            # If a specific interface is provided, validate that it exists.
-            if os.path.isdir(f"/sys/class/net/{preset_iface}"):
-                return preset_iface
-            else:
-                raise ValueError(f"Interface '{preset_iface}' not found in /sys/class/net/")
-
+            raise ValueError("No interface has been selected. Please select an interface via the submenu.")
 
     def build_command(self) -> list:
         """
@@ -72,7 +44,6 @@ class Hcxtool(Tool, ABC):
         preset = self.presets
         cmd = ["hcxdumptool"]
 
-        # todo logging note
         for p in preset:
             self.logger.info(f"preset {p}")
 
