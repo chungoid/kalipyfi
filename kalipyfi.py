@@ -2,6 +2,7 @@ import logging
 import os
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 import jinja2
@@ -73,6 +74,7 @@ def main():
         logging.error(f"Error shutting down: {e}")
     process_manager.shutdown_all()
     listener.stop()
+    sys.exit(0)
 
 
 if __name__ == '__main__':

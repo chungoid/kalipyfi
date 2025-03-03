@@ -35,4 +35,5 @@ def tail_f(filename):
     except Exception as e:
         logging.error(f"Error reading {filename}: {e}")
 
+
 tail_f(log_file)

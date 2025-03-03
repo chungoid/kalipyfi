@@ -1,3 +1,4 @@
+import logging
 import os
 import traceback
 from abc import ABC
@@ -24,6 +25,7 @@ class Hcxtool(Tool, ABC):
             settings=presets
         )
 
+        self.logger = logging.getLogger(self.name)
         self.submenu = HcxToolSubmenu(self)
 
     def get_scan_interface(self) -> str:

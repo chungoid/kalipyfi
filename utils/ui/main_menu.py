@@ -12,6 +12,7 @@ project_base = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_base))
 
 ### locals ###
+from common.process_manager import process_manager
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
 from utils import ipc
 from config.constants import TOOL_PATHS, DEFAULT_SOCKET_PATH
@@ -176,12 +177,6 @@ def utils_menu(stdscr):
             break
 
 def main_menu(stdscr):
-    setup_signal_handlers()
-    # Get the shared queue
-    log_queue = get_log_queue()
-    worker_configurer(log_queue)
-    logging.getLogger("main_menu()").debug("Entered curses Main Menu")
-
     curses.curs_set(0)
     stdscr.clear()
     stdscr.refresh()
@@ -222,9 +217,8 @@ def main_menu(stdscr):
 
 if __name__ == "__main__":
 ### immediate process tracking
-    from common.process_manager import process_manager
-    process_manager.register_process("main_menu__main__", os.getpid())
     setup_signal_handlers()
+    process_manager.register_process("main_menu__main__", os.getpid())
 ### import tools to register via decorators
 ### will add to tools module init later when there's more
     from utils.tool_registry import tool_registry

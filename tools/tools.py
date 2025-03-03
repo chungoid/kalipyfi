@@ -24,31 +24,31 @@ class Tool:
         self.description = description
         self.base_dir = Path(base_dir).resolve()
 
-        # Define essential directories based on base_dir.
+        # Define essential directories based on base_dir
         self.config_dir = self.base_dir / "configs"
         self.results_dir = self.base_dir / "results"
 
         # Ensure required directories exist.
         self._setup_directories()
 
-        #Setup logger.
+        #Setup logger
         self.logger = logging.getLogger(f"{self.name.upper()}")
         self.logger.info(f"Initialized tool: {self.name}")
 
-        # Determine the configuration file path using a helper function.
+        # Determine the configuration file path using a helper function
         self.config_file = self._determine_config_path(config_file)
         self.logger.debug(f"Using config file: {self.config_file}")
 
-        # Load configuration.
+        # Load configuration
         self.config_data = load_yaml_config(self.config_file, self.logger)
 
-        # Extract config sections.
+        # Extract config sections
         self.interfaces = self.config_data.get("interfaces", {})
         self.presets = self.config_data.get("presets", {})
         self.defaults = self.config_data.get("defaults", {})
         self.selected_interface = None # set in submenu
 
-        # Optional Overrides.
+        # Optional Overrides
         if interfaces:
             self.interfaces.update(interfaces)
         if settings:
