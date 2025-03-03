@@ -22,7 +22,6 @@ def main():
     # process tracking / signal handler
     process_manager.register_process("main", os.getpid())
     setup_signal_handlers()
-    cleanup_tmp()
 
     # log queue
     log_queue = get_log_queue()
@@ -73,11 +72,9 @@ def main():
         logging.info("Kalipyfi successfully shutdown")
     except Exception as e:
         logging.error(f"Error shutting down: {e}")
-    cleanup_tmp()
     process_manager.shutdown_all()
     listener.stop()
     sys.exit(0)
-
 
 if __name__ == '__main__':
     main()
