@@ -74,7 +74,6 @@ def main():
         logging.error(f"Error shutting down: {e}")
     process_manager.shutdown_all()
     listener.stop()
-    sys.exit(0)
 
 if __name__ == '__main__':
     main()

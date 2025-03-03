@@ -49,7 +49,8 @@ class Tool:
         self.interfaces = self.config_data.get("interfaces", {})
         self.presets = self.config_data.get("presets", {})
         self.defaults = self.config_data.get("defaults", {})
-        self.selected_interface = None # set in submenu
+        self.selected_interface = None # set in submenu, this is your chosen scan interface
+        self.selected_preset = None # set in submenu, this is your yaml built command
         self.extra_macs = None # set in submenu (future addon)
 
         # Optional Overrides

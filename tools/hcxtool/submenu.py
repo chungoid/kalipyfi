@@ -11,8 +11,6 @@ class HcxToolSubmenu:
     def __init__(self, tool_instance):
         """
         Initialize the submenu for Hcxtool.
-
-        :param tool_instance: The Hcxtool instance.
         """
         self.tool = tool_instance
         self.logger = logging.getLogger("HcxToolSubmenu")
@@ -29,7 +27,6 @@ class HcxToolSubmenu:
         box_width = max(len(title), *(len(item) for item in menu_items)) + 4
         start_y = (h - box_height) // 2
         start_x = (w - box_width) // 2
-        # Create an independent window for the menu box.
         menu_win = curses.newwin(box_height, box_width, start_y, start_x)
         menu_win.keypad(True)
         menu_win.box()
@@ -39,32 +36,109 @@ class HcxToolSubmenu:
         menu_win.refresh()
         return menu_win
 
-    def select_scan(self, parent_win) -> None:
+    def select_interface(self, parent_win) -> Any:
+        interfaces = self.tool.interfaces.get("wlan", [])
+        available = [iface.get("name") for iface in interfaces if iface.get("name")]
+        if not available:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No interfaces available!")
+            parent_win.refresh()
+            parent_win.getch()
+            return None
+        menu_items = [f"[{idx}] {name}" for idx, name in enumerate(available, start=1)]
+        menu_items.append("[0] Back")
+        menu_win = self.draw_menu(parent_win, "Select Interface", menu_items)
+        while True:
+            key = menu_win.getch()
+            try:
+                ch = chr(key)
+            except Exception:
+                continue
+            if ch.isdigit():
+                if ch == "0":
+                    return None
+                num = int(ch)
+                if 1 <= num <= len(available):
+                    selected = available[num - 1]
+                    return selected
+            elif key == 27:
+                return None
+
+    def select_preset(self, parent_win) -> Any:
         """
-        Handles the 'Name Scan' option.
-        Runs the routine: interface selection, preset selection, then launching the scan.
+        Presents a menu of all scan presets.
+        Returns the selected preset dictionary or None if cancelled.
         """
-        self.logger.debug("select_scan: Starting scan selection.")
+        presets_dict = self.tool.presets
+        if not presets_dict:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No presets available!")
+            parent_win.refresh()
+            parent_win.getch()
+            return None
+
+        # Sort preset keys (e.g., "1", "2", "3")
+        try:
+            sorted_keys = sorted(presets_dict.keys(), key=lambda k: int(k))
+        except Exception:
+            sorted_keys = sorted(presets_dict.keys())
+        # Build list of tuples (key, preset)
+        preset_list = [(key, presets_dict[key]) for key in sorted_keys]
+        menu_items = [
+            f"[{idx}] {preset.get('description', 'No description')}"
+            for idx, (key, preset) in enumerate(preset_list, start=1)
+        ]
+        menu_items.append("[0] Back")
+        menu_win = self.draw_menu(parent_win, "Select Scan Preset", menu_items)
+        while True:
+            key_input = menu_win.getch()
+            try:
+                ch = chr(key_input)
+            except Exception:
+                continue
+            if ch.isdigit():
+                selection = int(ch)
+                if selection == 0:
+                    return None
+                elif 1 <= selection <= len(preset_list):
+                    _, selected_preset = preset_list[selection - 1]
+                    return selected_preset
+            elif key_input == 27:  # ESC key
+                return None
+
+    def launch_scan(self, parent_win) -> None:
+        """
+        Handles launching a scan.
+        Clears previous selections, prompts for interface and preset,
+        and then runs the scan command.
+        """
+        # Clear previous selections.
+        self.tool.selected_interface = None
+        self.tool.selected_preset = None
+        self.logger.debug("launch_scan: Cleared previous interface and preset selections.")
+
         selected_iface = self.select_interface(parent_win)
         if not selected_iface:
-            self.logger.debug("select_scan: No interface selected; returning.")
+            self.logger.debug("launch_scan: No interface selected; aborting scan launch.")
             return
+        self.tool.selected_interface = selected_iface
+
         selected_preset = self.select_preset(parent_win)
         if not selected_preset:
-            self.logger.debug("select_scan: No preset selected; returning.")
+            self.logger.debug("launch_scan: No preset selected; aborting scan launch.")
             return
+        self.tool.selected_preset = selected_preset
 
-        # Save the scan settings in the tool instance.
-        self.tool.scan_settings = selected_preset
-        self.tool.scan_settings["interface"] = selected_iface
-
+        # Confirm the selections
         parent_win.clear()
         confirm_msg = f"Launching scan on {selected_iface} with preset: {selected_preset.get('description', '')}"
         parent_win.addstr(0, 0, confirm_msg)
         parent_win.refresh()
         curses.napms(1500)
+
         try:
-            self.tool.run(selected_iface)
+            # Run the tool; the run() method will use self.selected_interface and self.selected_preset.
+            self.tool.run()
         except Exception as e:
             parent_win.clear()
             parent_win.addstr(0, 0, f"Error launching scan: {e}")
@@ -74,15 +148,15 @@ class HcxToolSubmenu:
     def view_scans(self, parent_win) -> None:
         """
         Handles the 'View Scans' option.
-        Fetches active scans via IPC, displays them, and allows selection for swapping.
+        Simply displays active scans without offering renaming.
         """
         tool_name = getattr(self.tool, 'name', 'hcxtool')
         message = {"action": "GET_SCANS", "tool": tool_name}
         self.logger.debug(f"view_scans: Sending GET_SCANS for tool '{tool_name}'")
         response = ipc.send_ipc_command(message, DEFAULT_SOCKET_PATH)
         scans = response.get("scans", [])
+        parent_win.clear()
         if not scans:
-            parent_win.clear()
             parent_win.addstr(0, 0, "No active scans found!")
             parent_win.refresh()
             parent_win.getch()
@@ -93,8 +167,9 @@ class HcxToolSubmenu:
             display = scan.get("internal_name", scan.get("scan_profile", "Unnamed Scan"))
             menu_items.append(f"[{idx}] {display}")
         menu_items.append("[0] Back")
-        menu_win = self.draw_menu(parent_win, "Active", menu_items)
+        menu_win = self.draw_menu(parent_win, "Active Scans", menu_items)
 
+        # In this revised version, we simply display scans.
         while True:
             key = menu_win.getch()
             try:
@@ -104,30 +179,7 @@ class HcxToolSubmenu:
             if ch.isdigit():
                 if ch == "0":
                     return
-                num = int(ch)
-                if 1 <= num <= len(scans):
-                    selected_scan = scans[num - 1]
-                    parent_win.clear()
-                    parent_win.addstr(0, 0, "Enter new title for scan: ")
-                    parent_win.refresh()
-                    curses.echo()
-                    new_title = parent_win.getstr(1, 0).decode('utf-8')
-                    curses.noecho()
-                    swap_message = {
-                        "action": "SWAP_SCAN",
-                        "tool": tool_name,
-                        "pane_id": selected_scan.get("pane_id"),
-                        "new_title": new_title
-                    }
-                    swap_response = ipc.send_ipc_command(swap_message)
-                    parent_win.clear()
-                    if swap_response.get("status") == "SWAP_SCAN_OK":
-                        parent_win.addstr(0, 0, "Scan swapped successfully!")
-                    else:
-                        parent_win.addstr(0, 0, f"Error swapping scan: {swap_response.get('error', 'Unknown error')}")
-                    parent_win.refresh()
-                    parent_win.getch()
-                    return
+                # You could add further non-renaming actions here if needed.
             elif key == 27:
                 return
 
@@ -174,7 +226,6 @@ class HcxToolSubmenu:
                     parent_win.addstr(0, 0, "Uploading all files...")
                     parent_win.refresh()
                     curses.napms(1500)
-                    # Placeholder: implement actual upload logic.
                     parent_win.addstr(1, 0, "Upload All complete.")
                     parent_win.refresh()
                     parent_win.getch()
@@ -185,7 +236,6 @@ class HcxToolSubmenu:
                     parent_win.addstr(0, 0, f"Uploading {selected_file}...")
                     parent_win.refresh()
                     curses.napms(1500)
-                    # Placeholder: implement actual file upload logic.
                     parent_win.addstr(1, 0, f"Uploaded {selected_file}.")
                     parent_win.refresh()
                     parent_win.getch()
@@ -209,128 +259,17 @@ class HcxToolSubmenu:
             if ch == "0" or key == 27:
                 return
 
-    def select_interface(self, parent_win) -> Any:
-        interfaces = self.tool.interfaces.get("wlan", [])
-        available = [iface.get("name") for iface in interfaces if iface.get("name")]
-        if not available:
-            parent_win.clear()
-            parent_win.addstr(0, 0, "No interfaces available!")
-            parent_win.refresh()
-            parent_win.getch()
-            return None
-        menu_items = [f"[{idx}] {name}" for idx, name in enumerate(available, start=1)]
-        menu_items.append("[0] Back")
-        menu_win = self.draw_menu(parent_win, "Select Interface", menu_items)
-        while True:
-            key = menu_win.getch()
-            try:
-                ch = chr(key)
-            except Exception:
-                continue
-            if ch.isdigit():
-                if ch == "0":
-                    return None
-                num = int(ch)
-                if 1 <= num <= len(available):
-                    selected = available[num - 1]
-                    # Save state for later use.
-                    self.tool.selected_interface = selected
-                    return selected
-            elif key == 27:
-                return None
-
-    def select_preset(self, parent_win) -> Any:
-        """
-        Presents a menu of all scan presets.
-        The menu is independent and separate from other submenus.
-        Returns the selected preset dictionary or None if cancelled.
-        """
-        logger = logging.getLogger("select_preset")
-        logger.debug("select_preset: Loading all presets (interface filtering skipped)")
-
-        presets_dict = self.tool.presets
-        logger.debug(f"select_preset: Full presets config: {presets_dict}")
-
-        if not presets_dict:
-            parent_win.clear()
-            parent_win.addstr(0, 0, "No presets available!")
-            parent_win.refresh()
-            parent_win.getch()
-            return None
-
-        # Sort the keys numerically if possible.
-        try:
-            sorted_keys = sorted(presets_dict.keys(), key=lambda k: int(k))
-        except Exception:
-            sorted_keys = sorted(presets_dict.keys())
-        logger.debug(f"select_preset: Sorted preset keys: {sorted_keys}")
-
-        # Build a list of (key, preset) tuples.
-        preset_list = [(key, presets_dict[key]) for key in sorted_keys]
-        # Build menu items.
-        menu_items = [
-            f"[{idx}] {preset.get('description', 'No description')}"
-            for idx, (key, preset) in enumerate(preset_list, start=1)
-        ]
-        logger.debug(f"select_preset: Generated menu items: {menu_items}")
-        menu_items.append("[0] Back")
-
-        menu_win = self.draw_menu(parent_win, "Select Scan Preset", menu_items)
-
-        while True:
-            key_input = menu_win.getch()
-            try:
-                ch = chr(key_input)
-            except Exception:
-                continue
-            logger.debug(f"select_preset: Key pressed: {ch} (code {key_input})")
-            if ch.isdigit():
-                selection = int(ch)
-                logger.debug(f"select_preset: Numeric selection: {selection}")
-                if selection == 0:
-                    logger.debug("select_preset: User selected Back")
-                    return None
-                elif 1 <= selection <= len(preset_list):
-                    selected_key, selected_preset = preset_list[selection - 1]
-                    logger.debug(f"select_preset: User selected preset key '{selected_key}': {selected_preset}")
-                    return selected_preset
-                else:
-                    logger.debug("select_preset: Invalid numeric selection; waiting for valid input.")
-            elif key_input == 27:  # ESC key
-                logger.debug("select_preset: User pressed ESC, cancelling selection")
-                return None
-
-    #####################
-    ##### UTILITIES #####
-    #####################
-
-    def configure_wpasec(self, stdscr):
-        stdscr.clear()
-        stdscr.addstr(0, 0, "Enter your WPA-sec API key: ")
-        stdscr.refresh()
-        curses.echo()
-        new_key = stdscr.getstr(1, 0).decode('utf-8').strip()
-        curses.noecho()
-
-        try:
-            self.set_key(["wpa-sec", "api_key"], new_key)
-            stdscr.clear()
-            stdscr.addstr(0, 0, "WPA-sec API key updated successfully!")
-        except Exception as e:
-            stdscr.clear()
-            stdscr.addstr(0, 0, f"Error updating WPA-sec API key: {e}")
-        stdscr.refresh()
-        stdscr.getch()
-
-
     def __call__(self, stdscr) -> None:
         """
-        Launches the HCXTool submenu with top-level options.
-        Pressing '0' or ESC returns to the main menu.
+        Launches the HCXTool submenu.
+        Before displaying the menu, clears any previous selections.
         """
         curses.curs_set(0)
+        # Clear previous selections each time the submenu is launched.
+        self.tool.selected_interface = None
+        self.tool.selected_preset = None
+
         h, w = stdscr.getmaxyx()
-        # Create a full-screen window for the submenu.
         submenu_win = curses.newwin(h, w, 0, 0)
         submenu_win.keypad(True)
         submenu_win.clear()
@@ -338,8 +277,8 @@ class HcxToolSubmenu:
 
         while True:
             menu_items = [
-                "[1] Launch",
-                "[2] View",
+                "[1] Launch Scan",
+                "[2] View Scans",
                 "[3] Upload",
                 "[4] Utils",
                 "[0] Back"
@@ -351,7 +290,7 @@ class HcxToolSubmenu:
             except Exception:
                 continue
             if ch == "1":
-                self.select_scan(submenu_win)
+                self.launch_scan(submenu_win)
             elif ch == "2":
                 self.view_scans(submenu_win)
             elif ch == "3":

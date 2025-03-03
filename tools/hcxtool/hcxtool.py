@@ -55,7 +55,7 @@ class Hcxtool(Tool, ABC):
         if Tool.check_uuid_for_root():
             cmd = ["hcxdumptool"]
         else:
-            cmd = ["sudo", "hcxdumptool"]
+            cmd = ["sudo", "-E", "hcxdumptool"]
 
         # 1. Append the selected interface.
         scan_interface = self.selected_interface
