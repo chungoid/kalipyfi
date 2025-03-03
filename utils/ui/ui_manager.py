@@ -144,7 +144,7 @@ class UIManager:
         return self.session.new_window(window_name=window_name, attach=False)
 
     def get_or_create_tool_window(self, tool_name: str, bg_yaml_path: Path,
-                                  tmuxp_dir: Path) -> libtmux.Window:
+                                  tmuxp_dir: Path) -> Optional[libtmux.Window]:
         """
         Retrieves the background window for a tool. If it doesn't exist,
         loads it using the background tmuxp YAML template.
@@ -160,6 +160,7 @@ class UIManager:
             window = self.get_tool_window(tool_name)
             if window is None:
                 self.logger.error(f"Failed to create background window for {tool_name}.")
+                return
 
         return window
 
@@ -215,21 +216,30 @@ class UIManager:
 
         :param tool_name: The name of the tool.
         :param bg_yaml_path: Path to the YAML template for background windows.
-        :param tmuxp_dir: The UI directory to be injected into the template.
+        :param tmuxp_dir: The directory containing the tmuxp YAML file.
         :return: None
         """
-        self.logger.info(f"Loading background window for tool: bg_{tool_name}")
-        with open(bg_yaml_path, "r") as f:
-            template_str = f.read()
+        self.logger.info(f"Loading background window for tool: {tool_name}")
+        try:
+            # Load the YAML template using UTF-8 encoding.
+            with open(bg_yaml_path, "r", encoding="utf-8") as f:
+                template_str = f.read()
+            template = jinja2.Template(template_str)
+            rendered_yaml = template.render(
+                TMUXP_DIR=str(tmuxp_dir.resolve()),
+                tool_name=tool_name,
+                session_name=f"bg_{tool_name}"  # provide a default session name
+            )
 
-        template = jinja2.Template(template_str)
-        rendered_yaml = template.render(TMUXP_DIR=str(tmuxp_dir.resolve()), tool_name=tool_name)
+            tmp_yaml = Path(f"/tmp/bg_{tool_name}.yaml")
+            # Write the rendered YAML using UTF-8 encoding.
+            with open(tmp_yaml, "w", encoding="utf-8") as f:
+                f.write(rendered_yaml)
 
-        tmp_yaml = Path(f"/tmp/bg_{tool_name}.yaml")
-        with open(tmp_yaml, "w") as f:
-            f.write(rendered_yaml)
-
-        os.system(f"tmuxp load {tmp_yaml}")
+            # Launch the tmux session using the rendered YAML file.
+            os.system(f"tmuxp load {tmp_yaml}")
+        except Exception as e:
+            self.logger.exception(f"Error loading background window for {tool_name}: {e}")
 
     def allocate_scan_pane(self, tool_name: str, scan_profile: str, cmd_dict: dict) -> str:
         """
@@ -244,7 +254,7 @@ class UIManager:
         :return: The pane_id (str) of the allocated pane.
         """
 
-        window = self.wait_for_tool_window_ready(tool_name, self.bg_yaml_path, self.tmuxp_dir)
+        window = self.get_tool_window(tool_name)
         pane = self.create_pane(window)
         pane_internal_name = self.rename_pane(pane, tool_name, scan_profile)
         command = self.convert_cmd_dict_to_string(cmd_dict)
@@ -337,55 +347,30 @@ class UIManager:
     ##### STATE & DEBUGGING #####
     #############################
 
-    def wait_for_tool_window_ready(self, tool_name: str, background_yaml_path: Path, tmuxp_dir: Path,
+    def wait_for_tool_window_ready(self, tool_name: str, bg_yaml_path: Path, tmuxp_dir: Path,
                                    expected_panes: int = 4, timeout: int = 30,
                                    poll_interval: float = 0.5) -> libtmux.Window:
-        """
-        Waits until the background window for the given tool exists in the session,
-        has at least the expected number of panes, and each pane has valid dimensions.
-        """
-        import time
         start_time = time.time()
-        iteration = 0
         while time.time() - start_time < timeout:
-            iteration += 1
-            window = self.get_or_create_tool_window(tool_name, background_yaml_path, tmuxp_dir)
+            window = self.get_or_create_tool_window(tool_name, bg_yaml_path, tmuxp_dir)
             if window:
                 panes = window.panes
                 if len(panes) >= expected_panes:
-                    valid = True
-                    for pane in panes:
-                        try:
-                            height = int(pane["pane_height"])
-                            width = int(pane["pane_width"])
-                        except (KeyError, ValueError) as e:
-                            valid = False
-                            # Log only every 5 iterations to reduce spam.
-                            if iteration % 5 == 0:
-                                self.logger.debug(
-                                    f"Pane {pane.get('pane_id', 'unknown')} missing or invalid dimensions: {e}")
-                            break
-                        if height <= 0 or width <= 0:
-                            valid = False
-                            if iteration % 5 == 0:
-                                self.logger.debug(
-                                    f"Pane {pane.get('pane_id', 'unknown')} has non-positive dimensions: height={height}, width={width}")
-                            break
+                    valid = all(int(pane["pane_height"]) > 0 and int(pane["pane_width"]) > 0 for pane in panes)
                     if valid:
                         self.logger.info(f"Window '{tool_name}' is ready with {len(panes)} panes.")
                         return window
                     else:
-                        if iteration % 5 == 0:
-                            self.logger.debug(f"Window '{tool_name}' found but pane dimensions are not valid yet.")
+                        self.logger.debug(f"Window '{tool_name}' found but has invalid pane dimensions.")
                 else:
-                    if iteration % 5 == 0:
-                        self.logger.debug(
-                            f"Window '{tool_name}' found but only has {len(panes)} panes (expected at least {expected_panes}).")
+                    self.logger.debug(
+                        f"Window '{tool_name}' found but only has {len(panes)} panes (expected at least {expected_panes}).")
             else:
-                if iteration % 5 == 0:
-                    self.logger.debug(f"Window for tool '{tool_name}' not found yet.")
+                self.logger.debug(f"Window '{tool_name}' not found yet.")
             time.sleep(poll_interval)
-        raise TimeoutError(f"Timeout waiting for window '{tool_name}' with {expected_panes} panes to be ready.")
+
+        self.logger.error(f"Timeout waiting for window '{tool_name}' to be ready.")
+        raise TimeoutError(f"Timeout waiting for window '{tool_name}' with {expected_panes} panes.")
 
 
     def get_ui_state(self) -> dict:
