@@ -73,22 +73,6 @@ def main():
     process_manager.shutdown_all()
     listener.stop()
 
-"""
-    try:
-        while not shutdown_flag:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logging.info("KeyboardInterrupt received.")
-    finally:
-        logging.info("Shutting down gracefully.")
-        try:
-            os.killpg(tmuxp_proc.pid, signal.SIGTERM)
-            logging.info("tmuxp process group terminated.")
-        except Exception as e:
-            logging.error(f"Error terminating tmuxp process group: {e}")
-        process_manager.shutdown_all()
-        listener.stop()
-"""
 
 if __name__ == '__main__':
     main()
