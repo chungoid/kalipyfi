@@ -5,42 +5,42 @@ interfaces:
   wlan:
     - name: wlan0
       description: "hotspot"
-      locked: true
+      locked: True
     - name: wlan1
       description: "monitor"
-      locked: false
+      locked: False
     - name: wlan2
       description: "monitor"
-      locked: false
+      locked: False
     - name: wlan3
       description: "client"
-      locked: false
+      locked: False
 
 presets:
   1:
     description: "aggressive"
-    autobpf: true
+    autobpf: True
     options:
-      "--gpsd": true
-      "-A": true
-      "-F": true
+      "--gpsd": True
+      "-A": True
+      "-F": True
 
   2:
     description: "passive"
-    autobpf: true
+    autobpf: True
     options:
-      "--gpsd": true
+      "--gpsd": True
       "--attemptapmax": 0
-      "-F": true
+      "-F": True
 
   3:
     description: "rca a"
-    autobpf: true
+    autobpf: True
     options:
-      "--gpsd": true
+      "--gpsd": True
       "--rcascan": a
-      "-A": true
-      "-F": true
+      "-A": True
+      "-F": True
 
   4:
     description: "rca p"
@@ -60,40 +60,4 @@ presets:
       "-A": true
       "-F": true
 
-###############################################################################
-### IF YOU ADJUST DEFAULTS BELOW THEY WILL BE ADDED TO ALL SCANS BY DEFAULT ###
-###############################################################################
 
-defaults:
-    "--bpf": false
-    "--essidlist": false
-    "-c": false
-    "-f": false
-    "-F": false
-    "-t": false
-    "-A": false
-    "--gpsd": false
-    "--nmea_out": false
-    "--nmea_pcapng": false
-    "--nmea_dev": false
-    "--rcascan": false
-    "--rds": false
-    "--disable_deauthentication": false
-    "--disable_proberequest": false
-    "--disable_association": false
-    "--disable_reassociation": false
-    "--disable_beacon": false
-    "--proberesponsetx": false
-    "--errormax": false
-    "--watchdogmax": false
-    "--attemptclientmax": false
-    "--attemptapmax": false
-    "--tot": false
-    "--exitoneapol": false
-    "--onsigterm": false
-    "--ongpiobutton": false
-    "--ontot": false
-    "--onwatchdog": false
-    "--onerror": false
-    "--gpio_button": false
-    "--gpio_statusled": false

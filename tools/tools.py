@@ -220,10 +220,14 @@ class Tool:
 
 
     @staticmethod
+    def check_uuid_for_root() -> bool:
+        if os.getuid() == 0:
+            return True
+
+    @staticmethod
     def normalize_cmd_options(key: str) -> str:
         """Ensure an option key starts with appropriate dashes."""
         return key if key.startswith("-") else "--" + key
-
 
     @staticmethod
     def cmd_to_dict(cmd_list: list) -> dict:
@@ -237,7 +241,6 @@ class Tool:
             "executable": cmd_list[0],
             "arguments": cmd_list[1:]
         }
-
 
     @staticmethod
     def cmd_to_string(cmd_list: list) -> str:
@@ -254,7 +257,6 @@ class Tool:
         except Exception as e:
             logging.debug(f"failed to convert to command string: {e}")
         return cmd_str
-
 
     @staticmethod
     def run_shell(command: str) -> Optional[str]:
@@ -276,7 +278,6 @@ class Tool:
             logging.debug(f"Error running command '{command}': {e.output}")
             return None
 
-
     @staticmethod
     def generate_default_prefix() -> str:
         """
@@ -284,7 +285,6 @@ class Tool:
         :returns str: Default prefix
         """
         return datetime.now().strftime("%d-%m_%H:%M")
-
 
     @staticmethod
     def set_config_key(config_path: Path, key_path: list, new_value) -> None:

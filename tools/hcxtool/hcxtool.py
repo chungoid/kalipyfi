@@ -33,19 +33,19 @@ class Hcxtool(Tool, ABC):
         preset = self.presets
         cmd = ["hcxdumptool"]
 
-        # 1. Determine the interface and add it.
+        # 1. Determine the interface and add -i
         scan_interface = self.selected_interface
         cmd.extend(["-i", scan_interface])
         self.logger.debug(f"Scan interface: {scan_interface}")
 
-        # 2. Generate the output prefix and add the -w option.
+        # 2. Generate the output prefix and add -w
         prefix = self.results_dir / self.generate_default_prefix()
         self.presets["output_prefix"] = str(prefix)
         pcap_file = str(prefix.with_suffix('.pcapng'))
         cmd.extend(["-w", pcap_file])
         self.logger.debug(f"Setting pcapng filepath: {pcap_file}")
 
-        # 3. Add GPS options if set in presets.
+        # 3. Add GPS options if set
         if preset.get("options", {}).get("--gpsd", False):
             cmd.append("--gpsd")
             cmd.append("--nmea_pcapng")
@@ -53,7 +53,7 @@ class Hcxtool(Tool, ABC):
             cmd.append(nmea_path)
             self.logger.debug(f"Setting NMEA filepath: {nmea_path}")
 
-        # 4. Add channel options from the preset.
+        # 4. Add channel if set
         if "channel" in preset:
             channel_value = preset["channel"]
             if isinstance(channel_value, list):
@@ -65,13 +65,13 @@ class Hcxtool(Tool, ABC):
             cmd.extend(["-c", channel_str])
             self.logger.debug(f"Setting channel(s): {channel_str}")
 
-        # 5. Add autobpf option if specified.
+        # 5. Add autobpf option if true
         if preset.get("autobpf", False):
             bpf_file = self.config_dir / "filter.bpf"
             self.logger.debug(f"Using auto-generated BPF filter: {bpf_file}")
             cmd.append(f"--bpf={bpf_file}")
 
-        # 6. Add additional options from the preset.
+        # 6. Build
         if "options" in preset:
             for opt, val in preset["options"].items():
                 # Only add the option if val is not false.
@@ -98,8 +98,9 @@ class Hcxtool(Tool, ABC):
             cmd_dict = self.cmd_to_dict(cmd_list)
             self.logger.debug("Command dict built: %s", cmd_dict)
 
-            # Create a pane title; the UI manager will handle pane creation
-            pane_title = f"{self.selected_interface}_#{profile}"
+            # Set pane title, {interface}_{description}; UI Manager creates.
+            preset_description = self.presets.get("description", profile)
+            pane_title = f"{self.selected_interface}_{preset_description}"
             self.logger.debug(f"Using pane title: {pane_title}")
 
             # Send the structured command to the IPC server
