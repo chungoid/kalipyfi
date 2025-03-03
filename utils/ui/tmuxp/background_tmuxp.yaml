@@ -1,6 +1,6 @@
-session_name: {{ session_name }}
+session_name: {{tool_name}}
 windows:
-  - window_name: bg_{{ tool_name }}
+  - window_name: {{window_name}}
     layout: tiled
     panes:
       - shell_command:

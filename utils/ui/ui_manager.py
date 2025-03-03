@@ -1,6 +1,7 @@
 # utils/ui/ui_manager.py
 import os
 import signal
+import subprocess
 import sys
 import time
 import logging
@@ -30,8 +31,11 @@ class UIManager:
         # Tool Interfaces: map interface name -> InterfaceData
         self.interfaces: Dict[str, InterfaceData] = {}
         # Paths to TMUXP configs
+        self.session_name = session_name
         self.tmuxp_dir = TMUXP_DIR
         self.bg_yaml_path = BG_YAML_PATH
+
+
 
     def _register_scan(self, window_name: str, pane_id: str, internal_name: str, tool_name: str,
                          scan_profile: str, command: str, interface: str,
@@ -62,6 +66,7 @@ class UIManager:
         self.active_scans[pane_id] = scan_data
         self.logger.debug(f"Registered scan: {scan_data}")
 
+
     def _launch_command_in_pane(self, pane: libtmux.Pane, cmd_dict: dict) -> str:
         """
         Converts the command dictionary into a command string and sends it to the pane.
@@ -74,6 +79,7 @@ class UIManager:
         pane.send_keys(command, enter=True)
         self.logger.info(f"Launched scan command: {command} in pane {pane.get('pane_id')}")
         return command
+
 
     def _find_pane_by_id(self, pane_id: str) -> Optional[libtmux.Pane]:
         """
@@ -88,6 +94,7 @@ class UIManager:
                     return pane
         return None
 
+
     def get_session(self, session_name: str) -> Optional[libtmux.Session]:
         """
         Retrieves an existing tmuxp session by name.
@@ -96,6 +103,7 @@ class UIManager:
         :return: The libtmux.Session if found, otherwise None.
         """
         return self.server.find_where({"session_name": session_name})
+
 
     def create_session(self, session_name: str) -> libtmux.Session:
         """
@@ -107,27 +115,34 @@ class UIManager:
         self.logger.info(f"Creating new session: {session_name}")
         return self.server.new_session(session_name=session_name, attach=False)
 
-    def get_or_create_session(self, session_name: str) -> libtmux.Session:
-        """
-        Retrieves the session if it exists, or creates a new one if not.
 
-        :param session_name: The name of the session.
-        :return: A libtmux.Session object.
-        """
+    def get_or_create_session(self, session_name: str) -> libtmux.Session:
         session = self.get_session(session_name)
+        self.logger.debug(f"get_or_create_session Found session: {session}")
         if session is None:
             session = self.create_session(session_name)
+            self.logger.info(f"get_or_create_session found no session so creating session: {session}")
+        self.debug_list_windows()
         return session
 
     def get_tool_window(self, tool_name: str) -> Optional[libtmux.Window]:
-        """
-        Retrieves the background window for a given tool.
-
-        :param tool_name: The tool's name.
-        :return: The libtmux.Window if found, otherwise None.
-        """
-        window_name = f"bg_{tool_name}"
-        return self.session.find_where({"window_name": window_name})
+        expected_window_name = f"bg_{tool_name}"
+        self.logger.debug(f"Searching for window '{expected_window_name}' in session '{tool_name}'")
+        # Look for a session with the name equal to tool_name
+        session = self.server.find_where({"session_name": tool_name})
+        if session:
+            self.logger.debug(f"Found session '{tool_name}'. Now listing its windows:")
+            window_names = [w.get("window_name") for w in session.windows]
+            self.logger.debug(f"Session windows: {window_names}")
+            window = session.find_where({"window_name": expected_window_name})
+            if window:
+                self.logger.debug(f"Found window '{expected_window_name}' in session '{tool_name}'.")
+            else:
+                self.logger.debug(f"Window '{expected_window_name}' not found in session '{tool_name}'.")
+            return window
+        else:
+            self.logger.debug(f"No session found with name '{tool_name}'.")
+            return None
 
     def create_tool_window(self, tool_name: str) -> libtmux.Window:
         """
@@ -207,54 +222,64 @@ class UIManager:
         internal_name = self.rename_pane(pane, tool_name, scan_profile)
         return pane, internal_name
 
-    def load_background_window(self, tool_name: str, bg_yaml_path: Path,
-                               tmuxp_dir: Path) -> None:
+    def load_background_window(self, tool_name: str, bg_yaml_path: Path, ui_dir: Path) -> None:
         """
         Loads the background window for the given tool using a tmuxp YAML template.
         Renders the template with provided path variables and tool-specific variables,
         writes the rendered YAML to a temporary file, and loads it via tmuxp.
-
-        :param tool_name: The name of the tool.
-        :param bg_yaml_path: Path to the YAML template for background windows.
-        :param tmuxp_dir: The directory containing the tmuxp YAML file.
-        :return: None
         """
         self.logger.info(f"Loading background window for tool: {tool_name}")
+        self.logger.info(f"Using bg_yaml_path: {bg_yaml_path}")
         try:
-            # Load the YAML template using UTF-8 encoding.
             with open(bg_yaml_path, "r", encoding="utf-8") as f:
                 template_str = f.read()
             template = jinja2.Template(template_str)
             rendered_yaml = template.render(
-                TMUXP_DIR=str(tmuxp_dir.resolve()),
+                TMUXP_DIR=str(ui_dir.resolve()),
                 tool_name=tool_name,
-                session_name=f"bg_{tool_name}"  # provide a default session name
+                session_name=tool_name,
+                window_name=f"bg_{tool_name}"
             )
+            self.logger.debug("Rendered YAML:\n" + rendered_yaml)
 
             tmp_yaml = Path(f"/tmp/bg_{tool_name}.yaml")
-            # Write the rendered YAML using UTF-8 encoding.
             with open(tmp_yaml, "w", encoding="utf-8") as f:
                 f.write(rendered_yaml)
 
-            # Launch the tmux session using the rendered YAML file.
-            os.system(f"tmuxp load {tmp_yaml}")
+            # Use the --no-attach flag to prevent interactive prompts.
+            cmd = f"tmuxp load {tmp_yaml} < /dev/null"
+            self.logger.info(f"Executing command: {cmd}")
+            proc = subprocess.Popen(
+                cmd,
+                shell=True,
+                executable="/bin/bash",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            stdout, stderr = proc.communicate()
+            self.logger.debug("tmuxp load stdout: " + stdout.decode("utf-8"))
+            self.logger.debug("tmuxp load stderr: " + stderr.decode("utf-8"))
+            self.logger.info(
+                f"tmuxp load command issued for background window '{tool_name}', return code: {proc.returncode}")
         except Exception as e:
             self.logger.exception(f"Error loading background window for {tool_name}: {e}")
 
     def allocate_scan_pane(self, tool_name: str, scan_profile: str, cmd_dict: dict) -> str:
         """
-        Allocates a new pane within the tool's background window (loaded from a YAML template),
-        launches the scan command in that pane, and updates the active scan registry.
+        Allocates a new pane within the tool's background window, launches the scan command,
+        and updates the active scan registry.
 
-        :param tool_name: The name of the tool (str).
-        :param scan_profile: The scan profile to use (str).
-        :param cmd_dict: A dictionary containing the scan command details; expected keys are
-                         'executable' (str) and 'arguments' (List[str]). Additionally, it should include an
-                         "interface" key indicating the scanning interface.
-        :return: The pane_id (str) of the allocated pane.
+        :param tool_name: The name of the tool.
+        :param scan_profile: The scan profile being used.
+        :param cmd_dict: A dictionary containing the scan command parameters.
+        :return: A string containing the pane name.
         """
-
-        window = self.get_tool_window(tool_name)
+        # Wait for the background window to be ready.
+        window = self.wait_for_tool_window_ready(tool_name, self.bg_yaml_path, self.tmuxp_dir)
+        if window is None:
+            error_msg = f"Failed to create background window for tool '{tool_name}'."
+            self.logger.error(error_msg)
+            raise RuntimeError(error_msg)
         pane = self.create_pane(window)
         pane_internal_name = self.rename_pane(pane, tool_name, scan_profile)
         command = self.convert_cmd_dict_to_string(cmd_dict)
@@ -351,27 +376,48 @@ class UIManager:
                                    expected_panes: int = 4, timeout: int = 30,
                                    poll_interval: float = 0.5) -> libtmux.Window:
         start_time = time.time()
+        # First, check if the window exists. If not, load it once.
+        window = self.get_tool_window(tool_name)
+        if window is None:
+            self.logger.info(f"Background window for '{tool_name}' not found. Attempting to load it.")
+            self.load_background_window(tool_name, bg_yaml_path, tmuxp_dir)
+
+        # Now poll until the window is ready.
+        iteration = 0
         while time.time() - start_time < timeout:
-            window = self.get_or_create_tool_window(tool_name, bg_yaml_path, tmuxp_dir)
+            iteration += 1
+            window = self.get_tool_window(tool_name)
             if window:
                 panes = window.panes
+                self.logger.debug(f"Window '{tool_name}' has {len(panes)} pane(s).")
                 if len(panes) >= expected_panes:
                     valid = all(int(pane["pane_height"]) > 0 and int(pane["pane_width"]) > 0 for pane in panes)
                     if valid:
                         self.logger.info(f"Window '{tool_name}' is ready with {len(panes)} panes.")
                         return window
                     else:
-                        self.logger.debug(f"Window '{tool_name}' found but has invalid pane dimensions.")
+                        if iteration % 5 == 0:
+                            self.logger.debug(f"Window '{tool_name}' found but has invalid pane dimensions.")
                 else:
-                    self.logger.debug(
-                        f"Window '{tool_name}' found but only has {len(panes)} panes (expected at least {expected_panes}).")
+                    if iteration % 5 == 0:
+                        self.logger.debug(
+                            f"Window '{tool_name}' found but only has {len(panes)} pane(s) (expected at least {expected_panes}).")
             else:
-                self.logger.debug(f"Window '{tool_name}' not found yet.")
+                if iteration % 5 == 0:
+                    self.logger.debug(f"Window '{tool_name}' still not found.")
             time.sleep(poll_interval)
 
         self.logger.error(f"Timeout waiting for window '{tool_name}' to be ready.")
         raise TimeoutError(f"Timeout waiting for window '{tool_name}' with {expected_panes} panes.")
 
+    def debug_list_windows(self) -> None:
+        if not hasattr(self, "session") or self.session is None:
+            self.logger.debug("No session available to list windows.")
+            return
+        self.logger.debug("Current session windows:")
+        for window in self.session.windows:
+            self.logger.debug(f"Session Name: {self.session_name}")
+            self.logger.debug(f"Window: name='{window.get('window_name')}', id='{window.get('window_id')}'")
 
     def get_ui_state(self) -> dict:
         """

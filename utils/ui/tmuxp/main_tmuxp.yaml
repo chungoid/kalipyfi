@@ -1,10 +1,10 @@
-session_name: kalipyfi
+session_name: "kalipyfi"
 shell_command_before:
   - cmd: source {{ BASE_DIR }}/.venv/bin/activate
     sleep_before: 1
     sleep_after: 1
 windows:
-  - window_name: kalipyfi
+  - window_name: "kalipyfi"
     layout: main-horizontal
     options:
       main-pane-height: 70%
