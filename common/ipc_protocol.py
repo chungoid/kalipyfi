@@ -57,7 +57,6 @@ def handle_get_state(ui_instance, request: dict) -> dict:
 def handle_send_scan(ui_instance, request: dict) -> dict:
     """
     Handles the SEND_SCAN command.
-    Extensive logging added.
     """
     logger = logging.getLogger("ipc_proto:handle_send_scan")
     logger.debug(f"handle_send_scan: Received request: {request}")

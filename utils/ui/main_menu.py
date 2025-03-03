@@ -13,7 +13,7 @@ sys.path.insert(0, str(project_base))
 
 ### locals ###
 from common.process_manager import process_manager
-from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
+from common.logging_setup import get_log_queue, configure_listener_handlers
 from utils import ipc
 from config.constants import TOOL_PATHS, DEFAULT_SOCKET_PATH
 from utils.helper import (wait_for_ipc_socket, wait_for_tmux_session,
@@ -180,8 +180,8 @@ def main_menu(stdscr):
     curses.curs_set(0)
     stdscr.clear()
     stdscr.refresh()
-    # Increase delay to allow tmuxp pane to settle.
-    curses.napms(300)  # 300 milliseconds delay; adjust as needed.
+    # Allow pane to settle
+    curses.napms(500)  # 500 ms
 
     menu_items = ["[1] Tools", "[2] Utils", "[0] Exit"]
     title = "Main Menu"
@@ -231,7 +231,6 @@ if __name__ == "__main__":
     listener_handlers = configure_listener_handlers()
     listener = QueueListener(log_queue, *listener_handlers)
     listener.start()
-    worker_configurer(log_queue)
     logging.getLogger("main_menu").debug("Main process logging configured using QueueHandler")
     try:
         # let tmuxp load

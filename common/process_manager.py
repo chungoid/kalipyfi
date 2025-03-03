@@ -57,5 +57,5 @@ class ProcessManager:
                 report_lines.append(f"PID {pid} ({proc_data.role}): Not running")
         return "\n".join(report_lines)
 
-# Instantiate a single global manager (or import as needed)
+# single global manager, import as needed
 process_manager = ProcessManager()

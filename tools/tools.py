@@ -24,6 +24,9 @@ class Tool:
         self.description = description
         self.base_dir = Path(base_dir).resolve()
 
+        if not logging.getLogger().handlers:
+            worker_configurer(get_log_queue())
+
         # Define essential directories based on base_dir
         self.config_dir = self.base_dir / "configs"
         self.results_dir = self.base_dir / "results"
@@ -32,7 +35,7 @@ class Tool:
         self._setup_directories()
 
         #Setup logger
-        self.logger = logging.getLogger(f"{self.name.upper()}")
+        self.logger = logging.getLogger(self.name.upper())
         self.logger.info(f"Initialized tool: {self.name}")
 
         # Determine the configuration file path using a helper function
@@ -103,19 +106,17 @@ class Tool:
           - Get or create the background window for this tool.
           - Allocate or identify a pane.
           - Run the provided command.
-
-        The message is now structured as a dictionary.
         """
         ipc_message = {
             "action": "SEND_SCAN",
             "tool": self.name,
             "scan_profile": scan_profile,
             "command": cmd_dict,
-            "timestamp": time.time()  # Optionally include a timestamp.
+            "timestamp": time.time()
         }
         self.logger.debug("Sending IPC scan command: %s", ipc_message)
 
-        # Send the structured message; assume send_ipc_command handles JSON.
+        # response will always be json
         response = send_ipc_command(ipc_message, DEFAULT_SOCKET_PATH)
 
         if isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
@@ -129,13 +130,23 @@ class Tool:
         return response
 
 
+    def get_scan_interface(self) -> str:
+        """
+        Returns the selected interface that was set via the submenu.
+        """
+        if self.selected_interface:
+            return self.selected_interface
+        else:
+            raise ValueError("No interface has been selected. Please select an interface via the submenu.")
+
+
     def autobpf_helper(self,
                        scan_interface: str,
                        filter_path: Path,
                        interfaces: List[str],
                        extra_macs: Optional[List[str]] = None) -> bool:
         """
-        Wrapper method to generate a BPF filter using the autobpf helper.
+        Wrapper method to generate a BPF filter.
         """
         return run_autobpf(self, scan_interface, filter_path, interfaces, extra_macs)
 

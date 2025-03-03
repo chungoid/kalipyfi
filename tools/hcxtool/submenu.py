@@ -245,7 +245,7 @@ class HcxToolSubmenu:
         The menu is independent and separate from other submenus.
         Returns the selected preset dictionary or None if cancelled.
         """
-        logger = logging.getLogger(__name__.append("select_preset"))
+        logger = logging.getLogger("select_preset")
         logger.debug("select_preset: Loading all presets (interface filtering skipped)")
 
         presets_dict = self.tool.presets

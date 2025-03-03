@@ -56,6 +56,7 @@ def wait_for_tmux_session(session_name: str, timeout: int = 30, poll_interval: f
         time.sleep(poll_interval)
     raise TimeoutError(f"Timeout waiting for tmux session '{session_name}' to be fully ready.")
 
+
 def wait_for_ipc_socket(socket_path: str=DEFAULT_SOCKET_PATH, timeout: float=5, retry_delay: float=0.1) -> bool:
     """
     Waits for the IPC socket at `socket_path` to become available.

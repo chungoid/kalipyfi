@@ -28,14 +28,6 @@ class Hcxtool(Tool, ABC):
         self.logger = logging.getLogger(self.name)
         self.submenu = HcxToolSubmenu(self)
 
-    def get_scan_interface(self) -> str:
-        """
-        Returns the selected interface that was set via the submenu.
-        """
-        if self.selected_interface:
-            return self.selected_interface
-        else:
-            raise ValueError("No interface has been selected. Please select an interface via the submenu.")
 
     def build_command(self) -> list:
         preset = self.presets
