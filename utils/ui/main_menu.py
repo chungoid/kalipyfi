@@ -3,19 +3,25 @@ import os
 import sys
 import curses
 import logging
+import time
 from multiprocessing import Process
 from pathlib import Path
 from logging.handlers import QueueListener
+
 project_base = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_base))
 
 ### locals ###
+from utils.ui.ui_manager import UIManager
+from utils.ipc import start_ipc_server
 from common.process_manager import process_manager
-from common.logging_setup import get_log_queue, configure_listener_handlers
+from common.logging_setup import get_log_queue, configure_listener_handlers, worker_configurer
+from utils.tool_registry import tool_registry
+from tools.hcxtool import hcxtool
 from utils import ipc
 from config.constants import TOOL_PATHS, DEFAULT_SOCKET_PATH
 from utils.helper import (wait_for_ipc_socket, wait_for_tmux_session,
-                          setup_signal_handlers, shutdown_flag)
+                          setup_signal_handlers, shutdown_flag, ipc_ping)
 
 
 def draw_menu(stdscr, title, menu_items):
@@ -74,7 +80,7 @@ def exit_menu(stdscr):
                 stdscr.addstr(0, 0, "Kill command sent. Killing UI...")
                 stdscr.refresh()
                 process_manager.shutdown()
-                listener.stop()
+                #listener.stop()
         elif ch == "0" or key == 27:
             # Return to main menu.
             break
@@ -216,52 +222,54 @@ def run_ipc_server():
      # Create a dedicated UIManager instance for the IPC server.
     from utils.ipc import ipc_server
     from utils.ui.ui_manager import UIManager
-    ui_instance = UIManager(session_name="kalipyfi")
+    ui_instance = UIManager("kalipyfi")
     ipc_server(ui_instance, DEFAULT_SOCKET_PATH)
+    process_manager.register_process(ipc_server, os.getpid())
+    curses.wrapper(main_menu)
+    return ui_instance
 
 
-if __name__ == "__main__":
-### immediate process tracking
+def main():
+    # Immediate process tracking: register the main menu process.
+    process_manager.register_process("main_menu.py", os.getpid())
     setup_signal_handlers()
-    process_manager.register_process("main_menu__main__", os.getpid())
-### import tools to register via decorators
-### will add to tools module init later when there's more
-    from utils.tool_registry import tool_registry
-    from tools.hcxtool import hcxtool # do this for all tools here
 
-##### ensure you import each tools module here #####
-
-# setup logs for curses menu processes
+    #logging shit
     log_queue = get_log_queue()
+    from logging.handlers import QueueListener
     listener_handlers = configure_listener_handlers()
     listener = QueueListener(log_queue, *listener_handlers)
     listener.start()
+    worker_configurer(log_queue)
     logging.getLogger("main_menu").debug("Main process logging configured using QueueHandler")
 
-    from utils.ui.ui_manager import UIManager
-    from utils.ipc import start_ipc_server
-    from utils.helper import log_ui_state_phase
-    from utils.helper import wait_for_tmux_session
-    import time
-    #from utils.ipc import run_ipc_server
-    from utils.helper import ipc_ping
-    import signal
-    #import Process
+    # Import tools to register via decorators.
+    from utils.tool_registry import tool_registry
+    from tools.hcxtool import hcxtool  # Ensure all tools are imported
 
-# wait before instantiating
-    wait_for_tmux_session("kalipyfi")
-    ui_manager = UIManager(session_name="kalipyfi")
+    logging.getLogger("main_menu").debug("Main process logging configured using QueueHandler")
 
+    # Start the IPC server in a separate process.
+    from multiprocessing import Process
+    # Assume run_ipc_server is defined in your IPC module (or similar)
     ipc_process = Process(target=run_ipc_server, daemon=True)
     ipc_process.start()
+    process_manager.register_process("ipc_server", ipc_process.pid)
 
-    if ipc_ping:
-        curses.wrapper(main_menu)
-
+    # Main loop: monitor the IPC connection and shutdown if needed.
     while True:
-        if not ipc_ping(DEFAULT_SOCKET_PATH) and not shutdown_flag:
-            pass
-        time.sleep(5)
+        logging.debug("in the menu loop")
+        if not ipc_ping():
+            # Attempt to reconnect if needed.
+            run_ipc_server()
+            wait_for_ipc_socket(socket_path="{}".format(DEFAULT_SOCKET_PATH), timeout=5, retry_delay=.1)
+        if not shutdown_flag:
+            time.sleep(1)
+        else:
+            logging.info("Shutting Down Kalipyfi...")
+            process_manager.shutdown_all()
+            sys.exit(0)
 
-        logging.info("Shutting Down Kalipyfi...")
-        process_manager.shutdown_all()
+
+if __name__ == "__main__":
+    main()

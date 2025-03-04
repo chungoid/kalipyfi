@@ -12,6 +12,7 @@ from typing import Dict, Optional, Tuple
 
 # local
 from common.models import ScanData, InterfaceData, SessionData
+from common.process_manager import process_manager
 from config.constants import TMUXP_DIR
 
 
@@ -498,8 +499,10 @@ class UIManager:
 
 
     def kill_ui(self) -> None:
+        from common.process_manager import ProcessManager
         session_name = self.session_data.session_name
         self.logger.info(f"Killing UI session: {session_name}")
+        process_manager.shutdown_all()
         self.session.kill_session()
         try:
             # Kill all processes in the current process group.

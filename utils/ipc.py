@@ -77,7 +77,7 @@ def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
 
     if os.path.exists(socket_path):
         logger.debug(f"ipc_server: Removing existing socket at {socket_path}")
-        os.remove(socket_path)
+        #os.remove(socket_path)
 
     try:
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

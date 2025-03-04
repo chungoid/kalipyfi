@@ -55,20 +55,24 @@ def main():
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
-
     process_manager.register_process("tmuxp", tmuxp_proc.pid)
 
-    while not shutdown_flag: # log_ui_state_phase can be uncommented to dump ui state every sleep cycle for debugging
+    # Main loop: continue while shutdown_flag is False.
+    while not shutdown_flag:
+        process_manager.get_status_report()
         time.sleep(1)
 
     logging.info("Shutting Down Kalipyfi...")
     try:
+        # Kill the tmuxp process group.
         os.killpg(tmuxp_proc.pid, signal.SIGTERM)
-        logging.info("Kalipyfi successfully shutdown")
     except Exception as e:
-        logging.error(f"Error shutting down: {e}")
+        logging.error(f"Error killing tmuxp process group: {e}")
+
     process_manager.shutdown_all()
     listener.stop()
+    sys.exit(0)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
+
