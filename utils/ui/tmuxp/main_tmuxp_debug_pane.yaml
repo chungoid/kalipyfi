@@ -14,5 +14,5 @@ windows:
       - shell_command:
           - "{{ TMUXP_DIR }}/menu_launcher.py"
         focus: true
-
-
+      - shell_command:
+          - "{{ TMUXP_DIR }}/tail_log.py"
