@@ -368,24 +368,26 @@ class UIManager:
     ##### USER INTERACTION #####
     ############################
 
-    def swap_scan(self, tool_name: str, pane_id: str, new_title: str) -> None:
+    def swap_scan(self, tool_name: str, dedicated_pane_id: str, new_title: str) -> None:
         """
-        Swaps a dedicated scan pane from its window into the main scan pane of the main UI.
+        Swaps a dedicated scan pane (allocated in its own window) with the main scan pane
+        of the main UI window so that the new scan takes full display. The old main scan pane
+        is then killed, leaving the new scan pane to occupy the full space.
 
-        This function locates the dedicated scan pane identified by `pane_id` (which was
-        allocated in its own window) and moves it into the main UI's designated scan pane
-        using a tmux join-pane command. The main scan pane is identified by a unique title,
-        such as "main_scan", which should be set when the main UI is built. After joining,
-        the internal scan data's title is updated to `new_title`.
+        This function works by first identifying the main scan pane in the main UI window
+        (using a heuristic based on pane area). It then swaps the dedicated scan pane (whose
+        ID is provided as `dedicated_pane_id`) with the main scan pane using the tmux swap-pane
+        command. After swapping, the original main scan pane (now in the dedicated window) is
+        killed to ensure that the new scan occupies the full area.
 
         Parameters
         ----------
         tool_name : str
             The name of the tool associated with the scan.
-        pane_id : str
-            The unique identifier of the dedicated scan pane to be swapped.
+        dedicated_pane_id : str
+            The pane ID of the dedicated scan pane (allocated in its own window).
         new_title : str
-            The new title to assign to the scan pane after swapping (e.g., "wlan1_passive").
+            The new internal title for the scan (e.g., "wlan1_passive").
 
         Returns
         -------
@@ -394,39 +396,52 @@ class UIManager:
         Raises
         ------
         KeyError
-            If no active scan is found for the given `pane_id`.
+            If no active scan is found for the given `dedicated_pane_id`.
 
         Example
         -------
         >>> ui_manager.swap_scan("hcxtool", "%4", "wlan1_passive")
-        (The dedicated scan pane is moved into the main scan pane area and its internal title is updated.)
+        (Swaps the dedicated scan pane into the main UI and kills the old main scan pane.)
         """
-        if pane_id not in self.active_scans:
-            self.logger.error(f"No active scan found for pane_id: {pane_id}")
-            raise KeyError(f"No active scan found for pane_id: {pane_id}")
+        if dedicated_pane_id not in self.active_scans:
+            self.logger.error(f"No active scan found for pane_id: {dedicated_pane_id}")
+            raise KeyError(f"No active scan found for pane_id: {dedicated_pane_id}")
 
-        # Retrieve the scan data and record its current title
-        scan_data = self.active_scans[pane_id]
+        # Retrieve the scan data and store the old title.
+        scan_data = self.active_scans[dedicated_pane_id]
         old_title = scan_data.internal_name
 
-        # Retrieve the main scan pane from the main UI
+        # Identify the main scan pane in the main UI (by size).
         main_pane = self.get_main_scan_pane()
         if not main_pane:
             self.logger.error("Main scan pane not found; cannot swap scan pane.")
             return
 
-        # Execute the tmux join-pane command to move the dedicated scan pane into the main scan pane's window
-        join_cmd = f"tmux join-pane -s {pane_id} -t {main_pane.get('pane_id')}"
-        self.logger.debug(f"Executing join-pane command: {join_cmd}")
+        main_pane_id = main_pane.get("pane_id")
+        self.logger.debug(f"Main scan pane identified: {main_pane_id}")
+
+        # Swap the dedicated scan pane (source) with the main scan pane (target).
+        swap_cmd = f"tmux swap-pane -s {dedicated_pane_id} -t {main_pane_id}"
+        self.logger.debug(f"Executing swap-pane command: {swap_cmd}")
         try:
-            subprocess.run(join_cmd, shell=True, check=True)
+            subprocess.run(swap_cmd, shell=True, check=True)
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Error executing join-pane command: {e}")
+            self.logger.error(f"Error executing swap-pane command: {e}")
             return
 
-        # Update the internal scan data with the new title
+        # After swapping, the original main scan pane is now in the dedicated window.
+        # Kill that pane so that the new scan pane takes up the full space.
+        kill_cmd = f"tmux kill-pane -t {main_pane_id}"
+        self.logger.debug(f"Executing kill-pane command: {kill_cmd}")
+        try:
+            subprocess.run(kill_cmd, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Error executing kill-pane command: {e}")
+            return
+
+        # Update the internal scan data with the new title.
         scan_data.internal_name = new_title
-        self.logger.info(f"Swapped scan pane {pane_id}: '{old_title}' -> '{new_title}'")
+        self.logger.info(f"Swapped scan pane {dedicated_pane_id}: '{old_title}' -> '{new_title}'")
 
 
     def get_lock_status(self, interface: str) -> bool:
