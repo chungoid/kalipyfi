@@ -154,14 +154,27 @@ class Tool:
         """
         return run_autobpf(self, scan_interface, filter_path, interfaces, extra_macs)
 
-
     def get_iface_macs(self, interface: str) -> Optional[str]:
         """
         Retrieve the MAC address of a given interface by reading from sysfs.
 
-        Returns:
-            List[str]: A list of MAC addresses attached to your device.
+        If a generic interface name "wlan" is provided, this function looks up
+        self.interfaces for the list of specific interface names (e.g., wlan0, wlan1)
+        and uses the first available one.
+
+        Returns
+        -------
+        Optional[str]
+            The MAC address as a string if found; otherwise, None.
         """
+        if interface == "wlan":
+            wlan_list = self.interfaces.get("wlan", [])
+            if wlan_list:
+                # Use the first available interface name from the list.
+                interface = wlan_list[0].get("name")
+            else:
+                self.logger.warning("No wlan interfaces defined in self.interfaces.")
+                return None
         try:
             with open(f"/sys/class/net/{interface}/address", "r") as f:
                 mac = f.read().strip()
@@ -170,20 +183,50 @@ class Tool:
             self.logger.warning(f"Could not read MAC address from /sys/class/net/{interface}/address: {e}")
             return None
 
-
     def get_associated_macs(self, interfaces: List[str]) -> List[str]:
         """
-        Scan the provided interfaces for associated client MAC addresses.
-        For each interface, uses 'sudo iw dev <iface> station dump'
-        to extract connected client MAC addresses.
+        Scan the provided interfaces for associated client MAC addresses, excluding
+        the interface currently selected for scanning (self.selected_interface).
 
-        Returns:
-            List[str]: A unique list of client MAC addresses.
+        This function is used to build a Berkeley Packet Filter (BPF) to protect the
+        non-selected interfaces by including the MAC addresses of associated clients/APs.
+
+        Parameters
+        ----------
+        interfaces : List[str]
+            A list of interface identifiers. If the list contains the generic "wlan",
+            it will be replaced by the specific interface names defined under self.interfaces["wlan"].
+
+        Returns
+        -------
+        List[str]
+            A unique list of client MAC addresses found on interfaces other than the selected one.
         """
-        # todo: simplify this using self.interfaces dict and maybe split into two
-
         client_macs = set()
+        refined_interfaces = []
+
+        selected_iface = getattr(self, "selected_interface", None)
+
+        self.logger.debug(f"interfaces from self.interfaces: {self.interfaces}")
+
+        # Replace generic "wlan" with specific interface names from self.interfaces["wlan"]
         for iface in interfaces:
+            if iface == "wlan":
+                wlan_list = self.interfaces.get("wlan", [])
+                for item in wlan_list:
+                    iface_name = item.get("name")
+                    if iface_name and iface_name != selected_iface:
+                        refined_interfaces.append(iface_name)
+            else:
+                if iface != selected_iface:
+                    refined_interfaces.append(iface)
+
+        if not refined_interfaces:
+            self.logger.warning(
+                "No valid interfaces found for associated MAC scanning after excluding the selected interface.")
+            return list(client_macs)
+
+        for iface in refined_interfaces:
             output = self.run_shell(f"sudo iw dev {iface} station dump")
             if output:
                 for line in output.splitlines():
@@ -196,8 +239,8 @@ class Tool:
                             client_macs.add(mac_address)
             else:
                 self.logger.warning(
-                    f"Could not retrieve station dump for interface {iface} "
-                    f"please ignore this warning if it is your selected scan interface."
+                    f"Could not retrieve station dump for interface {iface}. "
+                    "Ignore this warning if it is your selected scan interface."
                 )
         self.logger.info(f"Found associated client MAC(s): {client_macs}")
         return list(client_macs)
