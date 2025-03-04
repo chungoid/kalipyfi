@@ -45,6 +45,7 @@ IPC_CONSTANTS = {
     },
     "actions": {
         "GET_STATE": "GET_STATE",
+        "PING": "PING",
         "GET_SCANS": "GET_SCANS",
         "SEND_SCAN": "SEND_SCAN",
         "SWAP_SCAN": "SWAP_SCAN",

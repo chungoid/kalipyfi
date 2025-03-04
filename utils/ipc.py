@@ -9,7 +9,7 @@ import socket
 from common.ipc_protocol import (
     pack_message, unpack_message, handle_get_state, handle_get_scans,
     handle_send_scan, handle_swap_scan, handle_update_lock,
-    handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui, handle_debug_status
+    handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui, handle_debug_status, handle_ping
 )
 from common.logging_setup import worker_configurer, get_log_queue
 from config.constants import IPC_CONSTANTS, DEFAULT_SOCKET_PATH, RETRY_DELAY
@@ -24,6 +24,7 @@ STATUS_KEY       = IPC_CONSTANTS["keys"]["STATUS_KEY"]
 RESULT_KEY       = IPC_CONSTANTS["keys"]["RESULT_KEY"]
 
 GET_STATE     = IPC_CONSTANTS["actions"]["GET_STATE"]
+PING          = IPC_CONSTANTS["actions"]["PING"]
 GET_SCANS     = IPC_CONSTANTS["actions"]["GET_SCANS"]
 SEND_SCAN     = IPC_CONSTANTS["actions"]["SEND_SCAN"]
 SWAP_SCAN     = IPC_CONSTANTS["actions"]["SWAP_SCAN"]
@@ -32,7 +33,7 @@ UPDATE_LOCK   = IPC_CONSTANTS["actions"]["UPDATE_LOCK"]
 REMOVE_LOCK   = IPC_CONSTANTS["actions"]["REMOVE_LOCK"]
 KILL_UI       = IPC_CONSTANTS["actions"]["KILL_UI"]
 DETACH_UI     = IPC_CONSTANTS["actions"]["DETACH_UI"]
-DEBUG_STATUS = IPC_CONSTANTS["actions"]["DEBUG_STATUS"]
+DEBUG_STATUS  = IPC_CONSTANTS["actions"]["DEBUG_STATUS"]
 
 
 def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> dict:
@@ -111,6 +112,8 @@ def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
                     response = handle_get_state(ui_instance, request)
                 elif action == DEBUG_STATUS:
                     response = handle_debug_status(ui_instance, request)
+                elif action == PING:
+                    response = handle_ping(ui_instance, request)
                 elif action == GET_SCANS:
                     response = handle_get_scans(ui_instance, request)
                 elif action == SEND_SCAN:

@@ -1,61 +1,36 @@
-user:
-  wpasec-key:
-
 interfaces:
   wlan:
-    - name: wlan0
-      description: "hotspot"
-      locked: True
-    - name: wlan1
-      description: "monitor"
-      locked: False
-    - name: wlan2
-      description: "monitor"
-      locked: False
-    - name: wlan3
-      description: "client"
-      locked: False
-
+  - description: monitor
+    locked: false
+    name: wlan1
 presets:
   1:
-    description: "aggressive"
+    description: aggressive
     options:
-      "autobpf": True
-      "--gpsd": True
-      "-A": True
-      "-F": True
-
+      -A: true
+      -F: true
   2:
-    description: "passive"
+    description: passive
     options:
-      "autobpf": True
-      "--gpsd": True
-      "--attemptapmax": 0
-      "-F": True
-
+      --attemptapmax: 0
+      -F: true
   3:
-    description: "silent"
+    description: silent
     options:
-      "--gpsd": True
-      "--attemptapmax": 0
-      "--disable_beacon": True
-      "-F": True
-
+      --attemptapmax: 0
+      --disable_beacon: true
+      -F: true
   4:
-    description: "rca a"
+    description: rca a
     options:
-      "autobpf": True
-      "--gpsd": True
-      "--rcascan": a
-      "-A": True
-      "-F": True
-
+      --rcascan: a
+      -A: true
+      -F: true
   5:
-    description: "rca p"
+    description: rca p
     options:
-      "autobpf": True
-      "--gpsd": True
-      "--rcascan": p
-      "-F": True
-      "-A": True
-
+      --rcascan: p
+      -A: true
+      -F: true
+wpa-sec:
+  api_key:

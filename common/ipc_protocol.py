@@ -104,6 +104,27 @@ def handle_get_state(ui_instance, request: dict) -> dict:
         logger.exception("handle_get_state: Exception")
         return {ERROR_KEY: str(e)}
 
+
+def handle_ping(ui_instance, request: dict) -> dict:
+    """
+    Handles the PING command. Simply returns a confirmation that the IPC connection is active.
+
+    Expected Format:
+        {
+            "action": "PING"
+        }
+
+    Returns
+    -------
+    dict
+        A dictionary with:
+            "status": "PING_OK" if successful.
+    """
+    logger = logging.getLogger("ipc_proto:handle_ping")
+    logger.debug("handle_ping: Received ping request")
+    return {"status": "PING_OK"}
+
+
 def handle_send_scan(ui_instance, request: dict) -> dict:
     """
     Handles the SEND_SCAN command by allocating a new scan pane and launching the scan command.

@@ -57,14 +57,14 @@ def main():
     )
     process_manager.register_process("tmuxp", tmuxp_proc.pid)
 
-    # wait before instantiating
-    wait_for_tmux_session("kalipyfi")
-    ui_manager = UIManager(session_name="kalipyfi")
-    start_ipc_server(ui_manager)
+#    # wait before instantiating
+#    wait_for_tmux_session("kalipyfi")
+#    ui_manager = UIManager(session_name="kalipyfi")
+#    start_ipc_server(ui_manager)
 
     # keep alive til signal handler
     while not shutdown_flag: # log_ui_state_phase can be uncommented to dump ui state every sleep cycle for debugging
-        log_ui_state_phase(logging.getLogger("kalipyfi_main()"), ui_manager, "after", "init in main")
+#        log_ui_state_phase(logging.getLogger("kalipyfi_main()"), ui_manager, "after", "init in main")
         time.sleep(1)
 
     logging.info("Shutting Down Kalipyfi...")

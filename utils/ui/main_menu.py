@@ -229,15 +229,53 @@ if __name__ == "__main__":
     listener = QueueListener(log_queue, *listener_handlers)
     listener.start()
     logging.getLogger("main_menu").debug("Main process logging configured using QueueHandler")
+
+    from utils.ui.ui_manager import UIManager
+    from utils.ipc import start_ipc_server
+    from utils.helper import log_ui_state_phase
+    from utils.helper import wait_for_tmux_session
+    import time
+    from utils.helper import ipc_ping
+    import signal
+
+# wait before instantiating
+    wait_for_tmux_session("kalipyfi")
+    ui_manager = UIManager(session_name="kalipyfi")
+    start_ipc_server(ui_manager)
+
+    if ipc_ping:
+        curses.wrapper(main_menu)
+
+# keep alive til signal handler
+    while not shutdown_flag: # log_ui_state_phase can be uncommented to dump ui state every sleep cycle for debugging
+        log_ui_state_phase(logging.getLogger("kalipyfi_main()"), ui_manager, "after", "init in main")
+        if not ipc_ping(DEFAULT_SOCKET_PATH):
+            start_ipc_server(ui_manager)
+        time.sleep(1)
+
+    logging.info("Shutting Down Kalipyfi...")
+    process_manager.shutdown_all()
+
+
+
+
+
+
+
+
+
+
+"""
+
     try:
         # let tmuxp load
         session = wait_for_tmux_session("kalipyfi", timeout=30)
     except TimeoutError as e:
         logging.error(e)
         sys.exit(1)
-
     # let ipc server startup
     wait_for_ipc_socket()
     # ok now go
     curses.wrapper(main_menu)
 
+"""

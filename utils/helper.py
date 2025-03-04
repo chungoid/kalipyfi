@@ -15,6 +15,19 @@ from config.constants import DEFAULT_SOCKET_PATH
 
 shutdown_flag = False
 
+def ipc_ping(socket_path: str = DEFAULT_SOCKET_PATH) -> bool:
+    import socket
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            s.connect(socket_path)
+            s.send(b'{"action": "PING"}')
+            response = s.recv(1024)
+            if response:
+                return True
+    except Exception:
+        return False
+
 def cleanup_tmp():
     if os.path.exists("/tmp/kalipyfi_main.yaml"):
         os.remove("/tmp/kalipyfi_main.yaml")
