@@ -3,6 +3,15 @@
 # SET YOUR DIRECTORY PATH
 KALIPYFI_DIR="/home/user/kalipyfi/"
 
-# leave these
+echo
+echo may take a few moments for services to load...
+echo
+echo if stuck loading check/kill other sessions...
+echo hint: tmux kill-server / sudo tmux kill-server
+echo
+echo starting ipc server and intializing user interface...
+
+# leave these alone
 source "$KALIPYFI_DIR/.venv/bin/activate"
-sudo "$KALIPYFI_DIR/.venv/bin/python3" "$KALIPYFI_DIR/kalipyfi.py" "$@"
+"$KALIPYFI_DIR/.venv/bin/python3" "$KALIPYFI_DIR/kalipyfi.py" "$@"
+
