@@ -1,7 +1,10 @@
 import os
 import curses
 import logging
+from pathlib import Path
 from typing import Any, List
+
+import yaml
 
 # local
 from utils import ipc
@@ -333,22 +336,11 @@ class HcxToolSubmenu:
     def create_scan_profile_menu(self, parent_win) -> None:
         """
         Prompts the user to build a new scan profile based on a defaults YAML file and
-        adds it to the tool's configuration. This version displays a paginated menu of all
-        default options so the user may select and edit one option at a time. When finished,
-        the user is prompted for a profile ID, and the new profile is reviewed and saved.
-
-        Returns
-        -------
-        None
-
-        Example
-        -------
-        >>> self.create_scan_profile_menu(parent_win)  # doctest: +SKIP
-        (The user is guided through creating a new scan profile using a paginated menu.)
+        adds it to the tool's configuration. For each option in the defaults file:
+          - If the default is null (indicating a boolean option), the user is prompted to enter
+            't' (for true) or 'f' (for false).
+          - Otherwise, the user is prompted to enter a value.
         """
-        import yaml
-        from pathlib import Path
-
         defaults_path = Path(self.tool.base_dir) / "configs" / "defaults.yaml"
         try:
             with defaults_path.open("r") as f:
@@ -368,45 +360,44 @@ class HcxToolSubmenu:
             parent_win.getch()
             return
 
-        # Start with a new profile based on defaults.
+        # Initialize new_profile with each key set to its default.
         new_profile = {}
-        for key, option in default_profile.items():
-            new_profile[key] = option.get("value", "")
+        for opt_key, opt_data in default_profile.items():
+            new_profile[opt_key] = opt_data.get("value", "")
 
-        # Editing loop: present a paginated menu of options and allow user to change one at a time.
-        while True:
-            # Build menu items: each option displays key and current value.
-            menu_items = [f"{key}: {new_profile[key]}" for key in new_profile.keys()]
-            # Append a finish option.
-            menu_items.append("Finish Editing")
-            selection = self.draw_paginated_menu(parent_win, "Create Scan Profile", menu_items)
-            if selection == "back" or selection == "Finish Editing":
-                break
-            # Determine which option was selected by splitting at the colon.
-            try:
-                key_to_edit = selection.split(":", 1)[0].strip()
-            except Exception:
-                continue
-            # Prompt the user for a new value for the selected key.
+        # Loop through each option individually using screen clearance.
+        for opt_key, opt_data in default_profile.items():
+            desc = opt_data.get("description", "")
+            default_value = opt_data.get("value", "")
             parent_win.clear()
-            prompt = f"Enter new value for {key_to_edit} (current: {new_profile.get(key_to_edit)})"
+            if default_value is None:
+                # Boolean option: prompt for t/f.
+                prompt = f"Enable option '{opt_key}'? (t/f, default: f): "
+            else:
+                prompt = f"{opt_key} (default: {default_value}): "
             parent_win.addstr(0, 0, prompt)
+            # Add a blank line before the description.
+            parent_win.addstr(1, 0, "")
+            parent_win.addstr(2, 0, f"Description: {desc}")
+            parent_win.addstr(4, 0, "Enter value (or press Enter to accept default):")
             parent_win.refresh()
             curses.echo()
             try:
-                user_input = parent_win.getstr(1, 0).decode("utf-8").strip()
+                user_input = parent_win.getstr(5, 0).decode("utf-8").strip()
             except Exception:
                 user_input = ""
             curses.noecho()
-            if user_input != "":
-                new_profile[key_to_edit] = user_input
-            # Clear the screen before next iteration.
-            parent_win.clear()
-            parent_win.refresh()
+            # For boolean options, interpret input accordingly.
+            if default_value is None:
+                # If user types 't' (case-insensitive), store the flag (opt_key); otherwise, leave blank.
+                new_val = opt_key if user_input.lower() == 't' else ""
+            else:
+                new_val = user_input if user_input != "" else default_value
+            new_profile[opt_key] = new_val
 
-        # After editing, prompt for a profile ID/name.
+        # Prompt for a profile ID/name.
         parent_win.clear()
-        parent_win.addstr(0, 0, "Enter a name/ID for this new scan profile:")
+        parent_win.addstr(0, 0, "Enter a name/ID for this new scan profile (leave blank to cancel):")
         parent_win.refresh()
         curses.echo()
         try:
@@ -421,41 +412,44 @@ class HcxToolSubmenu:
             parent_win.getch()
             return
 
-        # Show a final review screen.
+        # Review screen: show only non-blank options.
         parent_win.clear()
         parent_win.addstr(0, 0, f"New Scan Profile ({profile_id}):")
         row = 1
         for key, value in new_profile.items():
-            parent_win.addstr(row, 0, f"{key}: {value}")
-            row += 1
-            if row >= parent_win.getmaxyx()[0] - 2:
-                parent_win.addstr(row, 0, "Press any key to continue...")
-                parent_win.refresh()
-                parent_win.getch()
-                parent_win.clear()
-                row = 0
-        parent_win.addstr(row, 0, "Press 'y' to confirm, any other key to cancel.")
+            if value not in ("", None):
+                parent_win.addstr(row, 0, f"{key}: {value}")
+                row += 1
+                # If we reach near the bottom, pause.
+                if row >= parent_win.getmaxyx()[0] - 3:
+                    parent_win.addstr(row, 0, "Press any key to continue...")
+                    parent_win.refresh()
+                    parent_win.getch()
+                    parent_win.clear()
+                    row = 0
+        # Final choice: save or cancel.
+        parent_win.addstr(row, 0, "1: Save    2: Cancel")
         parent_win.refresh()
-        confirmation = parent_win.getch()
-        if chr(confirmation).lower() != 'y':
+        choice = parent_win.getch()
+        if chr(choice).lower() != '1':
             parent_win.clear()
             parent_win.addstr(0, 0, "Profile creation cancelled.")
             parent_win.refresh()
             parent_win.getch()
             return
 
-        # Determine next available preset key.
+        # Determine the next available preset key.
         try:
             existing_keys = list(self.tool.presets.keys())
             next_key = str(max([int(k) for k in existing_keys]) + 1) if existing_keys else "1"
         except Exception:
             next_key = "1"
-        # Save the new profile in the tool's presets.
+        # Filter new_profile to include only non-blank values.
+        filtered_profile = {k: v for k, v in new_profile.items() if v not in ("", None)}
         self.tool.presets[next_key] = {
             "description": profile_id,
-            "options": new_profile
+            "options": filtered_profile
         }
-
         try:
             self.tool.update_presets_in_config(self.tool.presets)
             parent_win.clear()
@@ -470,24 +464,8 @@ class HcxToolSubmenu:
     def edit_scan_profile_menu(self, parent_win) -> None:
         """
         Prompts the user to select an existing scan profile to edit, then allows the user to
-        select individual options (from a paginated menu) to edit. After each edit, the option
-        is updated, and the user may choose additional options to modify or finish editing.
-        Finally, the updated profile is reviewed, and upon confirmation, it is saved to the
-        tool's configuration.
-
-        Returns
-        -------
-        None
-
-        Example
-        -------
-        >>> self.edit_scan_profile_menu(parent_win)  # doctest: +SKIP
-        (The user selects a preset, chooses options to edit from a paginated menu, modifies them,
-         and confirms the changes.)
+        select individual options (from a paginated menu) to edit.
         """
-        import yaml
-        from pathlib import Path
-
         # List current presets.
         presets_dict = self.tool.presets
         if not presets_dict:
