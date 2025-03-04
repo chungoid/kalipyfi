@@ -11,7 +11,7 @@ import jinja2
 from common.process_manager import process_manager
 from config.constants import MAIN_UI_YAML_PATH, TMUXP_DIR, BASE_DIR
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
-from utils.helper import setup_signal_handlers, shutdown_flag, wait_for_tmux_session, cleanup_tmp
+from utils.helper import setup_signal_handlers, shutdown_flag, wait_for_tmux_session, cleanup_tmp, log_ui_state_phase
 from utils.ipc import start_ipc_server
 from utils.ui.ui_manager import UIManager
 from common.config_utils import test_config_paths
@@ -63,7 +63,8 @@ def main():
     start_ipc_server(ui_manager)
 
     # keep alive til signal handler
-    while not shutdown_flag:
+    while not shutdown_flag: # log_ui_state_phase can be uncommented to dump ui state every sleep cycle for debugging
+        log_ui_state_phase(logging.getLogger("kalipyfi_main()"), ui_manager, "after", "init in main")
         time.sleep(1)
 
     logging.info("Shutting Down Kalipyfi...")

@@ -5,6 +5,8 @@ import socket
 import signal
 import logging
 import inspect
+from pprint import pformat
+
 import libtmux
 import subprocess
 
@@ -97,18 +99,33 @@ def wait_for_ipc_socket(socket_path: str=DEFAULT_SOCKET_PATH, timeout: float=5, 
                 return False
             time.sleep(retry_delay)
 
+
 def log_ui_state_phase(logger, ui_instance, phase: str, extra_msg: str = "") -> None:
     """
-    Logs a debug message with caller info, the phase, and extra info.
-    Then, it dumps the UI state and logs differences between
-    tmuxp-reported pane titles and the internal active_scans mapping.
+    Logs detailed debug information about the current UI state, including a dump
+    of windows, panes, active scans, and interfaces. It also compares the tmuxp-reported
+    pane titles with the internal active scan titles to help diagnose any mismatches.
 
-    Args:
-        logger (logging.Logger): Logger to use.
-        ui_instance (UiInstance): UiInstance to use.
-        phase (str): Before or After as keyword to log place in function.
-        extra_msg (str, optional): Additional info if phase keyword isn't enough.
+    Parameters
+    ----------
+    logger : logging.Logger
+        The logger to use for output.
+    ui_instance : UiManager
+        The UI manager instance whose state is to be dumped.
+    phase : str
+        A label (e.g., "Before", "After") indicating the phase of a swap or operation.
+    extra_msg : str, optional
+        Additional contextual information to include in the log message.
+
+    Returns
+    -------
+    None
+
+    Example
+    -------
+    >>> log_ui_state_phase(logger, ui_manager, "Before", "Starting swap operation")  # doctest: +SKIP
     """
+    import pprint
     caller_frame = inspect.stack()[1]
     file_name = caller_frame.filename.split("/")[-1]
     function_name = caller_frame.function
@@ -116,20 +133,24 @@ def log_ui_state_phase(logger, ui_instance, phase: str, extra_msg: str = "") -> 
     logger.debug(
         f"-- file: [{file_name}] -- function: [{function_name}] -- {phase.upper()} SWAPPING -- {extra_msg}"
     )
-    ui_instance.dump_ui_state()
 
-    # flatten active_scans for comparison
+    # Dump full UI state.
+    ui_state = ui_instance.get_ui_state()
+    logger.debug("Full UI State:\n%s", pprint.pformat(ui_state, indent=4))
+
+    # Flatten active_scans for easier comparison.
     flattened = {}
-    for tool, mapping in ui_instance.active_scans.items():
-        flattened.update(mapping)
+    for win in ui_state["windows"]:
+        for pane in win["panes"]:
+            flattened[pane["pane_id"]] = pane["internal_title"]
 
-    # compare each main UI pane's tmuxp title vs. internal mapping
-    for pane in ui_instance.window.panes:
-        title_cmd = f'tmuxp display-message -p "#{{pane_title}}" -t {pane.pane_id}'
-        result = subprocess.run(title_cmd, shell=True, capture_output=True, text=True)
-        tmux_title = result.stdout.strip() if result.returncode == 0 else "N/A"
-        internal_title = flattened.get(pane.pane_id, "N/A")
-        if tmux_title != internal_title:
-            logger.debug(
-                f"Title mismatch for pane {pane.pane_id}: tmuxp reported '{tmux_title}' vs. internal mapping '{internal_title}'"
-            )
+    # Compare tmuxp-reported pane titles with internal titles.
+    for win in ui_state["windows"]:
+        for pane in win["panes"]:
+            tmux_title = pane["tmux_title"]
+            internal_title = flattened.get(pane["pane_id"], "N/A")
+            if tmux_title != internal_title:
+                logger.debug(
+                    f"Title mismatch for pane {pane['pane_id']}: tmuxp reported '{tmux_title}' vs. internal mapping '{internal_title}'"
+                )
+

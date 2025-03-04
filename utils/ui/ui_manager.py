@@ -13,6 +13,7 @@ from typing import Dict, Optional, Tuple
 # local
 from common.models import ScanData, InterfaceData, SessionData
 from config.constants import TMUXP_DIR
+from utils.helper import log_ui_state_phase
 
 
 class UIManager:
@@ -79,6 +80,7 @@ class UIManager:
         command = self.convert_cmd_dict_to_string(cmd_dict)
         pane.send_keys(command, enter=True)
         self.logger.debug(f"Launched scan command: {command} in pane {pane.get('pane_id')}")
+
         return command
 
 
@@ -642,14 +644,65 @@ class UIManager:
             self.logger.debug(f"Session Name: {self.session_name}")
             self.logger.debug(f"Window: name='{window.get('window_name')}', id='{window.get('window_id')}'")
 
-
     def get_ui_state(self) -> dict:
         """
-        Returns the current UI state as a dictionary containing active scans and interfaces.
+        Returns a detailed dictionary representing the current UI state, including
+        all windows and panes with their IDs, names, dimensions, tmux-reported titles,
+        and internal scan titles (if available), along with active scans and interface data.
 
-        :return: A dict with keys 'active_scans' and 'interfaces'.
+        Returns
+        -------
+        dict
+            A dictionary with keys:
+                - "windows": A list of dictionaries, each representing a window with:
+                    - "window_id": The window's unique identifier.
+                    - "window_name": The window's name.
+                    - "panes": A list of dictionaries for each pane containing:
+                        - "pane_id": The pane's unique identifier.
+                        - "pane_index": The pane's index within the window.
+                        - "pane_height": The pane's height.
+                        - "pane_width": The pane's width.
+                        - "tmux_title": The pane title as reported by tmuxp.
+                        - "internal_title": The internal title from active scans, or "N/A" if not set.
+                - "active_scans": A mapping of pane IDs to their ScanData (as dictionaries).
+                - "interfaces": A mapping of interface names to their InterfaceData (as dictionaries).
+
+        Example
+        -------
+        >>> ui_state = ui_manager.get_ui_state()  # doctest: +SKIP
+        >>> print(ui_state["windows"][0]["window_name"])
+        kalipyfi
         """
-        return {
+        state = {
+            "windows": [],
             "active_scans": {pid: scan.to_dict() for pid, scan in self.active_scans.items()},
             "interfaces": {iface: data.to_dict() for iface, data in self.interfaces.items()}
         }
+
+        # Iterate over all windows in the session.
+        for window in self.session.windows:
+            window_state = {
+                "window_id": window.get("window_id"),
+                "window_name": window.get("window_name"),
+                "panes": []
+            }
+            for pane in window.panes:
+                pane_id = pane.get("pane_id")
+                # Retrieve tmuxp pane title via a shell command.
+                title_cmd = f'tmuxp display-message -p "#{{pane_title}}" -t {pane_id}'
+                result = subprocess.run(title_cmd, shell=True, capture_output=True, text=True)
+                tmux_title = result.stdout.strip() if result.returncode == 0 else "N/A"
+                # Get internal title from active scans if available.
+                internal_title = self.active_scans.get(pane_id).internal_name if pane_id in self.active_scans else "N/A"
+                pane_state = {
+                    "pane_id": pane_id,
+                    "pane_index": pane.get("pane_index"),
+                    "pane_height": pane.get("pane_height"),
+                    "pane_width": pane.get("pane_width"),
+                    "tmux_title": tmux_title,
+                    "internal_title": internal_title
+                }
+                window_state["panes"].append(pane_state)
+            state["windows"].append(window_state)
+
+        return state
