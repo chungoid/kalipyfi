@@ -79,7 +79,7 @@ def exit_menu(stdscr):
                 stdscr.clear()
                 stdscr.addstr(0, 0, "Kill command sent. Killing UI...")
                 stdscr.refresh()
-                process_manager.shutdown()
+                process_manager.shutdown_all()
                 #listener.stop()
         elif ch == "0" or key == 27:
             # Return to main menu.
@@ -259,6 +259,8 @@ def main():
     # Main loop: monitor the IPC connection and shutdown if needed.
     while True:
         logging.debug("in the menu loop")
+        process_manager.get_status_report()
+        process_manager.debug_status()
         if not ipc_ping():
             # Attempt to reconnect if needed.
             run_ipc_server()

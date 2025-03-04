@@ -60,6 +60,7 @@ def main():
     # Main loop: continue while shutdown_flag is False.
     while not shutdown_flag:
         process_manager.get_status_report()
+        process_manager.debug_status()
         time.sleep(1)
 
     logging.info("Shutting Down Kalipyfi...")
