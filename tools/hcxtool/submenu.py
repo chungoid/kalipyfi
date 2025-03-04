@@ -322,7 +322,7 @@ class HcxToolSubmenu:
                 "Utils",
                 "Back"
             ]
-            # For main submenu, number of items is small so we can use draw_menu.
+            # Draw for main menu; may paginate
             menu_win = self.draw_menu(submenu_win, "HCXTool Submenu",
                                       [f"[{i + 1}] {item}" for i, item in enumerate(menu_items)])
             key = menu_win.getch()
@@ -338,7 +338,7 @@ class HcxToolSubmenu:
                 self.upload(submenu_win)
             elif ch == "4":
                 self.utils_menu(submenu_win)
-            elif ch == "5" or key == 27:
+            elif ch == "0" or key == 27:
                 break
             submenu_win.clear()
             submenu_win.refresh()
