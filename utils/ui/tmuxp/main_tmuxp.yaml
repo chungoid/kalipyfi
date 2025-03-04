@@ -7,7 +7,7 @@ windows:
   - window_name: "kalipyfi"
     layout: main-horizontal
     options:
-      main-pane-height: 70%
+      main-pane-height: 85%
     panes:
       - shell_command:
           - "{{ TMUXP_DIR }}/show_ascii.py"
