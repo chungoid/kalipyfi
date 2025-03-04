@@ -254,14 +254,10 @@ if __name__ == "__main__":
 
     ipc_process = Process(target=run_ipc_server, daemon=True)
     ipc_process.start()
-    #start_ipc_server(ui_manager)
 
     if ipc_ping:
         curses.wrapper(main_menu)
 
-# keep alive til signal handler
-    #while not shutdown_flag: # log_ui_state_phase can be uncommented to dump ui state every sleep cycle for debugging
-        #log_ui_state_phase(logging.getLogger("kalipyfi_main()"), ui_manager, "after", "init in main")
     while True:
         if not ipc_ping(DEFAULT_SOCKET_PATH) and not shutdown_flag:
             pass
