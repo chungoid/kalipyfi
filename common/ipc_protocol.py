@@ -142,7 +142,7 @@ def handle_send_scan(ui_instance, request: dict) -> dict:
         logger.error("handle_send_scan: Missing parameters")
         return {ERROR_KEY: "Missing parameters for SEND_SCAN"}
     try:
-        pane_id = ui_instance.allocate_scan_pane(tool_name, scan_profile, cmd_dict, interface, timestamp)
+        pane_id = ui_instance.allocate_scan_window(tool_name, scan_profile, cmd_dict, interface, timestamp)
         if pane_id:
             logger.debug(f"handle_send_scan: Successfully allocated pane: {pane_id}")
             return {"status": "SEND_SCAN_OK", "pane_id": pane_id}

@@ -257,6 +257,18 @@ class UIManager:
             self.logger.exception(f"Error loading background window for {tool_name}: {e}")
 
     def allocate_scan_pane(self, tool_name: str, scan_profile: str, cmd_dict: dict, interface: str, timestamp: float) -> str:
+        """
+        Now defunct, and prefer allocate_scan_window. One scan per window preserves
+        the intended display state. Too many panes compresses the state & some tools
+        struggle to reformat on swaps.
+
+        :param tool_name:
+        :param scan_profile:
+        :param cmd_dict:
+        :param interface:
+        :param timestamp:
+        :return:
+        """
         # Ensure the background window exists:
         window = self.get_or_create_tool_window(tool_name)
         # Create a new pane in that window:
@@ -270,6 +282,62 @@ class UIManager:
         pane_id = pane.get("pane_id")
         self._register_scan(window.get("window_name"), pane_id, pane_internal_name, tool_name, scan_profile, command,
                             interface, lock_status, timestamp)
+        return pane_id
+
+    def allocate_scan_window(self, tool_name: str, scan_profile: str, cmd_dict: dict, interface: str,
+                             timestamp: float) -> str:
+        """
+        Creates a new dedicated window for a scan, runs the scan command in its single pane,
+        and registers the scan.
+
+        Parameters
+        ----------
+        tool_name : str
+            Name of the tool.
+        scan_profile : str
+            The scan profile (expected to be formatted like "wlan1_passive").
+        cmd_dict : dict
+            The command dictionary to run.
+        interface : str
+            The selected scan interface.
+        timestamp : float
+            The timestamp from the IPC message.
+
+        Returns
+        -------
+        str
+            The pane_id of the dedicated scan pane.
+        """
+        # unix timestamp for uniqueness. ex. tool_name_001312348302
+        window_name = f"scan_{tool_name}_{int(timestamp)}"
+        self.logger.info(f"Creating dedicated scan window: {window_name}")
+        window = self.session.new_window(window_name=window_name, attach=False)
+
+        # single scan per window
+        pane = window.panes[0]
+
+        # expected scan_profile format: "wlan1_passive" (i.e. "<interface>_<preset>")
+        parts = scan_profile.split("_")
+        if len(parts) >= 2:
+            iface_from_profile = parts[0]
+            preset_desc = parts[1]
+        else:
+            # fallbacks
+            iface_from_profile = interface
+            preset_desc = "unknown"
+
+        pane_internal_name = f"{tool_name}_{iface_from_profile}_{preset_desc}_{int(timestamp)}"
+
+        command = self.convert_cmd_dict_to_string(cmd_dict)
+        pane.send_keys(command, enter=True)
+        self.logger.debug(
+            f"Launched scan in dedicated window '{window_name}' pane '{pane_internal_name}' with command: {command}")
+
+        lock_status = self.get_lock_status(interface)
+        pane_id = pane.get("pane_id")
+        self._register_scan(window.get("window_name"), pane_id, pane_internal_name, tool_name,
+                            scan_profile, command, interface, lock_status, timestamp)
+
         return pane_id
 
     def update_interface(self, interface: str, lock_status: bool) -> None:
@@ -302,23 +370,21 @@ class UIManager:
 
     def swap_scan(self, tool_name: str, pane_id: str, new_title: str) -> None:
         """
-        Updates the title (internal name) of a scan pane in the UI manager.
+        Swaps a dedicated scan pane from its window into the main UI window.
 
-        Expected Format:
-            {
-                "tool": <tool_name>,
-                "pane_id": <pane_id>,
-                "new_title": <new_title>
-            }
+        This function locates the dedicated scan pane identified by `pane_id` (which was
+        allocated in its own window) and moves it into the main UI window using a tmux
+        join-pane command. After the pane is moved, the scan's internal name is updated
+        to `new_title` for internal tracking purposes.
 
         Parameters
         ----------
         tool_name : str
             The name of the tool associated with the scan.
         pane_id : str
-            The unique identifier of the pane whose title is to be updated.
+            The unique identifier of the scan pane to be swapped.
         new_title : str
-            The new title to assign to the scan pane for internal tracking.
+            The new internal title for the scan (e.g., "wlan1_passive") to be used after swapping.
 
         Returns
         -------
@@ -327,23 +393,47 @@ class UIManager:
         Raises
         ------
         KeyError
-            If no active scan is found for the given pane_id.
+            If no active scan is found for the given `pane_id`.
+
+        Example
+        -------
+        >>> ui_manager.swap_scan("hcxtool", "%5", "wlan1_passive")
+        (The scan pane is moved into the main UI window and its internal title is updated.)
+
+        Notes
+        -----
+        - The function first verifies that the scan is registered in the UIManager's active scans.
+        - It retrieves the main UI window (assumed to have a window name such as "main_ui").
+        - If the pane exists, the tmux join-pane command is executed to move the pane.
+        - Finally, the internal name of the scan is updated in the active scan registry.
         """
-        # retrieve the active scan data from the UIManager's registry
         if pane_id not in self.active_scans:
             self.logger.error(f"No active scan found for pane_id: {pane_id}")
             raise KeyError(f"No active scan found for pane_id: {pane_id}")
 
-        # verify the pane still exists
-        pane = self._find_pane_by_id(pane_id)
-        if not pane:
-            self.logger.warning(f"Pane {pane_id} is not currently found; updating internal record only.")
-
-        # update the internal name of the scan data
+        # Retrieve the scan data and store the old title.
         scan_data = self.active_scans[pane_id]
         old_title = scan_data.internal_name
+
+        # Retrieve the main UI window. Adjust the target window name as needed.
+        main_window = self.session.find_where({"window_name": "main_ui"})
+        if not main_window:
+            self.logger.error("Main UI window not found; cannot swap scan pane.")
+            return
+
+        # Locate the dedicated scan pane by its pane_id.
+        pane = self._find_pane_by_id(pane_id)
+        if pane:
+            # Execute the tmux join-pane command to move the pane into the main UI window.
+            join_cmd = f"tmux join-pane -s {pane_id} -t {main_window.get('window_id')}"
+            self.logger.debug(f"Executing join-pane command: {join_cmd}")
+            subprocess.run(join_cmd, shell=True, check=True)
+        else:
+            self.logger.warning(f"Pane {pane_id} not found; updating internal record only.")
+
+        # Update the internal name of the scan to reflect the new title.
         scan_data.internal_name = new_title
-        self.logger.info(f"Swapped scan title for pane {pane_id}: '{old_title}' -> '{new_title}'")
+        self.logger.info(f"Swapped scan pane {pane_id}: '{old_title}' -> '{new_title}'")
 
 
     def get_lock_status(self, interface: str) -> bool:
