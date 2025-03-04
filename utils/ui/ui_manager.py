@@ -13,7 +13,6 @@ from typing import Dict, Optional, Tuple
 # local
 from common.models import ScanData, InterfaceData, SessionData
 from config.constants import TMUXP_DIR
-from utils.helper import log_ui_state_phase
 
 
 class UIManager:
@@ -128,6 +127,7 @@ class UIManager:
         self.debug_list_windows()
         return session
 
+
     def get_tool_window(self, tool_name: str) -> Optional[libtmux.Window]:
         expected_window_name = f"bg_{tool_name}"
         self.logger.debug(
@@ -141,6 +141,7 @@ class UIManager:
         else:
             self.logger.debug(f"Window '{expected_window_name}' not found.")
         return window
+
 
     def create_tool_window(self, tool_name: str) -> libtmux.Window:
         """
@@ -403,7 +404,7 @@ class UIManager:
 
         Example
         -------
-        >>> ui_manager.swap_scan("hcxtool", "%4", "wlan1_passive")  # doctest: +SKIP
+        >>> ui_manager.swap_scan("hcxtool", "%4", "wlan1_passive")
         (Swaps the dedicated scan pane into the main UI, zooms it to full size,
          and re-focuses the main menu pane, preserving both scan panes.)
         """
@@ -513,67 +514,51 @@ class UIManager:
 
     def get_main_scan_pane(self) -> Optional[libtmux.Pane]:
         """
-        Identifies the main scan pane in the main UI window based on its size.
+        Retrieves the main scan pane from the main UI window.
 
-        Since tmux does not allow naming panes explicitly, and your main UI is composed of
-        three panes (typically two small ones for log and menu, and one large pane for scanning),
-        this function deduces the main scan pane by selecting the pane with the largest area
-        (i.e., height * width).
+        In your current layout, the main UI window ("kalipyfi") always has its
+        main scan pane at pane index "0". This function returns that pane.
 
         Returns
         -------
         Optional[libtmux.Pane]
-            The pane with the largest area in the main UI window, assumed to be the main scan pane.
-            Returns None if the main UI window is not found or if no panes are present.
+            The pane with index "0" in the "kalipyfi" window, or None if the window
+            or pane cannot be found.
 
         Example
         -------
-        >>> main_scan_pane = ui_manager.get_main_scan_pane()    # doctest: +SKIP
-        >>> if main_scan_pane:
-        ...     print("Main scan pane:", main_scan_pane.get("pane_id"))
+        >>> main_scan_pane = ui_manager.get_main_scan_pane()
+        >>> if main_scan_pane is not None:
+        ...     print("Main scan pane found:", main_scan_pane.get("pane_id"))
         """
-        # Locate the main UI window; adjust the window_name if necessary.
         main_window = self.session.find_where({"window_name": "kalipyfi"})
         if not main_window:
             self.logger.error("Main UI window 'kalipyfi' not found.")
             return None
 
-        main_scan_pane = None
-        max_area = 0
         for pane in main_window.panes:
-            try:
-                height = int(pane.get("pane_height"))
-                width = int(pane.get("pane_width"))
-            except (KeyError, ValueError):
-                continue
-            area = height * width
-            if area > max_area:
-                max_area = area
-                main_scan_pane = pane
+            if pane.get("pane_index") == "0":
+                self.logger.debug(f"Main scan pane identified: {pane.get('pane_id')}")
+                return pane
 
-        if not main_scan_pane:
-            self.logger.error("No pane found in main UI window.")
-        else:
-            self.logger.debug(f"Main scan pane identified with area {max_area}: {main_scan_pane.get('pane_id')}")
-        return main_scan_pane
+        self.logger.error("Main scan pane with index '0' not found in main UI window.")
+        return None
 
 
     def get_main_menu_pane(self) -> Optional[libtmux.Pane]:
         """
-        Identifies the main menu pane in the main UI window based on its pane index.
+        Identifies the main menu pane in the main UI window.
 
-        Since the main UI window is created via a YAML configuration with three panes,
-        and the menu pane is defined (or given initial focus) as the second pane,
-        this function selects the pane with pane_index "1".
+        In our layout, the main menu pane is always at pane_index "1" in the "kalipyfi" window.
 
         Returns
         -------
         Optional[libtmux.Pane]
-            The pane assumed to be the main menu pane, or None if not found.
+            The pane with index "1" in the "kalipyfi" window, or None if not found.
 
         Example
         -------
-        >>> menu_pane = ui_manager.get_main_menu_pane()  # doctest: +SKIP
+        >>> menu_pane = ui_manager.get_main_menu_pane()
         >>> if menu_pane:
         ...     print("Main menu pane id:", menu_pane.get("pane_id"))
         """
@@ -582,17 +567,41 @@ class UIManager:
             self.logger.error("Main UI window 'kalipyfi' not found.")
             return None
 
-        # Try to find the pane with pane_index "1", as defined in your YAML.
         for pane in main_window.panes:
             if pane.get("pane_index") == "1":
                 return pane
 
-        # Fallback: return the pane that currently has focus.
+        self.logger.error("Main menu pane with index '1' not found in main UI window.")
+        return None
+
+
+    def get_log_pane(self) -> Optional[libtmux.Pane]:
+        """
+        Identifies the log pane in the main UI window.
+
+        In our layout, the log pane is always at pane_index "2" in the "kalipyfi" window.
+
+        Returns
+        -------
+        Optional[libtmux.Pane]
+            The pane with index "2" in the "kalipyfi" window, or None if not found.
+
+        Example
+        -------
+        >>> log_pane = ui_manager.get_log_pane()
+        >>> if log_pane:
+        ...     print("Log pane id:", log_pane.get("pane_id"))
+        """
+        main_window = self.session.find_where({"window_name": "kalipyfi"})
+        if not main_window:
+            self.logger.error("Main UI window 'kalipyfi' not found.")
+            return None
+
         for pane in main_window.panes:
-            if pane.get("pane_active") == "1":
+            if pane.get("pane_index") == "2":
                 return pane
 
-        self.logger.error("Main menu pane not found in main UI window.")
+        self.logger.error("Log pane with index '2' not found in main UI window.")
         return None
 
 
@@ -669,7 +678,7 @@ class UIManager:
 
         Example
         -------
-        >>> ui_state = ui_manager.get_ui_state()  # doctest: +SKIP
+        >>> ui_state = ui_manager.get_ui_state()
         >>> print(ui_state["windows"][0]["window_name"])
         kalipyfi
         """
