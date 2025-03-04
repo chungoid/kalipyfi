@@ -166,4 +166,3 @@ def log_ui_state_phase(logger, ui_instance, phase: str, extra_msg: str = "") -> 
                 logger.debug(
                     f"Title mismatch for pane {pane['pane_id']}: tmuxp reported '{tmux_title}' vs. internal mapping '{internal_title}'"
                 )
-

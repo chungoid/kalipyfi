@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # SET YOUR DIRECTORY PATH
-KALIPYFI_DIR="/home/user/kalipyfi/"
+KALIPYFI_DIR="/home/flip/tmuxp-kalipifi/"
 
 # leave these
 source "$KALIPYFI_DIR/.venv/bin/activate"
-sudo "$KALIPYFI_DIR/.venv/bin/python3" "$KALIPYFI_DIR/kalipyfi.py" "$@"
+"$KALIPYFI_DIR/.venv/bin/python3" "$KALIPYFI_DIR/kalipyfi.py" "$@"

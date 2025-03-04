@@ -3,6 +3,7 @@ import os
 import sys
 import curses
 import logging
+from multiprocessing import Process
 from pathlib import Path
 from logging.handlers import QueueListener
 project_base = Path(__file__).resolve().parent.parent.parent
@@ -211,6 +212,13 @@ def main_menu(stdscr):
             stdscr.refresh()
             draw_menu(stdscr, title, menu_items)
 
+def run_ipc_server():
+     # Create a dedicated UIManager instance for the IPC server.
+    from utils.ipc import ipc_server
+    from utils.ui.ui_manager import UIManager
+    ui_instance = UIManager(session_name="kalipyfi")
+    ipc_server(ui_instance, DEFAULT_SOCKET_PATH)
+
 
 if __name__ == "__main__":
 ### immediate process tracking
@@ -235,47 +243,29 @@ if __name__ == "__main__":
     from utils.helper import log_ui_state_phase
     from utils.helper import wait_for_tmux_session
     import time
+    #from utils.ipc import run_ipc_server
     from utils.helper import ipc_ping
     import signal
+    #import Process
 
 # wait before instantiating
     wait_for_tmux_session("kalipyfi")
     ui_manager = UIManager(session_name="kalipyfi")
-    start_ipc_server(ui_manager)
+
+    ipc_process = Process(target=run_ipc_server, daemon=True)
+    ipc_process.start()
+    #start_ipc_server(ui_manager)
 
     if ipc_ping:
         curses.wrapper(main_menu)
 
 # keep alive til signal handler
-    while not shutdown_flag: # log_ui_state_phase can be uncommented to dump ui state every sleep cycle for debugging
-        log_ui_state_phase(logging.getLogger("kalipyfi_main()"), ui_manager, "after", "init in main")
-        if not ipc_ping(DEFAULT_SOCKET_PATH):
-            start_ipc_server(ui_manager)
-        time.sleep(1)
+    #while not shutdown_flag: # log_ui_state_phase can be uncommented to dump ui state every sleep cycle for debugging
+        #log_ui_state_phase(logging.getLogger("kalipyfi_main()"), ui_manager, "after", "init in main")
+    while True:
+        if not ipc_ping(DEFAULT_SOCKET_PATH) and not shutdown_flag:
+            pass
+        time.sleep(5)
 
-    logging.info("Shutting Down Kalipyfi...")
-    process_manager.shutdown_all()
-
-
-
-
-
-
-
-
-
-
-"""
-
-    try:
-        # let tmuxp load
-        session = wait_for_tmux_session("kalipyfi", timeout=30)
-    except TimeoutError as e:
-        logging.error(e)
-        sys.exit(1)
-    # let ipc server startup
-    wait_for_ipc_socket()
-    # ok now go
-    curses.wrapper(main_menu)
-
-"""
+        logging.info("Shutting Down Kalipyfi...")
+        process_manager.shutdown_all()

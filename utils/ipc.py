@@ -33,7 +33,7 @@ UPDATE_LOCK   = IPC_CONSTANTS["actions"]["UPDATE_LOCK"]
 REMOVE_LOCK   = IPC_CONSTANTS["actions"]["REMOVE_LOCK"]
 KILL_UI       = IPC_CONSTANTS["actions"]["KILL_UI"]
 DETACH_UI     = IPC_CONSTANTS["actions"]["DETACH_UI"]
-DEBUG_STATUS  = IPC_CONSTANTS["actions"]["DEBUG_STATUS"]
+DEBUG_STATUS = IPC_CONSTANTS["actions"]["DEBUG_STATUS"]
 
 
 def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> dict:
@@ -110,10 +110,10 @@ def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
 
                 if action == GET_STATE:
                     response = handle_get_state(ui_instance, request)
-                elif action == DEBUG_STATUS:
-                    response = handle_debug_status(ui_instance, request)
                 elif action == PING:
                     response = handle_ping(ui_instance, request)
+                elif action == DEBUG_STATUS:
+                    response = handle_debug_status(ui_instance, request)
                 elif action == GET_SCANS:
                     response = handle_get_scans(ui_instance, request)
                 elif action == SEND_SCAN:

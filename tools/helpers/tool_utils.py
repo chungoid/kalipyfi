@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 
-
 def format_scan_display(scan: dict) -> str:
     """
     Format a ScanData dictionary for display.
@@ -52,4 +51,3 @@ def format_scan_display(scan: dict) -> str:
         elapsed_str = "N/A"
 
     return f"{tool_str} | {interface_str} | {preset_desc} | {elapsed_str}"
-

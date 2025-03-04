@@ -247,22 +247,6 @@ class Tool:
         self.logger.info("No you run..")
         return
 
-
-    def set_key(self, key_path: list, new_value) -> None:
-        """
-        Update the tool's configuration file by setting the nested key specified in key_path to new_value.
-
-        Example:
-            self.set_key(["wpa-sec", "api_key"], "your-new-key")
-
-        Args:
-            key_path (list): List of keys for the nested config (e.g. ["wpa-sec", "api_key"]).
-            new_value: The new value to set.
-        """
-        config_path = self.config_file
-        Tool.set_config_key(config_path, key_path, new_value)
-
-
     @staticmethod
     def check_uuid_for_root() -> bool:
         return os.getuid() == 0
@@ -329,40 +313,48 @@ class Tool:
         """
         return datetime.now().strftime("%d-%m_%H:%M")
 
-    @staticmethod
-    def set_config_key(config_path: Path, key_path: list, new_value) -> None:
-        """
-        Update the configuration YAML file at config_path by setting the nested key specified
-        in key_path (a list of keys) to new_value. Used to help users create configs while
-        in the menu rather than independently editing the yaml.
 
-        :param config_path: Path to the configuration file.
-        :param key_path: List of keys to set.
-        :param new_value: New value to set.
+    #############################
+    ##### SUBMENU UTILITIES #####
+    #############################
+
+    def update_presets_in_config(self, presets: dict) -> None:
+        """
+        Updates the tool's configuration file with the new presets, filtering out any options
+        that have blank values (either an empty string or None).
+
+        Parameters
+        ----------
+        presets : dict
+            A dictionary containing the updated presets.
+
+        Raises
+        ------
+        Exception
+            If there is an error reading from or writing to the configuration file.
         """
         import yaml
 
         try:
-            with open(config_path, 'r') as f:
+            with open(self.config_file, 'r') as f:
                 config = yaml.safe_load(f) or {}
         except Exception as e:
-            logging.error(f"Failed to load configuration file {config_path}: {e}")
+            self.logger.error(f"Failed to load configuration file {self.config_file}: {e}")
             raise
 
-        # Navigate to the nested key
-        sub_config = config
-        for key in key_path[:-1]:
-            if key not in sub_config or not isinstance(sub_config[key], dict):
-                sub_config[key] = {}
-            sub_config = sub_config[key]
+        new_presets = {}
+        for key, preset in presets.items():
+            if "options" in preset and isinstance(preset["options"], dict):
+                filtered_options = {k: v for k, v in preset["options"].items() if v not in ("", None)}
+                preset["options"] = filtered_options
+            new_presets[key] = preset
 
-        # Update the key
-        sub_config[key_path[-1]] = new_value
+        config["presets"] = new_presets
 
         try:
-            with open(config_path, 'w') as f:
+            with open(self.config_file, 'w') as f:
                 yaml.dump(config, f, default_flow_style=False)
-            logging.info(f"Updated {'.'.join(key_path)} to {new_value} in {config_path}")
+            self.logger.info(f"Configuration updated with new presets in {self.config_file}")
         except Exception as e:
-            logging.error(f"Failed to write updated configuration to {config_path}: {e}")
+            self.logger.error(f"Failed to write updated configuration to {self.config_file}: {e}")
             raise

@@ -1,7 +1,10 @@
 import os
 import curses
 import logging
+from pathlib import Path
 from typing import Any, List
+
+import yaml
 
 # local
 from utils import ipc
@@ -17,6 +20,7 @@ class HcxToolSubmenu:
         self.tool = tool_instance
         self.logger = logging.getLogger("HcxToolSubmenu")
         self.logger.debug("HcxToolSubmenu initialized.")
+
 
     def draw_menu(self, parent_win, title: str, menu_items: List[str]) -> Any:
         """
@@ -38,12 +42,13 @@ class HcxToolSubmenu:
         menu_win.refresh()
         return menu_win
 
+
     def draw_paginated_menu(self, parent_win, title: str, menu_items: List[str]) -> str:
         """
         Draws a paginated menu for a list of options. Navigation is done via 'n' (next)
         and 'p' (previous) keys, and a "[0] Back" option is always included.
 
-        The displayed menu items are prefixed with numbers corresponding to their selection index.
+        Each displayed option is prefixed with its number relative to that page.
 
         Parameters
         ----------
@@ -57,7 +62,7 @@ class HcxToolSubmenu:
         Returns
         -------
         str
-            The selected option (as the original string from menu_items), or "back" if cancelled.
+            The selected option (the original string from menu_items), or "back" if cancelled.
 
         Example
         -------
@@ -66,7 +71,7 @@ class HcxToolSubmenu:
         Item 7
         """
         h, w = parent_win.getmaxyx()
-        # Reserve space: 4 lines for borders, title, and instructions.
+        # Reserve 6 lines for borders, title, and instructions.
         max_items = max(h - 6, 1)
         total_items = len(menu_items)
         total_pages = (total_items + max_items - 1) // max_items
@@ -77,11 +82,10 @@ class HcxToolSubmenu:
             end_index = start_index + max_items
             page_items = menu_items[start_index:end_index]
 
-            # Prefix each item with its number relative to this page.
-            display_items = [f"[{i + 1}] {option}" for i, option in enumerate(page_items)]
-
+            # Prefix each item with its number for the current page.
+            display_items = [f"[{i+1}] {option}" for i, option in enumerate(page_items)]
             if total_pages > 1:
-                pagination_info = f"Page {current_page + 1}/{total_pages} (n: next, p: previous)"
+                pagination_info = f"Page {current_page+1}/{total_pages} (n: next, p: previous)"
                 display_items.append(pagination_info)
             display_items.append("[0] Back")
 
@@ -104,6 +108,7 @@ class HcxToolSubmenu:
                 selection = int(ch)
                 if 1 <= selection <= len(page_items):
                     return page_items[selection - 1]
+            # Otherwise, ignore and wait for a valid key.
 
 
     def select_interface(self, parent_win) -> Any:
@@ -119,8 +124,7 @@ class HcxToolSubmenu:
             parent_win.refresh()
             parent_win.getch()
             return None
-        menu_items = [f"{name}" for name in available]
-        selection = self.draw_paginated_menu(parent_win, "Select Interface", menu_items)
+        selection = self.draw_paginated_menu(parent_win, "Select Interface", available)
         if selection == "back":
             return None
         return selection
@@ -144,11 +148,11 @@ class HcxToolSubmenu:
         except Exception:
             sorted_keys = sorted(presets_dict.keys())
         preset_list = [(key, presets_dict[key]) for key in sorted_keys]
-        menu_items = [f"{preset.get('description', 'No description')}" for _, preset in preset_list]
+        # Build a list using the preset descriptions.
+        menu_items = [preset.get("description", "No description") for _, preset in preset_list]
         selection = self.draw_paginated_menu(parent_win, "Select Scan Preset", menu_items)
         if selection == "back":
             return None
-        # Find the matching preset in preset_list.
         for key, preset in preset_list:
             if preset.get("description", "No description") == selection:
                 self.logger.debug(f"selected preset: {preset}")
@@ -194,12 +198,14 @@ class HcxToolSubmenu:
             parent_win.refresh()
             parent_win.getch()
 
-
     def view_scans(self, parent_win) -> None:
         """
         Handles the 'View Scans' option.
-        Displays active scans using pagination and allows the user to choose one to swap
-        into the main pane via the SWAP_SCAN IPC handler.
+        Displays active scans using pagination and allows the user to choose one.
+        After a scan is selected, a secondary menu is presented with options:
+          1. Swap (send SWAP_SCAN command)
+          2. Stop (send STOP_SCAN command)
+          0. Cancel (return to scans list)
         """
         tool_name = getattr(self.tool, 'name', 'hcxtool')
         message = {"action": "GET_SCANS", "tool": tool_name}
@@ -221,30 +227,61 @@ class HcxToolSubmenu:
         if selection == "back":
             return
 
-        # Map the selection back to the scan (assuming the order is preserved).
         try:
             selected_index = menu_items.index(selection)
         except ValueError:
             self.logger.error("Selected scan not found in list.")
             return
-        selected_scan = scans[selected_index]
-        new_title = f"{self.tool.selected_interface}_{self.tool.selected_preset.get('description', '')}"
-        swap_message = {
-            "action": "SWAP_SCAN",
-            "tool": tool_name,
-            "pane_id": selected_scan.get("pane_id"),
-            "new_title": new_title
-        }
-        swap_response = ipc.send_ipc_command(swap_message, DEFAULT_SOCKET_PATH)
-        parent_win.clear()
-        if swap_response.get("status") == "SWAP_SCAN_OK":
-            parent_win.addstr(0, 0, "Scan swapped successfully!")
-        else:
-            error_text = swap_response.get("error", "Unknown error")
-            parent_win.addstr(0, 0, f"Error swapping scan: {error_text}")
-        parent_win.refresh()
-        parent_win.getch()
 
+        selected_scan = scans[selected_index]
+
+        # Present secondary menu: Swap, Stop, Cancel.
+        parent_win.clear()
+        secondary_menu = ["Swap", "Stop", "Cancel"]
+        sec_menu_items = [f"[{i + 1}] {item}" for i, item in enumerate(secondary_menu)]
+        sec_menu_win = self.draw_menu(parent_win, "Selected Scan Options", sec_menu_items)
+        key = sec_menu_win.getch()
+        try:
+            ch = chr(key)
+        except Exception:
+            ch = ""
+        if ch == "1":
+            # Swap: send SWAP_SCAN
+            new_title = f"{self.tool.selected_interface}_{self.tool.selected_preset.get('description', '')}"
+            swap_message = {
+                "action": "SWAP_SCAN",
+                "tool": tool_name,
+                "pane_id": selected_scan.get("pane_id"),
+                "new_title": new_title
+            }
+            swap_response = ipc.send_ipc_command(swap_message, DEFAULT_SOCKET_PATH)
+            parent_win.clear()
+            if swap_response.get("status") == "SWAP_SCAN_OK":
+                parent_win.addstr(0, 0, "Scan swapped successfully!")
+            else:
+                error_text = swap_response.get("error", "Unknown error")
+                parent_win.addstr(0, 0, f"Error swapping scan: {error_text}")
+            parent_win.refresh()
+            parent_win.getch()
+        elif ch == "2":
+            # Stop: send STOP_SCAN
+            stop_message = {
+                "action": "STOP_SCAN",
+                "tool": tool_name,
+                "pane_id": selected_scan.get("pane_id")
+            }
+            stop_response = ipc.send_ipc_command(stop_message, DEFAULT_SOCKET_PATH)
+            parent_win.clear()
+            if stop_response.get("status") == "STOP_SCAN_OK":
+                parent_win.addstr(0, 0, "Scan stopped successfully!")
+            else:
+                error_text = stop_response.get("error", "Unknown error")
+                parent_win.addstr(0, 0, f"Error stopping scan: {error_text}")
+            parent_win.refresh()
+            parent_win.getch()
+        else:
+            # return to the scans list
+            return
 
     def upload(self, parent_win) -> None:
         """
@@ -288,15 +325,307 @@ class HcxToolSubmenu:
         parent_win.getch()
 
 
+    def set_wpasec_key_menu(self, parent_win) -> None:
+        """
+        Prompts the user to enter a new WPA-sec API key and updates the configuration.
+        If the key is too long to display, it wraps within the input field.
+        """
+        parent_win.clear()
+        parent_win.addstr(0, 0, "Enter new WPA-sec API key:")
+        parent_win.refresh()
+        curses.echo()
+        new_key = parent_win.getstr(1, 0).decode("utf-8")
+        curses.noecho()
+        try:
+            self.tool.set_wpasec_key(new_key)
+            parent_win.clear()
+            parent_win.addstr(0, 0, "WPA-sec API key updated. Press any key to continue...")
+        except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error updating WPA-sec key: {e}")
+        parent_win.refresh()
+        parent_win.getch()
+
+
     def utils_menu(self, parent_win) -> None:
         """
         Handles the 'Utils' option.
-        Currently a placeholder submenu using pagination with only a 'Back' option.
+        Provides a paginated menu with options for utility functions:
+          - Set WPA-sec Key
+          - Create Scan Profile
+          - Edit Scan Profile
+          - Back
         """
-        menu_items = ["No utilities available"]
-        selection = self.draw_paginated_menu(parent_win, "Utils", menu_items)
-        # In this simple case, any selection leads back.
-        return
+        menu_options = ["Set WPA-sec Key", "Create Scan Profile", "Edit Scan Profile"]
+        selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
+        if selection == "back":
+            return
+        elif selection == "Set WPA-sec Key":
+            self.set_wpasec_key_menu(parent_win)
+        elif selection == "Create Scan Profile":
+            self.create_scan_profile_menu(parent_win)
+        elif selection == "Edit Scan Profile":
+            self.edit_scan_profile_menu(parent_win)
+
+    def create_scan_profile_menu(self, parent_win) -> None:
+        """
+        Prompts the user to build a new scan profile based on a defaults YAML file and
+        adds it to the tool's configuration. For each option in the defaults file:
+          - If the default is null (indicating a boolean option), the user is prompted to enter
+            't' (for true) or 'f' (for false).
+          - Otherwise, the user is prompted to enter a value.
+        """
+        defaults_path = Path(self.tool.base_dir) / "configs" / "defaults.yaml"
+        try:
+            with defaults_path.open("r") as f:
+                defaults_data = yaml.safe_load(f)
+        except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error loading defaults.yaml: {e}")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        default_profile = defaults_data.get("scan_profile", {})
+        if not default_profile:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No scan profile defaults found in defaults.yaml.")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # Initialize new_profile with each key set to its default.
+        new_profile = {}
+        for opt_key, opt_data in default_profile.items():
+            new_profile[opt_key] = opt_data.get("value", "")
+
+        # Loop through each option individually using screen clearance.
+        for opt_key, opt_data in default_profile.items():
+            desc = opt_data.get("description", "")
+            default_value = opt_data.get("value", "")
+            parent_win.clear()
+            if default_value is None:
+                # Boolean option: prompt for t/f.
+                prompt = f"Enable option '{opt_key}'? (t/f, default: f): "
+            else:
+                prompt = f"{opt_key} (default: {default_value}): "
+            parent_win.addstr(0, 0, prompt)
+            # Add a blank line before the description.
+            parent_win.addstr(1, 0, "")
+            parent_win.addstr(2, 0, f"Description: {desc}")
+            parent_win.addstr(4, 0, "Enter value (or press Enter to accept default):")
+            parent_win.refresh()
+            curses.echo()
+            try:
+                user_input = parent_win.getstr(5, 0).decode("utf-8").strip()
+            except Exception:
+                user_input = ""
+            curses.noecho()
+            # For boolean options, interpret input accordingly.
+            if default_value is None:
+                # If user types 't' (case-insensitive), store the flag (opt_key); otherwise, leave blank.
+                new_val = opt_key if user_input.lower() == 't' else ""
+            else:
+                new_val = user_input if user_input != "" else default_value
+            new_profile[opt_key] = new_val
+
+        # Prompt for a profile ID/name.
+        parent_win.clear()
+        parent_win.addstr(0, 0, "Enter a name/ID for this new scan profile (leave blank to cancel):")
+        parent_win.refresh()
+        curses.echo()
+        try:
+            profile_id = parent_win.getstr(1, 0).decode("utf-8").strip()
+        except Exception:
+            profile_id = ""
+        curses.noecho()
+        if profile_id == "":
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No profile ID provided. Cancelling.")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # Review screen: show only non-blank options.
+        parent_win.clear()
+        parent_win.addstr(0, 0, f"New Scan Profile ({profile_id}):")
+        row = 1
+        for key, value in new_profile.items():
+            if value not in ("", None):
+                parent_win.addstr(row, 0, f"{key}: {value}")
+                row += 1
+                # If we reach near the bottom, pause.
+                if row >= parent_win.getmaxyx()[0] - 3:
+                    parent_win.addstr(row, 0, "Press any key to continue...")
+                    parent_win.refresh()
+                    parent_win.getch()
+                    parent_win.clear()
+                    row = 0
+        # Final choice: save or cancel.
+        parent_win.addstr(row, 0, "1: Save    2: Cancel")
+        parent_win.refresh()
+        choice = parent_win.getch()
+        if chr(choice).lower() != '1':
+            parent_win.clear()
+            parent_win.addstr(0, 0, "Profile creation cancelled.")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # Determine the next available preset key.
+        try:
+            existing_keys = list(self.tool.presets.keys())
+            next_key = str(max([int(k) for k in existing_keys]) + 1) if existing_keys else "1"
+        except Exception:
+            next_key = "1"
+        # Filter new_profile to include only non-blank values.
+        filtered_profile = {k: v for k, v in new_profile.items() if v not in ("", None)}
+        self.tool.presets[next_key] = {
+            "description": profile_id,
+            "options": filtered_profile
+        }
+        try:
+            self.tool.update_presets_in_config(self.tool.presets)
+            parent_win.clear()
+            parent_win.addstr(0, 0, "New scan profile created and saved. Press any key to continue...")
+        except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error saving profile: {e}")
+        parent_win.refresh()
+        parent_win.getch()
+
+
+    def edit_scan_profile_menu(self, parent_win) -> None:
+        """
+        Prompts the user to select an existing scan profile to edit, then allows the user to
+        select individual options (from a paginated menu) to edit.
+        """
+        # List current presets.
+        presets_dict = self.tool.presets
+        if not presets_dict:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No presets available to edit!")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        try:
+            sorted_keys = sorted(presets_dict.keys(), key=lambda k: int(k))
+        except Exception:
+            sorted_keys = sorted(presets_dict.keys())
+        preset_list = [(key, presets_dict[key]) for key in sorted_keys]
+        menu_items = [preset.get("description", "No description") for _, preset in preset_list]
+
+        selection = self.draw_paginated_menu(parent_win, "Edit Scan Profile", menu_items)
+        if selection == "back":
+            return
+        # Find the selected preset.
+        selected_key = None
+        selected_preset = None
+        for key, preset in preset_list:
+            if preset.get("description", "No description") == selection:
+                selected_key = key
+                selected_preset = preset
+                break
+        if not selected_preset:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "Selected preset not found!")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # Work on a copy of the options.
+        options = selected_preset.get("options", {}).copy()
+        while True:
+            # Build a list of option strings with current values.
+            option_items = []
+            for k, v in options.items():
+                option_items.append(f"{k}: {v}")
+            # Append a "Finish Editing" option.
+            option_items.append("Finish Editing")
+            selection = self.draw_paginated_menu(parent_win, "Select Option to Edit", option_items)
+            if selection == "back" or selection == "Finish Editing":
+                break
+            # Find the option key from the selection (split at ':')
+            try:
+                key_to_edit = selection.split(":", 1)[0].strip()
+            except Exception:
+                continue
+            # Prompt the user for a new value for this option.
+            parent_win.clear()
+            prompt = f"Enter new value for {key_to_edit} (current: {options.get(key_to_edit)}) :"
+            parent_win.addstr(0, 0, prompt)
+            parent_win.refresh()
+            curses.echo()
+            try:
+                new_val = parent_win.getstr(1, 0).decode("utf-8").strip()
+            except Exception:
+                new_val = ""
+            curses.noecho()
+            # Update the option if user provided a value.
+            if new_val != "":
+                options[key_to_edit] = new_val
+            # Clear the screen before redisplaying the options.
+            parent_win.clear()
+            parent_win.refresh()
+
+        # Allow the user to also edit the preset description.
+        parent_win.clear()
+        current_desc = selected_preset.get("description", "")
+        parent_win.addstr(0, 0, f"Current profile description: {current_desc}")
+        parent_win.addstr(1, 0, "Enter new description (or press Enter to keep current):")
+        parent_win.refresh()
+        curses.echo()
+        try:
+            new_desc = parent_win.getstr(2, 0).decode("utf-8").strip()
+        except Exception:
+            new_desc = ""
+        curses.noecho()
+        if new_desc == "":
+            new_desc = current_desc
+
+        # Review the updated profile.
+        parent_win.clear()
+        parent_win.addstr(0, 0, "Review updated scan profile:")
+        row = 1
+        parent_win.addstr(row, 0, f"Description: {new_desc}")
+        row += 1
+        for key, val in options.items():
+            parent_win.addstr(row, 0, f"{key}: {val}")
+            row += 1
+            if row >= parent_win.getmaxyx()[0] - 2:
+                parent_win.addstr(row, 0, "Press any key to continue...")
+                parent_win.refresh()
+                parent_win.getch()
+                parent_win.clear()
+                row = 0
+        parent_win.addstr(row, 0, "Press 'y' to confirm changes, any other key to cancel.")
+        parent_win.refresh()
+        confirmation = parent_win.getch()
+        if chr(confirmation).lower() != 'y':
+            parent_win.clear()
+            parent_win.addstr(0, 0, "Profile edit cancelled.")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # Update the preset in memory.
+        self.tool.presets[selected_key] = {
+            "description": new_desc,
+            "options": options
+        }
+
+        # Save the updated presets to the configuration file.
+        try:
+            self.tool.update_presets_in_config(self.tool.presets)
+            parent_win.clear()
+            parent_win.addstr(0, 0, "Profile updated and saved. Press any key to continue...")
+        except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error saving profile: {e}")
+        parent_win.refresh()
+        parent_win.getch()
+
 
     def __call__(self, stdscr) -> None:
         """
@@ -314,17 +643,13 @@ class HcxToolSubmenu:
         submenu_win.clear()
         submenu_win.refresh()
 
+        # Main submenu options (few items, so simple menu is sufficient)
+        menu_items = ["Launch Scan", "View Scans", "Upload", "Utils", "Back"]
+        numbered_menu = [f"[{i+1}] {item}" for i, item in enumerate(menu_items[:-1])]
+        numbered_menu.append("[0] Back")
+
         while True:
-            menu_items = [
-                "Launch Scan",
-                "View Scans",
-                "Upload",
-                "Utils",
-                "Back"
-            ]
-            # Draw for main menu; may paginate
-            menu_win = self.draw_menu(submenu_win, "HCXTool Submenu",
-                                      [f"[{i + 1}] {item}" for i, item in enumerate(menu_items)])
+            menu_win = self.draw_menu(submenu_win, "HCXTool Submenu", numbered_menu)
             key = menu_win.getch()
             try:
                 ch = chr(key)

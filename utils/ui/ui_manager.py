@@ -157,7 +157,6 @@ class UIManager:
         self.logger.info(f"Creating new window for tool: {tool_name}")
         return self.session.new_window(window_name=window_name, attach=False)
 
-
     def get_or_create_tool_window(self, tool_name: str) -> libtmux.Window:
         """
         Retrieves the background window for the given tool if it exists;
@@ -171,7 +170,6 @@ class UIManager:
             self.logger.info(f"Background window for '{tool_name}' already exists.")
         return window
 
-
     def create_pane(self, window: libtmux.Window) -> libtmux.Pane:
         """
         Creates a new pane in the given window.
@@ -180,7 +178,6 @@ class UIManager:
         :return: The newly created libtmux.Pane.
         """
         return window.split_window(attach=False)
-
 
     def rename_pane(self, pane: libtmux.Pane, tool_name: str, scan_profile: str) -> str:
         """
@@ -196,7 +193,6 @@ class UIManager:
         """
         pane_title = f"{tool_name}_{scan_profile}_{int(time.time())}"
         return pane_title
-
 
     def create_and_rename_pane(self, window: libtmux.Window, tool_name: str,
                                scan_profile: str) -> Tuple[libtmux.Pane, str]:
@@ -217,7 +213,6 @@ class UIManager:
         internal_name = self.rename_pane(pane, tool_name, scan_profile)
         return pane, internal_name
 
-
     def create_background_window(self, tool_name: str) -> libtmux.Window:
         """
         Creates and returns a new background window for the given tool in the current session.
@@ -232,7 +227,6 @@ class UIManager:
         except Exception as e:
             self.logger.exception(f"Error creating background window '{window_name}': {e}")
             raise
-
 
     def load_background_window(self, tool_name: str, bg_yaml_path: Path, ui_dir: Path) -> None:
         self.logger.info(f"Loading background window for tool: {tool_name}")
@@ -265,7 +259,6 @@ class UIManager:
         except Exception as e:
             self.logger.exception(f"Error loading background window for {tool_name}: {e}")
 
-
     def allocate_scan_pane(self, tool_name: str, scan_profile: str, cmd_dict: dict, interface: str, timestamp: float) -> str:
         """
         Now defunct, and prefer allocate_scan_window. One scan per window preserves
@@ -293,7 +286,6 @@ class UIManager:
         self._register_scan(window.get("window_name"), pane_id, pane_internal_name, tool_name, scan_profile, command,
                             interface, lock_status, timestamp)
         return pane_id
-
 
     def allocate_scan_window(self, tool_name: str, scan_profile: str, cmd_dict: dict, interface: str,
                              timestamp: float) -> str:
@@ -379,17 +371,6 @@ class UIManager:
     ##### USER INTERACTION #####
     ############################
 
-    def focus_menu(self):
-        main_menu_pane = self.get_main_menu_pane()
-        if main_menu_pane:
-            select_cmd = f"tmux select-pane -t {main_menu_pane.get('pane_id')}"
-            self.logger.debug(f"Re-selecting main menu pane with command: {select_cmd}")
-            try:
-                subprocess.run(select_cmd, shell=True, check=True)
-            except subprocess.CalledProcessError as e:
-                self.logger.error(f"Error re-selecting main menu pane: {e}")
-
-
     def swap_scan(self, tool_name: str, dedicated_pane_id: str, new_title: str) -> None:
         """
         Swaps a dedicated scan pane (allocated in its own window) with the main scan pane
@@ -460,14 +441,20 @@ class UIManager:
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Error executing zoom command: {e}")
             return
-        # Reattach user to main menu pane
-        self.focus_menu()
 
         # Update the internal scan data with the new title.
         scan_data.internal_name = new_title
         self.logger.info(f"Swapped scan pane {dedicated_pane_id}: '{old_title}' -> '{new_title}'")
 
         # Re-select the main menu pane so that focus remains on the menu.
+        main_menu_pane = self.get_main_menu_pane()
+        if main_menu_pane:
+            select_cmd = f"tmux select-pane -t {main_menu_pane.get('pane_id')}"
+            self.logger.debug(f"Re-selecting main menu pane with command: {select_cmd}")
+            try:
+                subprocess.run(select_cmd, shell=True, check=True)
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"Error re-selecting main menu pane: {e}")
 
 
     def get_lock_status(self, interface: str) -> bool:
@@ -505,9 +492,9 @@ class UIManager:
         This leaves the session running in the background.
         After detaching, exit the process.
         """
-        cmd = "tmux detach"
-        subprocess.Popen(cmd, shell=True)
-        sys.exit(0)
+        session_name = self.session_data.session_name
+        self.logger.info(f"Detaching UI session: {session_name}")
+        os.system(f"tmuxp detach-client -s {session_name}")
 
 
     def kill_ui(self) -> None:
@@ -665,7 +652,6 @@ class UIManager:
         for window in self.session.windows:
             self.logger.debug(f"Session Name: {self.session_name}")
             self.logger.debug(f"Window: name='{window.get('window_name')}', id='{window.get('window_id')}'")
-
 
     def get_ui_state(self) -> dict:
         """

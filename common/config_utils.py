@@ -37,7 +37,7 @@ def test_config_paths() -> str:
     """
     from config.constants import (
         BASE_DIR, CONFIG_DIR, LOG_DIR, UI_DIR, TOOLS_DIR,
-        CURSES_MAIN_MENU, LOG_FILE, MAIN_UI_YAML_PATH, BG_YAML_PATH, DEFAULT_ASCII
+        CURSES_MAIN_MENU, LOG_FILE, MAIN_UI_YAML_PATH, DEFAULT_ASCII
     )
 
     output_lines = [
@@ -52,7 +52,6 @@ def test_config_paths() -> str:
         f"  CURSES_MAIN_MENU: {CURSES_MAIN_MENU}",
         f"  LOG_FILE: {LOG_FILE}",
         f"  MAIN_UI_YAML_PATH: {MAIN_UI_YAML_PATH}",
-        f"  BG_YAML_PATH: {BG_YAML_PATH}",
         f"  DEFAULT_ASCII: {DEFAULT_ASCII}"
     ]
     return "\n".join(output_lines)

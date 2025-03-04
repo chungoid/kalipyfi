@@ -4,7 +4,7 @@ from abc import ABC
 from pathlib import Path
 from typing import Optional, Any, Dict
 
-
+from tools.helpers.config_helper import update_yaml_value
 #locals
 from tools.tools import Tool
 from utils.tool_registry import register_tool
@@ -162,9 +162,19 @@ class Hcxtool(Tool, ABC):
         ##### utilities for user #####
         ##############################
 
+    def set_wpasec_key(self, new_key: str) -> None:
+        """
+        This wrapper method updates the configuration file (self.config_file) by modifying
+        the value at the key path ["wpa-sec", "api_key"] using the generic YAML editor helper.
 
+        Parameters
+        ----------
+        new_key : str
+            The new WPA-sec API key to be set in the configuration.
 
-
-
-
-
+        Returns
+        -------
+        None
+        """
+        key_path = ["wpa-sec", "api_key"]
+        update_yaml_value(self.config_file, key_path, new_key)
