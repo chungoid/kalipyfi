@@ -370,21 +370,22 @@ class UIManager:
 
     def swap_scan(self, tool_name: str, pane_id: str, new_title: str) -> None:
         """
-        Swaps a dedicated scan pane from its window into the main UI window.
+        Swaps a dedicated scan pane from its window into the main scan pane of the main UI.
 
         This function locates the dedicated scan pane identified by `pane_id` (which was
-        allocated in its own window) and moves it into the main UI window using a tmux
-        join-pane command. After the pane is moved, the scan's internal name is updated
-        to `new_title` for internal tracking purposes.
+        allocated in its own window) and moves it into the main UI's designated scan pane
+        using a tmux join-pane command. The main scan pane is identified by a unique title,
+        such as "main_scan", which should be set when the main UI is built. After joining,
+        the internal scan data's title is updated to `new_title`.
 
         Parameters
         ----------
         tool_name : str
             The name of the tool associated with the scan.
         pane_id : str
-            The unique identifier of the scan pane to be swapped.
+            The unique identifier of the dedicated scan pane to be swapped.
         new_title : str
-            The new internal title for the scan (e.g., "wlan1_passive") to be used after swapping.
+            The new title to assign to the scan pane after swapping (e.g., "wlan1_passive").
 
         Returns
         -------
@@ -397,41 +398,33 @@ class UIManager:
 
         Example
         -------
-        >>> ui_manager.swap_scan("hcxtool", "%5", "wlan1_passive")
-        (The scan pane is moved into the main UI window and its internal title is updated.)
-
-        Notes
-        -----
-        - The function first verifies that the scan is registered in the UIManager's active scans.
-        - It retrieves the main UI window (assumed to have a window name such as "main_ui").
-        - If the pane exists, the tmux join-pane command is executed to move the pane.
-        - Finally, the internal name of the scan is updated in the active scan registry.
+        >>> ui_manager.swap_scan("hcxtool", "%4", "wlan1_passive")
+        (The dedicated scan pane is moved into the main scan pane area and its internal title is updated.)
         """
         if pane_id not in self.active_scans:
             self.logger.error(f"No active scan found for pane_id: {pane_id}")
             raise KeyError(f"No active scan found for pane_id: {pane_id}")
 
-        # Retrieve the scan data and store the old title.
+        # Retrieve the scan data and record its current title
         scan_data = self.active_scans[pane_id]
         old_title = scan_data.internal_name
 
-        # Retrieve the main UI window. Adjust the target window name as needed.
-        main_window = self.session.find_where({"window_name": "main_ui"})
-        if not main_window:
-            self.logger.error("Main UI window not found; cannot swap scan pane.")
+        # Retrieve the main scan pane from the main UI
+        main_pane = self.get_main_scan_pane()
+        if not main_pane:
+            self.logger.error("Main scan pane not found; cannot swap scan pane.")
             return
 
-        # Locate the dedicated scan pane by its pane_id.
-        pane = self._find_pane_by_id(pane_id)
-        if pane:
-            # Execute the tmux join-pane command to move the pane into the main UI window.
-            join_cmd = f"tmux join-pane -s {pane_id} -t {main_window.get('window_id')}"
-            self.logger.debug(f"Executing join-pane command: {join_cmd}")
+        # Execute the tmux join-pane command to move the dedicated scan pane into the main scan pane's window
+        join_cmd = f"tmux join-pane -s {pane_id} -t {main_pane.get('pane_id')}"
+        self.logger.debug(f"Executing join-pane command: {join_cmd}")
+        try:
             subprocess.run(join_cmd, shell=True, check=True)
-        else:
-            self.logger.warning(f"Pane {pane_id} not found; updating internal record only.")
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Error executing join-pane command: {e}")
+            return
 
-        # Update the internal name of the scan to reflect the new title.
+        # Update the internal scan data with the new title
         scan_data.internal_name = new_title
         self.logger.info(f"Swapped scan pane {pane_id}: '{old_title}' -> '{new_title}'")
 
@@ -491,6 +484,53 @@ class UIManager:
     ##### STATE & DEBUGGING #####
     #############################
 
+    def get_main_scan_pane(self) -> Optional[libtmux.Pane]:
+        """
+        Identifies the main scan pane in the main UI window based on its size.
+
+        Since tmux does not allow naming panes explicitly, and your main UI is composed of
+        three panes (typically two small ones for log and menu, and one large pane for scanning),
+        this function deduces the main scan pane by selecting the pane with the largest area
+        (i.e., height * width).
+
+        Returns
+        -------
+        Optional[libtmux.Pane]
+            The pane with the largest area in the main UI window, assumed to be the main scan pane.
+            Returns None if the main UI window is not found or if no panes are present.
+
+        Example
+        -------
+        >>> main_scan_pane = ui_manager.get_main_scan_pane()
+        >>> if main_scan_pane:
+        ...     print("Main scan pane:", main_scan_pane.get("pane_id"))
+        """
+        # Locate the main UI window; adjust the window_name if necessary.
+        main_window = self.session.find_where({"window_name": "kalipyfi"})
+        if not main_window:
+            self.logger.error("Main UI window 'kalipyfi' not found.")
+            return None
+
+        main_scan_pane = None
+        max_area = 0
+        for pane in main_window.panes:
+            try:
+                height = int(pane.get("pane_height"))
+                width = int(pane.get("pane_width"))
+            except (KeyError, ValueError):
+                continue
+            area = height * width
+            if area > max_area:
+                max_area = area
+                main_scan_pane = pane
+
+        if not main_scan_pane:
+            self.logger.error("No pane found in main UI window.")
+        else:
+            self.logger.debug(f"Main scan pane identified with area {max_area}: {main_scan_pane.get('pane_id')}")
+        return main_scan_pane
+
+
     def wait_for_tool_window_ready(self, tool_name: str, bg_yaml_path: Path, tmuxp_dir: Path,
                                    expected_panes: int = 4, timeout: int = 30,
                                    poll_interval: float = 0.5) -> libtmux.Window:
@@ -529,6 +569,7 @@ class UIManager:
         self.logger.error(f"Timeout waiting for window '{tool_name}' to be ready.")
         raise TimeoutError(f"Timeout waiting for window '{tool_name}' with {expected_panes} panes.")
 
+
     def debug_list_windows(self) -> None:
         if not hasattr(self, "session") or self.session is None:
             self.logger.debug("No session available to list windows.")
@@ -537,6 +578,7 @@ class UIManager:
         for window in self.session.windows:
             self.logger.debug(f"Session Name: {self.session_name}")
             self.logger.debug(f"Window: name='{window.get('window_name')}', id='{window.get('window_id')}'")
+
 
     def get_ui_state(self) -> dict:
         """

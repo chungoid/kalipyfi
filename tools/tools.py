@@ -236,9 +236,8 @@ class Tool:
                             self.logger.debug(f"Found MAC address: {mac_address} in line: {stripped_line}")
                             client_macs.add(mac_address)
             else:
-                self.logger.warning(
-                    f"Could not retrieve station dump for interface {iface}. "
-                    "Ignore this warning if it is your selected scan interface."
+                self.logger.info(
+                    f"No associated macs found for {iface}. "
                 )
         self.logger.info(f"Found associated client MAC(s): {client_macs}")
         return list(client_macs)
