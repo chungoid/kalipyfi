@@ -198,12 +198,14 @@ class HcxToolSubmenu:
             parent_win.refresh()
             parent_win.getch()
 
-
     def view_scans(self, parent_win) -> None:
         """
         Handles the 'View Scans' option.
-        Displays active scans using pagination and allows the user to choose one to swap
-        into the main pane via the SWAP_SCAN IPC handler.
+        Displays active scans using pagination and allows the user to choose one.
+        After a scan is selected, a secondary menu is presented with options:
+          1. Swap (send SWAP_SCAN command)
+          2. Stop (send STOP_SCAN command)
+          0. Cancel (return to scans list)
         """
         tool_name = getattr(self.tool, 'name', 'hcxtool')
         message = {"action": "GET_SCANS", "tool": tool_name}
@@ -230,24 +232,56 @@ class HcxToolSubmenu:
         except ValueError:
             self.logger.error("Selected scan not found in list.")
             return
-        selected_scan = scans[selected_index]
-        new_title = f"{self.tool.selected_interface}_{self.tool.selected_preset.get('description', '')}"
-        swap_message = {
-            "action": "SWAP_SCAN",
-            "tool": tool_name,
-            "pane_id": selected_scan.get("pane_id"),
-            "new_title": new_title
-        }
-        swap_response = ipc.send_ipc_command(swap_message, DEFAULT_SOCKET_PATH)
-        parent_win.clear()
-        if swap_response.get("status") == "SWAP_SCAN_OK":
-            parent_win.addstr(0, 0, "Scan swapped successfully!")
-        else:
-            error_text = swap_response.get("error", "Unknown error")
-            parent_win.addstr(0, 0, f"Error swapping scan: {error_text}")
-        parent_win.refresh()
-        parent_win.getch()
 
+        selected_scan = scans[selected_index]
+
+        # Present secondary menu: Swap, Stop, Cancel.
+        parent_win.clear()
+        secondary_menu = ["Swap", "Stop", "Cancel"]
+        sec_menu_items = [f"[{i + 1}] {item}" for i, item in enumerate(secondary_menu)]
+        sec_menu_win = self.draw_menu(parent_win, "Selected Scan Options", sec_menu_items)
+        key = sec_menu_win.getch()
+        try:
+            ch = chr(key)
+        except Exception:
+            ch = ""
+        if ch == "1":
+            # Swap: send SWAP_SCAN
+            new_title = f"{self.tool.selected_interface}_{self.tool.selected_preset.get('description', '')}"
+            swap_message = {
+                "action": "SWAP_SCAN",
+                "tool": tool_name,
+                "pane_id": selected_scan.get("pane_id"),
+                "new_title": new_title
+            }
+            swap_response = ipc.send_ipc_command(swap_message, DEFAULT_SOCKET_PATH)
+            parent_win.clear()
+            if swap_response.get("status") == "SWAP_SCAN_OK":
+                parent_win.addstr(0, 0, "Scan swapped successfully!")
+            else:
+                error_text = swap_response.get("error", "Unknown error")
+                parent_win.addstr(0, 0, f"Error swapping scan: {error_text}")
+            parent_win.refresh()
+            parent_win.getch()
+        elif ch == "2":
+            # Stop: send STOP_SCAN
+            stop_message = {
+                "action": "STOP_SCAN",
+                "tool": tool_name,
+                "pane_id": selected_scan.get("pane_id")
+            }
+            stop_response = ipc.send_ipc_command(stop_message, DEFAULT_SOCKET_PATH)
+            parent_win.clear()
+            if stop_response.get("status") == "STOP_SCAN_OK":
+                parent_win.addstr(0, 0, "Scan stopped successfully!")
+            else:
+                error_text = stop_response.get("error", "Unknown error")
+                parent_win.addstr(0, 0, f"Error stopping scan: {error_text}")
+            parent_win.refresh()
+            parent_win.getch()
+        else:
+            # return to the scans list
+            return
 
     def upload(self, parent_win) -> None:
         """

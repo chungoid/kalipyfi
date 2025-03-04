@@ -16,12 +16,10 @@ LOG_FILE = LOG_DIR / "kalipyfi.log"
 CURSES_MAIN_MENU = UI_DIR / "main_menu.py"
 MAIN_UI_YAML_PATH = TMUXP_DIR / "main_tmuxp.yaml"
 DEFAULT_ASCII = TMUXP_DIR / "ascii.txt"
-CLEANUP_SCRIPT = TMUXP_DIR / "cleanup.py"
 
 TOOL_PATHS = {
     "hcxtool": TOOLS_DIR / "hcxtool",
 }
-
 
 ########################
 ##### IPC PROTOCOL #####
