@@ -203,27 +203,25 @@ class Tool:
             A unique list of client MAC addresses found on interfaces other than the selected one.
         """
         client_macs = set()
+        selected_iface = self.selected_interface
+
+        # exclude selected interface
+        # get associates of all other attached interfaces
         refined_interfaces = []
-
-        selected_iface = getattr(self, "selected_interface", None)
-
-        self.logger.debug(f"interfaces from self.interfaces: {self.interfaces}")
-
-        # Replace generic "wlan" with specific interface names from self.interfaces["wlan"]
         for iface in interfaces:
             if iface == "wlan":
-                wlan_list = self.interfaces.get("wlan", [])
-                for item in wlan_list:
-                    iface_name = item.get("name")
-                    if iface_name and iface_name != selected_iface:
-                        refined_interfaces.append(iface_name)
-            else:
-                if iface != selected_iface:
-                    refined_interfaces.append(iface)
+                refined_interfaces += [
+                    item.get("name")
+                    for item in self.interfaces.get("wlan", [])
+                    if item.get("name") and item.get("name") != selected_iface
+                ]
+            elif iface != selected_iface:
+                refined_interfaces.append(iface)
 
         if not refined_interfaces:
             self.logger.warning(
-                "No valid interfaces found for associated MAC scanning after excluding the selected interface.")
+                "No valid interfaces found for associated MAC scanning after excluding the selected interface."
+            )
             return list(client_macs)
 
         for iface in refined_interfaces:
