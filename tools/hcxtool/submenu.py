@@ -2,10 +2,12 @@ import os
 import curses
 import logging
 from typing import Any, List
-from config.constants import DEFAULT_SOCKET_PATH
+
 
 # local
 from utils import ipc
+from tools.helpers.tool_utils import format_scan_display
+from config.constants import DEFAULT_SOCKET_PATH
 
 class HcxToolSubmenu:
     def __init__(self, tool_instance):
@@ -15,6 +17,7 @@ class HcxToolSubmenu:
         self.tool = tool_instance
         self.logger = logging.getLogger("HcxToolSubmenu")
         self.logger.debug("HcxToolSubmenu initialized.")
+
 
     def draw_menu(self, parent_win, title: str, menu_items: List[str]) -> Any:
         """
@@ -64,6 +67,7 @@ class HcxToolSubmenu:
             elif key == 27:
                 return None
 
+
     def select_preset(self, parent_win) -> Any:
         """
         Presents a menu of all scan presets.
@@ -102,9 +106,11 @@ class HcxToolSubmenu:
                     return None
                 elif 1 <= selection <= len(preset_list):
                     _, selected_preset = preset_list[selection - 1]
+                    self.logger.debug(f"selected preset: {selected_preset}")
                     return selected_preset
             elif key_input == 27:  # ESC key
                 return None
+
 
     def launch_scan(self, parent_win) -> None:
         """
@@ -115,6 +121,7 @@ class HcxToolSubmenu:
         # Clear previous selections.
         self.tool.selected_interface = None
         self.tool.selected_preset = None
+        self.tool.preset_description = None
         self.logger.debug("launch_scan: Cleared previous interface and preset selections.")
 
         selected_iface = self.select_interface(parent_win)
@@ -128,6 +135,7 @@ class HcxToolSubmenu:
             self.logger.debug("launch_scan: No preset selected; aborting scan launch.")
             return
         self.tool.selected_preset = selected_preset
+        self.tool.preset_description = selected_preset.get('description', '')
 
         # Confirm the selections
         parent_win.clear()
@@ -145,10 +153,12 @@ class HcxToolSubmenu:
             parent_win.refresh()
             parent_win.getch()
 
+
     def view_scans(self, parent_win) -> None:
         """
         Handles the 'View Scans' option.
-        Simply displays active scans without offering renaming.
+        Displays active scans and allows the user to choose one to swap
+        into the main pane using the SWAP_SCAN IPC handler.
         """
         tool_name = getattr(self.tool, 'name', 'hcxtool')
         message = {"action": "GET_SCANS", "tool": tool_name}
@@ -163,13 +173,13 @@ class HcxToolSubmenu:
             return
 
         menu_items = []
+        # Format each scan using the helper function
         for idx, scan in enumerate(scans, start=1):
-            display = scan.get("internal_name", scan.get("scan_profile", "Unnamed Scan"))
-            menu_items.append(f"[{idx}] {display}")
+            formatted = format_scan_display(scan)
+            menu_items.append(f"[{idx}] {formatted}")
         menu_items.append("[0] Back")
         menu_win = self.draw_menu(parent_win, "Active Scans", menu_items)
 
-        # In this revised version, we simply display scans.
         while True:
             key = menu_win.getch()
             try:
@@ -177,11 +187,32 @@ class HcxToolSubmenu:
             except Exception:
                 continue
             if ch.isdigit():
-                if ch == "0":
+                num = int(ch)
+                if num == 0:
                     return
-                # You could add further non-renaming actions here if needed.
+                if 1 <= num <= len(scans):
+                    selected_scan = scans[num - 1]
+                    # New title is simply the interface_presetDescription, e.g., "wlan1_passive"
+                    new_title = f"{self.tool.selected_interface}_{self.tool.selected_preset.get('description', '')}"
+                    swap_message = {
+                        "action": "SWAP_SCAN",
+                        "tool": tool_name,
+                        "pane_id": selected_scan.get("pane_id"),
+                        "new_title": new_title
+                    }
+                    swap_response = ipc.send_ipc_command(swap_message, DEFAULT_SOCKET_PATH)
+                    parent_win.clear()
+                    if swap_response.get("status") == "SWAP_SCAN_OK":
+                        parent_win.addstr(0, 0, "Scan swapped successfully!")
+                    else:
+                        error_text = swap_response.get("error", "Unknown error")
+                        parent_win.addstr(0, 0, f"Error swapping scan: {error_text}")
+                    parent_win.refresh()
+                    parent_win.getch()
+                    return
             elif key == 27:
                 return
+
 
     def upload(self, parent_win) -> None:
         """
@@ -268,6 +299,7 @@ class HcxToolSubmenu:
         # Clear previous selections each time the submenu is launched.
         self.tool.selected_interface = None
         self.tool.selected_preset = None
+        self.tool.preset_description = None
 
         h, w = stdscr.getmaxyx()
         submenu_win = curses.newwin(h, w, 0, 0)

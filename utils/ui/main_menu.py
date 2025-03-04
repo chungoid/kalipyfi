@@ -1,9 +1,6 @@
 #!/main_menu.py
 import os
 import sys
-import math
-import time
-import libtmux
 import curses
 import logging
 from pathlib import Path

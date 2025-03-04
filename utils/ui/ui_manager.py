@@ -1,15 +1,16 @@
 # utils/ui/ui_manager.py
 import os
-import signal
-import subprocess
 import sys
 import time
+import signal
+import jinja2
+import libtmux
 import logging
+import subprocess
 from pathlib import Path
 from typing import Dict, Optional, Tuple
-import libtmux
-import jinja2
 
+# local
 from common.models import ScanData, InterfaceData, SessionData
 from config.constants import TMUXP_DIR
 
@@ -38,7 +39,7 @@ class UIManager:
 
     def _register_scan(self, window_name: str, pane_id: str, internal_name: str, tool_name: str,
                          scan_profile: str, command: str, interface: str,
-                         lock_status: bool) -> None:
+                         lock_status: bool, timestamp: float) -> None:
         """
         Creates a ScanData object and updates the active_scans registry.
 
@@ -60,7 +61,8 @@ class UIManager:
             internal_name=internal_name,
             interface=interface,
             lock_status=lock_status,
-            cmd_str=command
+            cmd_str=command,
+            timestamp=timestamp
         )
         self.active_scans[pane_id] = scan_data
         self.logger.debug(f"Registered scan: {scan_data}")
@@ -76,7 +78,7 @@ class UIManager:
         """
         command = self.convert_cmd_dict_to_string(cmd_dict)
         pane.send_keys(command, enter=True)
-        self.logger.info(f"Launched scan command: {command} in pane {pane.get('pane_id')}")
+        self.logger.debug(f"Launched scan command: {command} in pane {pane.get('pane_id')}")
         return command
 
 
@@ -254,7 +256,7 @@ class UIManager:
         except Exception as e:
             self.logger.exception(f"Error loading background window for {tool_name}: {e}")
 
-    def allocate_scan_pane(self, tool_name: str, scan_profile: str, cmd_dict: dict) -> str:
+    def allocate_scan_pane(self, tool_name: str, scan_profile: str, cmd_dict: dict, interface: str, timestamp: float) -> str:
         # Ensure the background window exists:
         window = self.get_or_create_tool_window(tool_name)
         # Create a new pane in that window:
@@ -262,13 +264,12 @@ class UIManager:
         pane_internal_name = self.rename_pane(pane, tool_name, scan_profile)
         command = self.convert_cmd_dict_to_string(cmd_dict)
         pane.send_keys(command, enter=True)
-        self.logger.info(f"Launched scan in pane '{pane_internal_name}' with command: {command}")
-
-        interface = cmd_dict.get("interface", "unknown")
+        self.logger.debug(f"Launched scan in pane '{pane_internal_name}' with command: {command}")
+        self.logger.info (f"Launched scan in pane '{pane_internal_name}' successfully.")
         lock_status = self.get_lock_status(interface)
         pane_id = pane.get("pane_id")
         self._register_scan(window.get("window_name"), pane_id, pane_internal_name, tool_name, scan_profile, command,
-                            interface, lock_status)
+                            interface, lock_status, timestamp)
         return pane_id
 
     def update_interface(self, interface: str, lock_status: bool) -> None:

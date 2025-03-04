@@ -8,9 +8,9 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 from abc import abstractmethod
 
-from common.logging_setup import get_log_queue, worker_configurer
 # local
 from config.constants import BASE_DIR, DEFAULT_SOCKET_PATH
+from common.logging_setup import get_log_queue, worker_configurer
 from common.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
 from utils.ipc import send_ipc_command
@@ -48,9 +48,10 @@ class Tool:
         # Extract config sections
         self.interfaces = self.config_data.get("interfaces", {})
         self.presets = self.config_data.get("presets", {})
-        self.defaults = self.config_data.get("defaults", {})
+        self.defaults = self.config_data.get("defaults", {}) # currently unused, here for future flexibility
         self.selected_interface = None # set in submenu, this is your chosen scan interface
         self.selected_preset = None # set in submenu, this is your yaml built command
+        self.preset_description = None # set in submenu, this is the presets description key
         self.extra_macs = None # set in submenu (future addon)
 
         # Optional Overrides
@@ -114,6 +115,7 @@ class Tool:
             "tool": self.name,
             "scan_profile": scan_profile,
             "command": cmd_dict,
+            "interface": self.selected_interface,
             "timestamp": time.time()
         }
         self.logger.debug("Sending IPC scan command: %s", ipc_message)

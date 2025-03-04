@@ -36,7 +36,7 @@ class ScanData:
     interface: str
     lock_status: bool
     cmd_str: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = None
 
     def to_dict(self):
         return asdict(self)

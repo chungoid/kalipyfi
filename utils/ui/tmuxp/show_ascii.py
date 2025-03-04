@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import sys
-import os
 from pathlib import Path
 project_base = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(project_base))

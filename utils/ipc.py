@@ -1,8 +1,11 @@
-# ipc.py
-import logging
-import socket
+# utils/ipc.py
 import os
 import time
+import logging
+import socket
+
+
+# local
 from common.ipc_protocol import (
     pack_message, unpack_message, handle_get_state, handle_get_scans,
     handle_send_scan, handle_swap_scan, handle_update_lock,

@@ -1,4 +1,3 @@
-import sys
 import logging
 import logging.handlers
 from multiprocessing import Queue
@@ -27,7 +26,7 @@ def worker_configurer(log_queue):
     """Configure logging for a worker process using a QueueHandler."""
     queue_handler = logging.handlers.QueueHandler(log_queue)
     root = logging.getLogger()
-    # Clear any existing handlers
+    # clear any existing handlers
     root.handlers = []
     root.addHandler(queue_handler)
     root.setLevel(logging.DEBUG)

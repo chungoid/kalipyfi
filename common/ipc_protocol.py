@@ -1,6 +1,7 @@
 import json
 import logging
 
+# local
 from config.constants import IPC_CONSTANTS
 
 ERROR_KEY = IPC_CONSTANTS["keys"]["ERROR_KEY"]
@@ -132,14 +133,16 @@ def handle_send_scan(ui_instance, request: dict) -> dict:
     """
     logger = logging.getLogger("ipc_proto:handle_send_scan")
     logger.debug(f"handle_send_scan: Received request: {request}")
-    tool_name = request.get("tool")
-    scan_profile = request.get("scan_profile")
-    cmd_dict = request.get("command")
+    tool_name = request.get("tool")                  # tool which sent the scan
+    scan_profile = request.get("scan_profile")       # selected profile from 'preset'
+    cmd_dict = request.get("command")                # built command to be run in tmux
+    interface = request.get("interface", "unknown")  # selected scan interface from submenu
+    timestamp = request.get("timestamp")
     if not all([tool_name, scan_profile, cmd_dict]):
         logger.error("handle_send_scan: Missing parameters")
         return {ERROR_KEY: "Missing parameters for SEND_SCAN"}
     try:
-        pane_id = ui_instance.allocate_scan_pane(tool_name, scan_profile, cmd_dict)
+        pane_id = ui_instance.allocate_scan_pane(tool_name, scan_profile, cmd_dict, interface, timestamp)
         if pane_id:
             logger.debug(f"handle_send_scan: Successfully allocated pane: {pane_id}")
             return {"status": "SEND_SCAN_OK", "pane_id": pane_id}

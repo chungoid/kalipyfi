@@ -1,7 +1,8 @@
-# tool_registry.py
+# utils/tool_registry.py
 import logging
 from typing import Any, Callable, Dict
 
+# local
 from common.logging_setup import get_log_queue, worker_configurer
 
 log_queue = get_log_queue()
