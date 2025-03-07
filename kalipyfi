@@ -3,6 +3,12 @@
 # SET YOUR DIRECTORY PATH
 KALIPYFI_DIR="/home/user/kalipyfi/"
 
-# leave these
+echo
+echo
+echo
+echo initializing ipc server and user interface...
+echo ...this may take a few moments
+
+# leave these be
 source "$KALIPYFI_DIR/.venv/bin/activate"
 "$KALIPYFI_DIR/.venv/bin/python3" "$KALIPYFI_DIR/kalipyfi.py" "$@"
