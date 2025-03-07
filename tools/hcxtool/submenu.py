@@ -280,7 +280,6 @@ class HcxToolSubmenu:
             # return to the scans list
             return
 
-
     def upload(self, parent_win) -> None:
         """
         Handles the 'Upload' option.
@@ -291,6 +290,7 @@ class HcxToolSubmenu:
         try:
             files = [f for f in os.listdir(results_dir) if f.endswith(".pcapng")]
         except Exception as e:
+            self.logger.error(f"Error accessing results directory: {e}")
             parent_win.clear()
             parent_win.addstr(0, 0, f"Error accessing results directory: {e}")
             parent_win.refresh()
@@ -298,6 +298,7 @@ class HcxToolSubmenu:
             return
 
         if not files:
+            self.logger.info("No pcapng files found!")
             parent_win.clear()
             parent_win.addstr(0, 0, "No pcapng files found!")
             parent_win.refresh()
@@ -314,15 +315,34 @@ class HcxToolSubmenu:
             parent_win.addstr(0, 0, "Uploading all files...")
             parent_win.refresh()
             curses.napms(1500)
-            parent_win.addstr(1, 0, "Upload All complete.")
+            for file in files:
+                file_path = os.path.join(results_dir, file)
+                self.logger.debug(f"Uploading {file_path}...")
+                response = upload_to_wpasec(self.tool, file_path)
+                if response and response.get("status") == "success":
+                    self.logger.info(f"Uploaded {file} successfully.")
+                    parent_win.addstr(1, 0, f"Uploaded {file} successfully.")
+                else:
+                    error_message = response.get("error", "Unknown error") if response else "No response from server"
+                    self.logger.error(f"Failed to upload {file}. Error: {error_message}")
+                    parent_win.addstr(1, 0, f"Failed to upload {file}. Error: {error_message}")
+            parent_win.refresh()
+            parent_win.getch()
         else:
+            file_path = os.path.join(results_dir, selection)
             parent_win.addstr(0, 0, f"Uploading {selection}...")
             parent_win.refresh()
             curses.napms(1500)
-            parent_win.addstr(1, 0, f"Uploaded {selection}.")
-        parent_win.refresh()
-        parent_win.getch()
-
+            response = upload_to_wpasec(self.tool, file_path)
+            if response and response.get("status") == "success":
+                self.logger.info(f"Uploaded {selection} successfully.")
+                parent_win.addstr(1, 0, f"Uploaded {selection} successfully.")
+            else:
+                error_message = response.get("error", "Unknown error") if response else "No response from server"
+                self.logger.error(f"Failed to upload {selection}. Error: {error_message}")
+                parent_win.addstr(1, 0, f"Failed to upload {selection}. Error: {error_message}")
+            parent_win.refresh()
+            parent_win.getch()
 
     def download(self, parent_win) -> None:
         """
@@ -332,7 +352,7 @@ class HcxToolSubmenu:
         """
         # Retrieve the API key from the tool's configuration
         api_key = self.tool.get_wpasec_api_key()
-        logging.debug(f"api key: {api_key}")
+        self.logger.debug(f"api key: {api_key}")
 
         if not api_key:
             parent_win.clear()
