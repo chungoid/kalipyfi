@@ -1,10 +1,9 @@
 import csv
-import subprocess
 import folium
+import pandas
 import logging
+import subprocess
 from pathlib import Path
-from turtle import pd
-
 
 def normalize_mac(mac: str) -> str:
     """
@@ -171,7 +170,7 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
     """
     # Read the CSV file using pandas.
     try:
-        df = pd.read_csv(results_csv)
+        df = pandas.read_csv(results_csv)
     except Exception as e:
         logging.error(f"Error reading {results_csv}: {e}")
         return

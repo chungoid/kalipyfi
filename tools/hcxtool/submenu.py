@@ -394,24 +394,23 @@ class HcxToolSubmenu:
     def utils_menu(self, parent_win) -> None:
         """
         Displays a Utils submenu with options:
-          1. WPA-sec (contains all WPA-sec related functions)
-          2. Create Scan Profile
-          3. Edit Scan Profile
-          0. Back
+          - WPA-sec (contains all WPA-sec related functions)
+          - Create Scan Profile
+          - Edit Scan Profile
+          - Back
         """
-        menu_options = ["WPA-sec", "Create Scan Profile", "Edit Scan Profile"]
-        numbered_menu = [f"[{i + 1}] {item}" for i, item in enumerate(menu_options)]
-        numbered_menu.append("[0] Back")
+        menu_options = ["WPA-sec", "Create Scan Profile", "Edit Scan Profile", "Back"]
 
         while True:
-            selection = self.draw_paginated_menu(parent_win, "Utils", numbered_menu)
-            if selection == "back":
+            # Pass plain option strings; draw_paginated_menu will add numbering.
+            selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
+            if selection.lower() == "back":
                 break
-            elif selection.startswith("[1]"):
+            elif selection == "WPA-sec":
                 self.wpasec_menu(parent_win)
-            elif selection.startswith("[2]"):
+            elif selection == "Create Scan Profile":
                 self.create_scan_profile_menu(parent_win)
-            elif selection.startswith("[3]"):
+            elif selection == "Edit Scan Profile":
                 self.edit_scan_profile_menu(parent_win)
             parent_win.clear()
             parent_win.refresh()
@@ -420,27 +419,25 @@ class HcxToolSubmenu:
     def wpasec_menu(self, parent_win) -> None:
         """
         Displays a WPA-sec submenu with options:
-          1. Set WPA-sec Key
-          2. Upload
-          3. Download
-          4. Export Results
-          0. Back
+          - Set WPA-sec Key
+          - Upload
+          - Download
+          - Export Results
+          - Back
         """
-        menu_options = ["Set WPA-sec Key", "Upload", "Download", "Export Results"]
-        numbered_menu = [f"[{i + 1}] {option}" for i, option in enumerate(menu_options)]
-        numbered_menu.append("[0] Back")
+        menu_options = ["Set WPA-sec Key", "Upload", "Download", "Export Results", "Back"]
 
         while True:
-            selection = self.draw_paginated_menu(parent_win, "WPA-sec", numbered_menu)
-            if selection == "back":
+            selection = self.draw_paginated_menu(parent_win, "WPA-sec", menu_options)
+            if selection.lower() == "back":
                 break
-            elif selection.startswith("[1]"):
+            elif selection == "Set WPA-sec Key":
                 self.set_wpasec_key_menu(parent_win)
-            elif selection.startswith("[2]"):
+            elif selection == "Upload":
                 self.upload(parent_win)
-            elif selection.startswith("[3]"):
+            elif selection == "Download":
                 self.download(parent_win)
-            elif selection.startswith("[4]"):
+            elif selection == "Export Results":
                 self.tool.export_results()
                 parent_win.clear()
                 parent_win.addstr(0, 0, "Export complete. Spawn webserver to view results? (y/n): ")
