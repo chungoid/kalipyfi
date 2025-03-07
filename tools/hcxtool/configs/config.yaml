@@ -22,12 +22,14 @@ presets:
       -F: true
   2:
     description: passive
+    autobpf: true
     options:
       --gpsd: true
       --attemptapmax: 0
       -F: true
   3:
     description: silent
+    autobpf: true
     options:
       --gpsd: true
       --attemptapmax: 0
@@ -35,6 +37,7 @@ presets:
       -F: true
   4:
     description: rca a
+    autobpf: true
     options:
       --gpsd: true
       --rcascan: a
@@ -42,6 +45,7 @@ presets:
       -F: true
   5:
     description: rca p
+    autobpf: true
     options:
       --gpsd: true
       --rcascan: p
