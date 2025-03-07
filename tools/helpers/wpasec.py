@@ -1,4 +1,6 @@
 import logging
+import os
+
 import requests
 from pathlib import Path
 
@@ -24,6 +26,37 @@ def upload_to_wpasec(tool, pcap_path: Path, api_key: str) -> bool:
     except requests.RequestException as e:
         tool.logging.error(f"Error uploading PCAP file: {e}")
         return False
+
+
+def download_from_wpasec(api_key: str, results_dir: str):
+    """
+    Downloads data from WPA-sec using the provided API key and saves it as 'founds.txt'
+    in the specified results' directory.
+
+    :param api_key: The WPA-sec API key.
+    :param results_dir: The results' directory.
+    returns: The path to the downloaded PCAP file.
+    """
+    url = "https://wpa-sec.stanev.org/?api&dl"
+    headers = {"Cookie": f"key={api_key}"}
+    logging.debug("Downloading founds from WPA-sec...")
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raises an exception for 4xx/5xx responses.
+
+        # Ensure the results directory exists.
+        os.makedirs(results_dir, exist_ok=True)
+        founds_path = os.path.join(results_dir, "founds.txt")
+
+        with open(founds_path, "w") as f:
+            f.write(response.text)
+
+        logging.info(f"Downloaded founds and saved to {founds_path}")
+        return
+    except Exception as e:
+        logging.exception(f"Error downloading from WPA-sec: {e}")
+        return
 
 
 def get_wpasec_api_key(tool) -> str:
