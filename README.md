@@ -1,11 +1,6 @@
-# Kalipyfi
-
-Kalipyfi launches a tmux session via tmuxp yaml template that displays a main scan window up top
-& a curses menu below. Once sent, scans will be in their own background windows until they're called to swap
-or stop via their submenu. Swapped scans from the background will then appear in the main scan window above
-the curses menu.
-
-You can very easily expand off the Tool class and implement your own tool into the UI.
+<div align="center">
+  <img src="utils/ui/tmuxp/img.png" alt="Kalipyfi Logo">
+</div>
 
 ## Installation
 ```bash
