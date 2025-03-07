@@ -205,37 +205,36 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
     :param output_html: Name of the HTML file to save.
     """
     try:
-        # Read CSV without aliasing; using pandas directly.
         df = pandas.read_csv(results_csv)
     except Exception as e:
-        print(f"Error reading CSV: {e}")
+        logging.error(f"Error reading CSV: {e}")
         return
 
     try:
-        # Convert columns to float.
+        # convert columns to float
         df["Latitude"] = df["Latitude"].astype(float)
         df["Longitude"] = df["Longitude"].astype(float)
     except Exception as e:
-        print(f"Error converting coordinates: {e}")
+        logging.error(f"Error converting coordinates: {e}")
         return
 
-    # Filter out rows with 0.0 for either coordinate.
+    # filter out 0's for coords (erroneous data)
     df_valid = df[(df["Latitude"] != 0.0) & (df["Longitude"] != 0.0)]
     if df_valid.empty:
-        print("No valid GPS entries found.")
+        logging.error("No valid GPS entries found.")
         return
 
-    # If all longitudes are positive, assume they should be negative.
+    # not sure.. i just flip all positives to negatives
     if df_valid["Longitude"].min() > 0:
         df_valid["Longitude"] = df_valid["Longitude"].apply(lambda x: -x)
 
-    # Compute a center based on valid points.
+    # compute a center based on valid points
     avg_lat = df_valid["Latitude"].mean()
     avg_lon = df_valid["Longitude"].mean()
 
     m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
 
-    # add markers for valid results
+    # add markers for each valid row
     for _, row in df_valid.iterrows():
         popup_content = (
             f"<strong>Date:</strong> {row['Date']}<br>"
@@ -250,7 +249,7 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
             popup=popup_content,
         ).add_to(m)
 
-    # save to map.html
+    # save
     html_path = results_csv.parent / output_html
     m.save(html_path)
-    print(f"Map saved to {html_path}")
+    logging.info(f"Map saved to {html_path}")
