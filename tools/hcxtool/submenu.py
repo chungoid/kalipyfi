@@ -6,6 +6,7 @@ from typing import Any, List
 
 import yaml
 
+from tools.helpers.wpasec import download_from_wpasec
 # local
 from utils.ipc_client import IPCClient
 from tools.helpers.tool_utils import format_scan_display
@@ -320,6 +321,50 @@ class HcxToolSubmenu:
             parent_win.refresh()
             curses.napms(1500)
             parent_win.addstr(1, 0, f"Uploaded {selection}.")
+        parent_win.refresh()
+        parent_win.getch()
+
+
+    def download(self, parent_win) -> None:
+        """
+        Handles the 'Download' option.
+        Downloads data from WPA-sec using the API key and saves it as 'founds.txt'
+        in the tool's results directory.
+        """
+        # Retrieve the API key from the tool's configuration
+        api_key = getattr(self.tool, "api_key", None)
+        if not api_key:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No API key configured for WPA-sec download!")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # Confirm download action with the user
+        parent_win.clear()
+        parent_win.addstr(0, 0, "Download founds from WPA-sec? (y/n)")
+        parent_win.refresh()
+        try:
+            key = parent_win.getch()
+            ch = chr(key)
+        except Exception:
+            return
+        if ch.lower() != 'y':
+            return
+
+        # Perform the download
+        parent_win.clear()
+        parent_win.addstr(0, 0, "Downloading founds from WPA-sec...")
+        parent_win.refresh()
+        results_dir = getattr(self.tool, "results_dir", "results")
+        file_path = download_from_wpasec(api_key, results_dir)
+
+        # Show the result
+        parent_win.clear()
+        if file_path:
+            parent_win.addstr(0, 0, f"Download complete. Saved to {file_path}")
+        else:
+            parent_win.addstr(0, 0, "Error downloading founds!")
         parent_win.refresh()
         parent_win.getch()
 
@@ -661,6 +706,8 @@ class HcxToolSubmenu:
             elif ch == "3":
                 self.upload(submenu_win)
             elif ch == "4":
+                self.download(submenu_win)
+            elif ch == "5":
                 self.utils_menu(submenu_win)
             elif ch == "0" or key == 27:
                 break
