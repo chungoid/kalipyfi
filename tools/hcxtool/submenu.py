@@ -609,6 +609,7 @@ class HcxToolSubmenu:
         try:
             self.tool.update_presets_in_config(self.tool.presets)
             parent_win.clear()
+            self.tool.reload_config()
             parent_win.addstr(0, 0, "New scan profile created and saved. Press any key to continue...")
         except Exception as e:
             parent_win.clear()
@@ -742,6 +743,7 @@ class HcxToolSubmenu:
             self.tool.update_presets_in_config(self.tool.presets)
             parent_win.clear()
             parent_win.addstr(0, 0, "Profile updated and saved. Press any key to continue...")
+            self.tool.reload_config()
         except Exception as e:
             parent_win.clear()
             parent_win.addstr(0, 0, f"Error saving profile: {e}")

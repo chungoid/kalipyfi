@@ -250,6 +250,18 @@ class Tool:
         self.logger.info("No you run..")
         return
 
+    def reload_config(self) -> None:
+        """
+        Reloads the configuration from the YAML file and updates the
+        in-memory settings (interfaces, presets, defaults, etc.).
+        """
+
+        self.config_data = load_yaml_config(self.config_file, self.logger)
+        self.interfaces = self.config_data.get("interfaces", {})
+        self.presets = self.config_data.get("presets", {})
+        self.defaults = self.config_data.get("defaults", {})
+        self.logger.info(f"Configuration reloaded from {self.config_file}")
+
     @staticmethod
     def check_uuid_for_root() -> bool:
         return os.getuid() == 0

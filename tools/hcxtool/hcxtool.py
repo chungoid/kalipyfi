@@ -183,6 +183,7 @@ class Hcxtool(Tool, ABC):
         """
         key_path = ["wpa-sec", "api_key"]
         update_yaml_value(self.config_file, key_path, new_key)
+        self.reload_config()
 
     def export_results(self) -> None:
         """
