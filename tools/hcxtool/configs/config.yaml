@@ -28,6 +28,7 @@ presets:
   3:
     description: silent
     options:
+      --gpsd: true
       --attemptapmax: 0
       --disable_beacon: true
       -F: true
