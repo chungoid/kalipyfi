@@ -17,8 +17,6 @@ def main():
     kalipyfi_art = pyfiglet.figlet_format("kalipyfi", font="slant", width=fixed_width)
     kalipyfi_panel = Panel(
         kalipyfi_art,
-        title="kalipyfi",
-        subtitle="Welcome to Kalipyfi",
         style="bold cyan",
         width=fixed_width
     )
