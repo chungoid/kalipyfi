@@ -184,45 +184,51 @@ class Hcxtool(Tool, ABC):
         key_path = ["wpa-sec", "api_key"]
         update_yaml_value(self.config_file, key_path, new_key)
 
-
     def export_results(self) -> None:
         """
         Runs the export workflow: generate master results CSV from all pcapng files,
         update that CSV with keys from founds.txt (if found), and then create an HTML map.
         """
-        from tools.hcxtool._parser import results_to_csv, append_keys_to_results, create_html_map
+        from tools.hcxtool._parser import (
+            run_hcxpcapngtool,
+            parse_temp_csv,
+            append_keys_to_master,
+            create_html_map
+        )
         results_csv = self.results_dir / "results.csv"
         founds_txt = self.results_dir / "founds.txt"
 
-        # Check for PCAPNG files.
+        # check for caps
         pcapng_files = list(self.results_dir.glob("*.pcapng"))
         if not pcapng_files:
             self.logger.info("No pcapng files found in the results directory.")
             return
 
-        # Extract results from PCAPNG files
+        # parse tmp csv
         try:
-            results_to_csv(self.results_dir)
+            temp_csv = run_hcxpcapngtool(self.results_dir)
+            master_csv = parse_temp_csv(temp_csv)
             self.logger.info("Master results.csv has been updated from pcapng files.")
         except Exception as e:
             self.logger.error(f"Error while generating results.csv: {e}")
             return
 
-        # Append keys from founds.txt if it exists
+        # append keys from founds.txt, if it exists
         if founds_txt.exists():
             try:
-                append_keys_to_results(results_csv, founds_txt)
+                append_keys_to_master(master_csv, founds_txt)
                 self.logger.info("Results CSV updated with keys from founds.txt.")
             except Exception as e:
                 self.logger.error(f"Error while appending keys: {e}")
         else:
             self.logger.info("founds.txt not found; skipping key appending step.")
 
-        # Create an HTML map from the updated results.csv
+        # create an HTML map from the updated results.csv
         try:
-            create_html_map(results_csv)
+            create_html_map(master_csv)
             self.logger.info("HTML map created from results.csv.")
         except Exception as e:
             self.logger.error(f"Error while creating HTML map: {e}")
+
 
 
