@@ -11,11 +11,7 @@ import jinja2
 from common.process_manager import process_manager
 from config.constants import MAIN_UI_YAML_PATH, TMUXP_DIR, BASE_DIR
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
-from utils.helper import setup_signal_handlers, shutdown_flag, wait_for_tmux_session, cleanup_tmp, log_ui_state_phase
-from utils.ipc import start_ipc_server
-from utils.ui.ui_manager import UIManager
-from common.config_utils import test_config_paths
-from tools.hcxtool import hcxtool
+from utils.helper import setup_signal_handlers, shutdown_flag
 
 
 def main():
@@ -59,20 +55,15 @@ def main():
 
     # Main loop: continue while shutdown_flag is False.
     while not shutdown_flag:
-        process_manager.get_status_report()
-        process_manager.debug_status()
         time.sleep(1)
 
     logging.info("Shutting Down Kalipyfi...")
     try:
-        # Kill the tmuxp process group.
-        os.killpg(tmuxp_proc.pid, signal.SIGTERM)
+        process_manager.shutdown_all()
+        listener.stop()
+        sys.exit(0)
     except Exception as e:
         logging.error(f"Error killing tmuxp process group: {e}")
-
-    process_manager.shutdown_all()
-    listener.stop()
-    sys.exit(0)
 
 if __name__ == "__main__":
     main()

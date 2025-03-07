@@ -28,8 +28,12 @@ TOOL_PATHS = {
 ########################
 
 ## DEFAULT SETTINGS ##
-DEFAULT_SOCKET_PATH = "/tmp/tmuxp-kalipyfi.sock"
+#DEFAULT_SOCKET_PATH = "/tmp/tmuxp-kalipyfi.sock"
 RETRY_DELAY = .1
+DEFAULT_BASE_SOCKET = "/tmp/tmuxp-kalipyfi"
+SOCKET_SUFFIX = ".sock"
+# contains current socket in UNIQUE
+UNIQUE_SOCKET_FILE = "/tmp/tmuxp-kalipifi_current.sock"
 
 ## keys and commands ##
 IPC_CONSTANTS = {

@@ -13,6 +13,21 @@ class ProcessManager:
         self.processes[pid] = proc_data
         logging.debug(f"Registered process: {proc_data}")
 
+    def kill_process_tree(pid, sig=signal.SIGTERM, include_parent=True, timeout=10):
+        try:
+            parent = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            return
+        children = parent.children(recursive=True)
+        for child in children:
+            child.send_signal(sig)
+        if include_parent:
+            parent.send_signal(sig)
+        gone, alive = psutil.wait_procs([parent] + children, timeout=timeout)
+        if alive:
+            for p in alive:
+                p.kill()  # force kill if still alive
+
     def shutdown_all(self):
         for pid, proc_data in list(self.processes.items()):
             try:

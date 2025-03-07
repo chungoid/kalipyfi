@@ -9,7 +9,7 @@ import yaml
 # local
 from utils import ipc
 from tools.helpers.tool_utils import format_scan_display
-from config.constants import DEFAULT_SOCKET_PATH
+from utils.helper import UNIQUE_SOCKET_FILE
 
 
 class HcxToolSubmenu:
@@ -210,7 +210,7 @@ class HcxToolSubmenu:
         tool_name = getattr(self.tool, 'name', 'hcxtool')
         message = {"action": "GET_SCANS", "tool": tool_name}
         self.logger.debug(f"view_scans: Sending GET_SCANS for tool '{tool_name}'")
-        response = ipc.send_ipc_command(message, DEFAULT_SOCKET_PATH)
+        response = ipc.send_ipc_command(message, UNIQUE_SOCKET_FILE)
         scans = response.get("scans", [])
         parent_win.clear()
         if not scans:
@@ -254,7 +254,7 @@ class HcxToolSubmenu:
                 "pane_id": selected_scan.get("pane_id"),
                 "new_title": new_title
             }
-            swap_response = ipc.send_ipc_command(swap_message, DEFAULT_SOCKET_PATH)
+            swap_response = ipc.send_ipc_command(swap_message, UNIQUE_SOCKET_FILE)
             parent_win.clear()
             if swap_response.get("status") == "SWAP_SCAN_OK":
                 parent_win.addstr(0, 0, "Scan swapped successfully!")
@@ -270,7 +270,7 @@ class HcxToolSubmenu:
                 "tool": tool_name,
                 "pane_id": selected_scan.get("pane_id")
             }
-            stop_response = ipc.send_ipc_command(stop_message, DEFAULT_SOCKET_PATH)
+            stop_response = ipc.send_ipc_command(stop_message, UNIQUE_SOCKET_FILE)
             parent_win.clear()
             if stop_response.get("status") == "STOP_SCAN_OK":
                 parent_win.addstr(0, 0, "Scan stopped successfully!")

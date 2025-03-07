@@ -1,9 +1,11 @@
 # utils/ipc.py
+import curses
+import errno
 import os
+import sys
 import time
 import logging
 import socket
-
 
 # local
 from common.ipc_protocol import (
@@ -12,8 +14,11 @@ from common.ipc_protocol import (
     handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui, handle_debug_status, handle_ping
 )
 from common.logging_setup import worker_configurer, get_log_queue
-from config.constants import IPC_CONSTANTS, DEFAULT_SOCKET_PATH, RETRY_DELAY
+from common.process_manager import process_manager
+from config.constants import IPC_CONSTANTS, RETRY_DELAY
+from utils.helper import publish_socket_path, get_unique_socket_path, get_published_socket_path
 
+# Unpack constants.
 ACTION_KEY       = IPC_CONSTANTS["keys"]["ACTION_KEY"]
 ERROR_KEY        = IPC_CONSTANTS["keys"]["ERROR_KEY"]
 TOOL_KEY         = IPC_CONSTANTS["keys"]["TOOL_KEY"]
@@ -33,20 +38,17 @@ UPDATE_LOCK   = IPC_CONSTANTS["actions"]["UPDATE_LOCK"]
 REMOVE_LOCK   = IPC_CONSTANTS["actions"]["REMOVE_LOCK"]
 KILL_UI       = IPC_CONSTANTS["actions"]["KILL_UI"]
 DETACH_UI     = IPC_CONSTANTS["actions"]["DETACH_UI"]
-DEBUG_STATUS = IPC_CONSTANTS["actions"]["DEBUG_STATUS"]
+DEBUG_STATUS  = IPC_CONSTANTS["actions"]["DEBUG_STATUS"]
 
-
-def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> dict:
-    """
-    Sends a structured message (as dict) to the IPC server and returns the response as a dict.
-    Extensive debugging is added.
-    """
+def send_ipc_command(message: dict, socket_path: str = None) -> dict:
     logger = logging.getLogger("ipc:send_ipc_command")
-    logger.debug(f"send_ipc_command: Called with message: {message} and socket_path: {socket_path}")
+    if socket_path is None:
+        socket_path = get_published_socket_path()
+    logger.debug(f"send_ipc_command: Using socket_path: {socket_path} for message: {message}")
     attempt = 0
     while attempt < 3:
         try:
-            logger.debug(f"send_ipc_command: Attempt {attempt+1}: Creating socket.")
+            logger.debug(f"send_ipc_command: Attempt {attempt+1}: Creating client socket.")
             client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             logger.debug("send_ipc_command: Attempting to connect...")
             client.connect(socket_path)
@@ -70,44 +72,40 @@ def send_ipc_command(message: dict, socket_path: str = DEFAULT_SOCKET_PATH) -> d
     logger.error(f"send_ipc_command: Failed after {attempt} attempts")
     return {ERROR_KEY: f"Failed after {attempt} attempts"}
 
-
-def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
+def ipc_server(ui_instance, socket_path: str) -> None:
     logger = logging.getLogger("ipc:ipc_server")
-    logger.debug(f"ipc_server: Starting with socket_path: {socket_path}")
-
-    if os.path.exists(socket_path):
-        logger.debug(f"ipc_server: Removing existing socket at {socket_path}")
-        #os.remove(socket_path)
+    logger.debug(f"ipc_server: Using provided socket path: {socket_path}")
 
     try:
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        logger.debug(f"ipc_server: Created server socket with fd: {server.fileno()}")
         server.bind(socket_path)
+        logger.debug(f"ipc_server: Bound to socket path: {socket_path}")
         server.listen(10)
-        logger.info("ipc_server: Listening for connections...")
-    except Exception as e:
-        logger.exception(f"ipc_server: Failed to bind or listen on {socket_path}")
+        logger.info(f"ipc_server: Listening for connections on {socket_path}...")
+    except OSError as e:
+        if e.errno == errno.EADDRINUSE:
+            logger.exception(f"ipc_server: Address already in use: {socket_path}")
+        else:
+            logger.exception(f"ipc_server: Failed to bind or listen on {socket_path}")
         return
 
     while True:
         try:
             logger.debug("ipc_server: Waiting for incoming connection...")
             conn, _ = server.accept()
-            logger.debug("ipc_server: Connection accepted.")
-
+            logger.debug(f"ipc_server: Connection accepted, fd: {conn.fileno()}")
             try:
                 data = conn.recv(1024).decode().strip()
+                logger.debug(f"ipc_server: Data received: '{data}'")
                 if not data:
                     logger.error("ipc_server: Received empty data, closing connection.")
                     conn.close()
                     continue
-
-                logger.debug(f"ipc_server: Raw data received: {data}")
                 request = unpack_message(data)
                 logger.debug(f"ipc_server: Unpacked request: {request}")
-
                 action = request.get("action", "UNKNOWN")
                 logger.debug(f"ipc_server: Action determined: {action}")
-
                 if action == GET_STATE:
                     response = handle_get_state(ui_instance, request)
                 elif action == PING:
@@ -133,7 +131,6 @@ def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
                 else:
                     response = {ERROR_KEY: "UNKNOWN_COMMAND"}
                     logger.debug(f"ipc_server: Received unknown command: {data}")
-
                 logger.debug(f"ipc_server: Response generated: {response}")
                 response_str = pack_message(response)
                 logger.debug(f"ipc_server: Sending response string: {response_str}")
@@ -151,27 +148,63 @@ def ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
             logger.exception("ipc_server: Exception in main loop")
 
 
-def start_ipc_server(ui_instance, socket_path: str = DEFAULT_SOCKET_PATH) -> None:
+def reconnect_ipc_socket():
+    """
+    Attempts to reconnect by re-reading the published socket path and trying to connect.
+    Returns the new socket path if the connection succeeds; otherwise, returns None.
+    """
+    new_socket = get_published_socket_path()
+    logging.debug(f"reconnect_ipc_socket: Read published socket path: {new_socket}")
+    import socket, time
+    timeout = 2  # seconds
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.connect(new_socket)
+            s.close()
+            logging.debug("reconnect_ipc_socket: Successfully connected to IPC socket.")
+            return new_socket
+        except socket.error as e:
+            logging.debug(f"reconnect_ipc_socket: Connection attempt failed: {e}")
+            time.sleep(0.1)
+    logging.error("reconnect_ipc_socket: Could not connect to IPC socket within timeout.")
+    return None
+
+
+def start_ipc_server(ui_instance, socket_path: str = None) -> None:
     from threading import Thread
+    import socket
+    import time
+    logger = logging.getLogger("start_ipc_server()")
+
+    if socket_path is None:
+        socket_path = get_unique_socket_path()
+        publish_socket_path(socket_path)
+        logger.debug(f"start_ipc_server: Unique socket generated and published: {socket_path}")
+    else:
+        logger.debug(f"start_ipc_server: Using provided socket path: {socket_path}")
+
     thread = Thread(target=ipc_server, args=(ui_instance, socket_path), daemon=True)
     thread.start()
+    logger.debug("start_ipc_server: IPC server thread started.")
 
     log_queue = get_log_queue()
     worker_configurer(log_queue)
-    logging.getLogger("start_ipc_server()").debug("IPC process logging configured")
+    logger.debug("start_ipc_server: IPC process logging configured.")
 
-    # Wait until we can actually connect
-    timeout = 1
-    start_time = time.time()
+    timeout = 1  # seconds
+    start_time_val = time.time()
     while True:
         try:
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             s.connect(socket_path)
             s.close()
+            logger.debug("start_ipc_server: Successfully connected to IPC socket.")
             break
-        except socket.error:
-            if time.time() - start_time > timeout:
+        except socket.error as e:
+            if time.time() - start_time_val > timeout:
+                logger.error(f"start_ipc_server: Timeout waiting for socket connection on {socket_path}")
                 break
+            logger.debug(f"start_ipc_server: Socket connection attempt failed: {e}")
             time.sleep(0.1)
-
-

@@ -1,21 +1,20 @@
 # utils/helper.py
 import os
 import time
+import pprint
 import socket
 import signal
-import logging
 import inspect
-from pprint import pformat
-
+import logging
 import libtmux
-import subprocess
 
 # local
-from config.constants import DEFAULT_SOCKET_PATH
+from config.constants import DEFAULT_BASE_SOCKET, SOCKET_SUFFIX, UNIQUE_SOCKET_FILE
+
 
 shutdown_flag = False
 
-def ipc_ping(socket_path: str = DEFAULT_SOCKET_PATH) -> bool:
+def ipc_ping(socket_path: str = UNIQUE_SOCKET_FILE) -> bool:
     import socket
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
@@ -27,6 +26,22 @@ def ipc_ping(socket_path: str = DEFAULT_SOCKET_PATH) -> bool:
                 return True
     except Exception:
         return False
+
+def get_unique_socket_path(base=DEFAULT_BASE_SOCKET, suffix=SOCKET_SUFFIX):
+    """Generate a unique socket path using the process ID and a timestamp."""
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    pid = os.getpid()
+    return f"{base}_{pid}_{timestamp}{suffix}"
+
+def publish_socket_path(socket_path, publish_file=UNIQUE_SOCKET_FILE):
+    """Write the unique socket path to a well-known file so that clients can later read it."""
+    with open(publish_file, "w") as f:
+        f.write(socket_path)
+
+def get_published_socket_path(publish_file=UNIQUE_SOCKET_FILE):
+    """Read the published socket path from the well-known file."""
+    with open(publish_file, "r") as f:
+        return f.read().strip()
 
 def cleanup_tmp():
     if os.path.exists("/tmp/kalipyfi_main.yaml"):
@@ -78,41 +93,6 @@ def wait_for_tmux_session(session_name: str, timeout: int = 30, poll_interval: f
     raise TimeoutError(f"Timeout waiting for tmux session '{session_name}' to be fully ready.")
 
 
-def wait_for_ipc_socket(socket_path: str=DEFAULT_SOCKET_PATH, timeout: float=5, retry_delay: float=0.1) -> bool:
-    """
-    Waits for the IPC socket at `socket_path` to become available.
-    Tries to establish a connection until the timeout is reached.
-
-    Args:
-        socket_path (str): Path to the Unix socket.
-        timeout (float): Maximum time to wait in seconds.
-        retry_delay (float): Delay between retries in seconds.
-
-    Returns:
-        bool: True if connection is successful, False otherwise.
-    """
-    logger = logging.getLogger("helper:wait_for_ipc_socket")
-    start_time = time.time()
-    attempt = 0
-    logger.debug(f"wait_for_ipc_socket: Waiting for socket at {socket_path} with timeout {timeout}s.")
-
-    while True:
-        attempt += 1
-        try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-                s.settimeout(retry_delay)
-                s.connect(socket_path)
-            logger.debug(f"wait_for_ipc_socket: Successfully connected to {socket_path} on attempt {attempt}.")
-            return True
-        except socket.error as e:
-            elapsed = time.time() - start_time
-            logger.debug(f"wait_for_ipc_socket: Attempt {attempt} failed: {e}. Elapsed time: {elapsed:.2f}s.")
-            if elapsed > timeout:
-                logger.error(f"wait_for_ipc_socket: Timed out after {timeout}s waiting for socket {socket_path}.")
-                return False
-            time.sleep(retry_delay)
-
-
 def log_ui_state_phase(logger, ui_instance, phase: str, extra_msg: str = "") -> None:
     """
     Logs detailed debug information about the current UI state, including a dump
@@ -138,7 +118,6 @@ def log_ui_state_phase(logger, ui_instance, phase: str, extra_msg: str = "") -> 
     -------
     >>> log_ui_state_phase(logger, ui_manager, "Before", "Starting swap operation")  # doctest: +SKIP
     """
-    import pprint
     caller_frame = inspect.stack()[1]
     file_name = caller_frame.filename.split("/")[-1]
     function_name = caller_frame.function

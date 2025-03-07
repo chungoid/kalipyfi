@@ -7,27 +7,6 @@ from config.constants import IPC_CONSTANTS
 ERROR_KEY = IPC_CONSTANTS["keys"]["ERROR_KEY"]
 
 def pack_message(message: dict) -> str:
-    """
-    Converts a message dictionary into a JSON string.
-
-    Expected Format:
-        A Python dictionary representing the message to be sent.
-
-    Parameters
-    ----------
-    message : dict
-        The message data to be serialized into JSON.
-
-    Returns
-    -------
-    str
-        The resulting JSON string.
-
-    Raises
-    ------
-    Exception
-        If there is an error during JSON serialization.
-    """
     logger = logging.getLogger("ipc_proto:pack_message")
     logger.debug(f"pack_message: Packing message: {message}")
     try:
@@ -39,23 +18,6 @@ def pack_message(message: dict) -> str:
         raise
 
 def unpack_message(message_str: str) -> dict:
-    """
-    Converts a JSON string into a message dictionary.
-
-    Expected Format:
-        A JSON-formatted string representing the message.
-
-    Parameters
-    ----------
-    message_str : str
-        The JSON string to be deserialized.
-
-    Returns
-    -------
-    dict
-        The resulting message dictionary. If JSON decoding fails, returns a dictionary
-        with an error key.
-    """
     logger = logging.getLogger("ipc_proto:unpack_message")
     logger.debug(f"unpack_message: Unpacking message string: {message_str}")
     try:
@@ -68,6 +30,8 @@ def unpack_message(message_str: str) -> dict:
     except Exception as e:
         logger.exception("unpack_message: Exception while unpacking message")
         return {ERROR_KEY: str(e)}
+
+
 
 def handle_get_state(ui_instance, request: dict) -> dict:
     """
@@ -102,6 +66,7 @@ def handle_get_state(ui_instance, request: dict) -> dict:
         return {"status": "OK", "state": state}
     except Exception as e:
         logger.exception("handle_get_state: Exception")
+        logger.exception(e)
         return {ERROR_KEY: str(e)}
 
 def handle_send_scan(ui_instance, request: dict) -> dict:

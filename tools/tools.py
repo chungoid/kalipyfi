@@ -9,7 +9,7 @@ from pathlib import Path
 from abc import abstractmethod
 
 # local
-from config.constants import BASE_DIR, DEFAULT_SOCKET_PATH
+from config.constants import BASE_DIR, UNIQUE_SOCKET_FILE
 from common.logging_setup import get_log_queue, worker_configurer
 from common.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
@@ -121,7 +121,7 @@ class Tool:
         self.logger.debug("Sending IPC scan command: %s", ipc_message)
 
         # response will always be json
-        response = send_ipc_command(ipc_message, DEFAULT_SOCKET_PATH)
+        response = send_ipc_command(ipc_message, UNIQUE_SOCKET_FILE)
 
         if isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             pane_id = response.get("pane_id")
