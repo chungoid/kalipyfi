@@ -125,7 +125,6 @@ class UIManager:
         if session is None:
             session = self.create_session(session_name)
             self.logger.info(f"get_or_create_session found no session so creating session: {session}")
-        self.debug_list_windows()
         return session
 
 
@@ -645,7 +644,6 @@ class UIManager:
 
     def debug_list_windows(self) -> None:
         if not hasattr(self, "session") or self.session is None:
-            self.logger.debug("No session available to list windows.")
             return
         self.logger.debug("Current session windows:")
         for window in self.session.windows:
