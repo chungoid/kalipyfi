@@ -28,16 +28,17 @@ def upload_to_wpasec(tool, pcap_path: Path, api_key: str) -> bool:
         return False
 
 
-def download_from_wpasec(api_key: str, results_dir: str):
+def download_from_wpasec(tool, api_key: str, results_dir: str) -> str | None:
     """
     Downloads data from WPA-sec using the provided API key and saves it as 'founds.txt'
     in the specified results' directory.
 
+    :param tool: The tool to download.
     :param api_key: The WPA-sec API key.
     :param results_dir: The results' directory.
     returns: The path to the downloaded PCAP file.
     """
-    url = "https://wpa-sec.stanev.org/?api&dl"
+    url = "https://wpa-sec.stanev.org/?api&dl=1"
     headers = {"Cookie": f"key={api_key}"}
     logging.debug("Downloading founds from WPA-sec...")
 
@@ -52,12 +53,11 @@ def download_from_wpasec(api_key: str, results_dir: str):
         with open(founds_path, "w") as f:
             f.write(response.text)
 
-        logging.info(f"Downloaded founds and saved to {founds_path}")
-        return
+        tool.logging.info(f"Downloaded founds and saved to {founds_path}")
+        return founds_path
     except Exception as e:
-        logging.exception(f"Error downloading from WPA-sec: {e}")
-        return
-
+        tool.logging.exception(f"Error downloading from WPA-sec: {e}")
+        return None
 
 def get_wpasec_api_key(tool) -> str:
     """
