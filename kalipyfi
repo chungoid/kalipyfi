@@ -6,8 +6,9 @@ KALIPYFI_DIR="/home/user/kalipyfi/"
 echo
 echo
 echo
-echo initializing ipc server and user interface...
+echo initializing ipc server and user interface
 echo ...this may take a few moments
+
 
 # leave these be
 source "$KALIPYFI_DIR/.venv/bin/activate"
