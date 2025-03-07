@@ -1,5 +1,7 @@
 # utils/helper.py
 import os
+import subprocess
+import sys
 import time
 import pprint
 import socket
@@ -8,6 +10,7 @@ import inspect
 import logging
 import libtmux
 
+from common.process_manager import process_manager
 # local
 from config.constants import DEFAULT_BASE_SOCKET, SOCKET_SUFFIX, CURRENT_SOCKET_FILE
 
@@ -113,14 +116,6 @@ def log_ui_state_phase(logger, ui_instance, phase: str, extra_msg: str = "") -> 
         A label (e.g., "Before", "After") indicating the phase of a swap or operation.
     extra_msg : str, optional
         Additional contextual information to include in the log message.
-
-    Returns
-    -------
-    None
-
-    Example
-    -------
-    >>> log_ui_state_phase(logger, ui_manager, "Before", "Starting swap operation")  # doctest: +SKIP
     """
     caller_frame = inspect.stack()[1]
     file_name = caller_frame.filename.split("/")[-1]
@@ -149,3 +144,31 @@ def log_ui_state_phase(logger, ui_instance, phase: str, extra_msg: str = "") -> 
                 logger.debug(
                     f"Title mismatch for pane {pane['pane_id']}: tmuxp reported '{tmux_title}' vs. internal mapping '{internal_title}'"
                 )
+
+
+def shutdown_ui():
+    import subprocess
+    import sys
+    logging.info("Shutting down UI and associated processes...")
+
+    # Shutdown all registered processes
+    process_manager.shutdown_all()
+
+    # Explicitly kill the tmux session
+    session_name = "kalipyfi"  # Or get it from your UIManager instance
+    try:
+        subprocess.run(f"tmux kill-session -t {session_name}", shell=True, check=True)
+        logging.debug("tmux session killed via subprocess.")
+    except Exception as e:
+        logging.exception("Error killing tmux session via command: %s", e)
+
+    # kill the entire process group
+    try:
+        os.killpg(os.getpgid(os.getpid()), signal.SIGTERM)
+        logging.debug("Killed entire process group.")
+    except Exception as e:
+        logging.exception("Error killing process group: %s", e)
+
+    logging.info("Final process status:\n" + process_manager.get_status_report())
+    sys.exit(0)
+

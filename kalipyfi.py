@@ -1,25 +1,20 @@
-import logging
 import os
-import signal
-import subprocess
 import sys
 import time
-from pathlib import Path
 import jinja2
+import logging
+import subprocess
+from pathlib import Path
 
 # local
 from common.process_manager import process_manager
-from config.constants import MAIN_UI_YAML_PATH, TMUXP_DIR, BASE_DIR
+from config.constants import MAIN_UI_YAML_PATH, TMUXP_DIR, BASE_DIR, CURRENT_SOCKET_FILE
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
-from utils.helper import setup_signal_handlers, shutdown_flag
+from utils.helper import setup_signal_handlers, ipc_ping, get_published_socket_path
+from utils.ipc_client import IPCClient
 
 
-def main():
-    # process tracking / signal handler
-    process_manager.register_process("main", os.getpid())
-    setup_signal_handlers()
-
-    # log queue
+def setup_log_queue():
     log_queue = get_log_queue()
     from logging.handlers import QueueListener
     listener_handlers = configure_listener_handlers()
@@ -27,6 +22,35 @@ def main():
     listener.start()
     worker_configurer(log_queue)
     logging.getLogger("kalipyfi_main()").debug("Main process logging configured using QueueHandler")
+
+
+def register_processes_via_ipc(socket_path, tmuxp_pid):
+    client = IPCClient(socket_path)
+
+    # Register the main process
+    main_registration = {
+        "action": "REGISTER_PROCESS",
+        "role": "main",
+        "pid": os.getpid()
+    }
+    main_response = client.send(main_registration)
+    logging.info(f"Main process registration response: {main_response}")
+
+    # Register the tmuxp process
+    tmuxp_registration = {
+        "action": "REGISTER_PROCESS",
+        "role": "tmuxp",
+        "pid": tmuxp_pid
+    }
+    tmuxp_response = client.send(tmuxp_registration)
+    logging.info(f"tmuxp process registration response: {tmuxp_response}")
+
+
+def main():
+    setup_log_queue()
+    # process tracking / signal handler
+    process_manager.register_process("main", os.getpid())
+    setup_signal_handlers()
 
     # load tmuxp template
     with open(MAIN_UI_YAML_PATH, "r") as f:
@@ -53,17 +77,25 @@ def main():
     )
     process_manager.register_process("tmuxp", tmuxp_proc.pid)
 
-    # Main loop: continue while shutdown_flag is False.
-    while not shutdown_flag:
-        time.sleep(1)
+    timeout = 30
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if os.path.exists(CURRENT_SOCKET_FILE):  # Check if the file exists
+            socket_path = get_published_socket_path()
+            if ipc_ping(socket_path):
+                logging.info("UI IPC server is ready; proceeding with process registration.")
+                break
+        time.sleep(0.5)
+    else:
+        logging.error("Timeout waiting for UI IPC server to become ready.")
+        sys.exit(1)
 
-    logging.info("Shutting Down Kalipyfi...")
-    try:
-        process_manager.shutdown_all()
-        listener.stop()
-        sys.exit(0)
-    except Exception as e:
-        logging.error(f"Error killing tmuxp process group: {e}")
+    # Register the processes via IPC
+    register_processes_via_ipc(get_published_socket_path(), tmuxp_proc.pid)
+
+    # Wait for tmuxp to exit
+    tmuxp_proc.wait()
+
 
 if __name__ == "__main__":
     main()

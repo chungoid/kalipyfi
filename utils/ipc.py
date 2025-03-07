@@ -4,19 +4,21 @@ import logging
 import errno
 from threading import Thread
 
-# Import your existing helpers and protocol functions
+# helpers from common/ipc_protocol.py
 from common.ipc_protocol import (
-    pack_message, unpack_message, handle_get_state, handle_get_scans,
-    handle_send_scan, handle_swap_scan, handle_update_lock,
+    pack_message, unpack_message, handle_ping, handle_get_state,
+    handle_ui_ready, handle_register_process, handle_get_scans,
+    handle_send_scan, handle_swap_scan, handle_update_lock, handle_debug_status,
     handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui,
-    handle_debug_status, handle_ping
 )
-from config.constants import IPC_CONSTANTS, RETRY_DELAY
 from utils.helper import publish_socket_path, get_unique_socket_path
 
 # Unpack constants for convenience
-GET_STATE = IPC_CONSTANTS["actions"]["GET_STATE"]
+from config.constants import IPC_CONSTANTS
 PING = IPC_CONSTANTS["actions"]["PING"]
+GET_STATE = IPC_CONSTANTS["actions"]["GET_STATE"]
+UI_READY = IPC_CONSTANTS["actions"]["UI_READY"]
+REGISTER_PROCESS = IPC_CONSTANTS["actions"]["REGISTER_PROCESS"]
 GET_SCANS = IPC_CONSTANTS["actions"]["GET_SCANS"]
 SEND_SCAN = IPC_CONSTANTS["actions"]["SEND_SCAN"]
 SWAP_SCAN = IPC_CONSTANTS["actions"]["SWAP_SCAN"]
@@ -110,6 +112,10 @@ class IPCServer:
                 response = handle_get_state(self.ui_instance, request)
             elif action == PING:
                 response = handle_ping(self.ui_instance, request)
+            elif action == UI_READY:
+                response = handle_ui_ready(self.ui_instance, request)
+            elif action == REGISTER_PROCESS:
+                response = handle_register_process(self.ui_instance, request)
             elif action == DEBUG_STATUS:
                 response = handle_debug_status(self.ui_instance, request)
             elif action == GET_SCANS:

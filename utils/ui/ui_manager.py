@@ -402,12 +402,6 @@ class UIManager:
         ------
         KeyError
             If no active scan is found for the given dedicated pane ID.
-
-        Example
-        -------
-        >>> ui_manager.swap_scan("hcxtool", "%4", "wlan1_passive")
-        (Swaps the dedicated scan pane into the main UI, zooms it to full size,
-         and re-focuses the main menu pane, preserving both scan panes.)
         """
         if dedicated_pane_id not in self.active_scans:
             self.logger.error(f"No active scan found for pane_id: {dedicated_pane_id}")
@@ -497,18 +491,38 @@ class UIManager:
         self.logger.info(f"Detaching UI session: {session_name}")
         os.system(f"tmuxp detach-client -s {session_name}")
 
-
     def kill_ui(self) -> None:
-        from common.process_manager import ProcessManager
         session_name = self.session_data.session_name
         self.logger.info(f"Killing UI session: {session_name}")
+
+        # Log status before shutdown
+        self.logger.debug("UI Manager status before shutdown:\n" + process_manager.get_status_report())
+
+        # Shutdown all registered processes
         process_manager.shutdown_all()
-        self.session.kill_session()
+
+        # Attempt to kill the tmux session via libtmux and subprocess
         try:
-            # Kill all processes in the current process group.
-            os.killpg(os.getpgrp(), signal.SIGTERM)
+            self.session.kill_session()
+            self.logger.debug("tmux session killed via libtmux.")
+        except Exception as e:
+            self.logger.exception("Error killing tmux session via libtmux: %s", e)
+
+        try:
+            import subprocess
+            subprocess.run(f"tmux kill-session -t {session_name}", shell=True, check=True)
+            self.logger.debug("tmux session killed via subprocess command.")
+        except Exception as e:
+            self.logger.exception("Error killing tmux session via command: %s", e)
+
+        # kill the entire process group
+        try:
+            os.killpg(os.getpgid(os.getpid()), signal.SIGTERM)
+            self.logger.debug("Killed entire process group.")
         except Exception as e:
             self.logger.exception("Error killing process group: %s", e)
+
+        self.logger.info("UI shutdown complete. Exiting now.")
         sys.exit(0)
 
     #############################
@@ -527,12 +541,6 @@ class UIManager:
         Optional[libtmux.Pane]
             The pane with index "0" in the "kalipyfi" window, or None if the window
             or pane cannot be found.
-
-        Example
-        -------
-        >>> main_scan_pane = ui_manager.get_main_scan_pane()
-        >>> if main_scan_pane is not None:
-        ...     print("Main scan pane found:", main_scan_pane.get("pane_id"))
         """
         main_window = self.session.find_where({"window_name": "kalipyfi"})
         if not main_window:
@@ -558,12 +566,6 @@ class UIManager:
         -------
         Optional[libtmux.Pane]
             The pane with index "1" in the "kalipyfi" window, or None if not found.
-
-        Example
-        -------
-        >>> menu_pane = ui_manager.get_main_menu_pane()
-        >>> if menu_pane:
-        ...     print("Main menu pane id:", menu_pane.get("pane_id"))
         """
         main_window = self.session.find_where({"window_name": "kalipyfi"})
         if not main_window:
@@ -588,12 +590,6 @@ class UIManager:
         -------
         Optional[libtmux.Pane]
             The pane with index "2" in the "kalipyfi" window, or None if not found.
-
-        Example
-        -------
-        >>> log_pane = ui_manager.get_log_pane()
-        >>> if log_pane:
-        ...     print("Log pane id:", log_pane.get("pane_id"))
         """
         main_window = self.session.find_where({"window_name": "kalipyfi"})
         if not main_window:
@@ -678,12 +674,6 @@ class UIManager:
                         - "internal_title": The internal title from active scans, or "N/A" if not set.
                 - "active_scans": A mapping of pane IDs to their ScanData (as dictionaries).
                 - "interfaces": A mapping of interface names to their InterfaceData (as dictionaries).
-
-        Example
-        -------
-        >>> ui_state = ui_manager.get_ui_state()
-        >>> print(ui_state["windows"][0]["window_name"])
-        kalipyfi
         """
         state = {
             "windows": [],

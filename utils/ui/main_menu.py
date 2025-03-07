@@ -1,12 +1,10 @@
 # utils/ui/main_menu.py
-
 import os
 import sys
-import curses
 import time
 import logging
+import curses
 from pathlib import Path
-from multiprocessing import Process, Lock
 from logging.handlers import QueueListener
 
 import libtmux
@@ -15,17 +13,16 @@ project_base = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_base))
 
 # locals
-import logging, sys, time
 from common.process_manager import process_manager
-from utils.helper import setup_signal_handlers, ipc_ping, publish_socket_path, get_unique_socket_path, \
-    wait_for_tmux_session
+from utils.helper import setup_signal_handlers, publish_socket_path, get_unique_socket_path, \
+    wait_for_tmux_session, shutdown_flag
 from common.logging_setup import get_log_queue, configure_listener_handlers, worker_configurer
 from utils.ui.ui_manager import UIManager
 from utils.ipc import IPCServer
+
+# import all tool modules so they load via decorators
 from utils.tool_registry import tool_registry
 from tools.hcxtool import hcxtool
-
-from utils.helper import shutdown_flag
 
 
 def draw_menu(stdscr, title, menu_items):
@@ -93,10 +90,11 @@ def draw_menu(stdscr, title, menu_items):
     return win
 
 class MainMenu:
-    def __init__(self, stdscr, min_height=8, min_width=30, ready_timeout=2):
+    def __init__(self, stdscr, ui_instance, min_height=8, min_width=30, ready_timeout=2):
         self.stdscr = stdscr
         self.title = "Main Menu"
         self.session_name ="kalipyfi"
+        self.ui_instance = ui_instance
         self.menu_items = ["[1] Tools", "[2] Utils", "[0] Exit"]
         self.min_height = min_height
         self.min_width = min_width
@@ -185,9 +183,10 @@ class MainMenu:
                 self.stdscr.getch()
             return
 
+        self.ui_instance.ready = True  # Mark the UI as ready for registration/handshake
+        logging.info("Main UI is fully initialized and ready.")
         logging.debug("MainMenu: Entering main loop.")
 
-        # The rest of your original code
         while not shutdown_flag:
             key = menu_win.getch()
             if key == curses.KEY_RESIZE:
@@ -269,8 +268,15 @@ def main():
     time.sleep(2)
 
     # Run the main menu
-    curses.wrapper(lambda stdscr: MainMenu(stdscr).run())
+    curses.wrapper(lambda stdscr: MainMenu(stdscr, ui_instance).run())
 
+    # Once user hits exit in main menu # testing this
+    logging.info("Main menu UI exited. Initiating shutdown.")
+    process_manager.shutdown_all()
+    logging.info("Shutdown complete. Exiting main_menu.py")
+    sys.exit(0)
+
+"""
     # Monitor the IPC connection
     while True:
         logging.debug("Main loop iteration started.")
@@ -284,7 +290,7 @@ def main():
         else:
             logging.debug("Main loop: IPC ping succeeded.")
         time.sleep(1)
-
+"""
 
 if __name__ == "__main__":
     main()

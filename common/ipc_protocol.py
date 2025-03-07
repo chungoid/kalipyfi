@@ -1,6 +1,7 @@
 import json
 import logging
 
+from common.process_manager import process_manager
 # local
 from config.constants import IPC_CONSTANTS
 
@@ -31,7 +32,26 @@ def unpack_message(message_str: str) -> dict:
         logger.exception("unpack_message: Exception while unpacking message")
         return {ERROR_KEY: str(e)}
 
+def handle_register_process(ui_instance, request: dict) -> dict:
+    role = request.get("role")
+    pid = request.get("pid")
+    if role and pid:
+        process_manager.register_process(role, pid)
+        logging.debug(f"Registered process via IPC: role={role}, pid={pid}")
+        return {"status": "REGISTER_PROCESS_OK"}
+    else:
+        logging.error("REGISTER_PROCESS missing 'role' or 'pid'")
+        return {"error": "Missing role or pid"}
 
+def handle_ui_ready(ui_instance, request: dict) -> dict:
+    logger = logging.getLogger("ipc_proto:handle_ui_ready")
+    # Check a flag on the UI instance indicating readiness.
+    if getattr(ui_instance, "ready", False):
+        logger.debug("UI is ready.")
+        return {"status": "UI_READY_OK"}
+    else:
+        logger.debug("UI is not ready.")
+        return {"status": "UI_NOT_READY"}
 
 def handle_get_state(ui_instance, request: dict) -> dict:
     """

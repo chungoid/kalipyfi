@@ -4,6 +4,10 @@ import signal
 import psutil
 from common.models import ProcessData
 
+############################################################################
+##### import process_manager = ProcessManager() as your global manager #####
+############################################################################
+
 class ProcessManager:
     def __init__(self):
         self.processes = {}  # Keyed by PID
@@ -13,6 +17,7 @@ class ProcessManager:
         self.processes[pid] = proc_data
         logging.debug(f"Registered process: {proc_data}")
 
+    @staticmethod
     def kill_process_tree(pid, sig=signal.SIGTERM, include_parent=True, timeout=10):
         try:
             parent = psutil.Process(pid)
@@ -29,12 +34,24 @@ class ProcessManager:
                 p.kill()  # force kill if still alive
 
     def shutdown_all(self):
+        logging.info("Initiating shutdown_all in ProcessManager.")
+        # Log current status before shutdown
+        logging.debug("Status before shutdown:\n" + self.get_status_report())
+
         for pid, proc_data in list(self.processes.items()):
             try:
-                logging.debug(f"Terminating process {pid} ({proc_data.role})")
-                os.kill(pid, signal.SIGTERM)
+                logging.debug(f"Attempting to kill process tree for PID {pid} ({proc_data.role})")
+                ProcessManager.kill_process_tree(pid)
+                logging.debug(f"Successfully sent kill signal to PID {pid}")
             except Exception as e:
-                logging.error(f"Error killing process {pid}: {e}")
+                logging.error(f"Error killing process tree for PID {pid} ({proc_data.role}): {e}")
+
+        # Log status after sending kill signals
+        logging.debug("Status after shutdown signals:\n" + self.get_status_report())
+
+        # Cleanup dead processes from the registry
+        self.cleanup()
+        logging.info("ProcessManager shutdown_all complete.")
 
     def debug_status(self):
         """Logs the status of each registered process."""

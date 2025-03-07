@@ -47,8 +47,10 @@ IPC_CONSTANTS = {
         "ERROR_KEY": "error",
     },
     "actions": {
-        "GET_STATE": "GET_STATE",
         "PING": "PING",
+        "GET_STATE": "GET_STATE",
+        "REGISTER_PROCESS": "REGISTER_PROCESS",
+        "UI_READY": "UI_READY",
         "GET_SCANS": "GET_SCANS",
         "SEND_SCAN": "SEND_SCAN",
         "SWAP_SCAN": "SWAP_SCAN",

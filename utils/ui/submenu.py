@@ -4,11 +4,10 @@ import logging
 
 from utils.ipc_client import IPCClient
 from config.constants import TOOL_PATHS
-from common.process_manager import process_manager
 from utils.tool_registry import tool_registry
-from utils.helper import get_published_socket_path
+from utils.helper import get_published_socket_path, shutdown_ui
 
-## using a self contained draw_menu rather than main_menu's global right now just for testing
+## using a self-contained draw_menu rather than main_menu's global right now just for testing
 ## intend to switch to 1 global draw_menu that works across all submenus and main_menu
 
 socket_path = get_published_socket_path()
@@ -64,10 +63,7 @@ def exit_menu(stdscr):
                 stdscr.clear()
                 stdscr.addstr(0, 0, "Kill command sent. Killing UI...")
                 stdscr.refresh()
-                process_manager.shutdown_all()
-                curses.napms(1000)
-                import sys
-                sys.exit(0)
+                shutdown_ui()
         elif ch == "0" or key == 27:
             break
     menu_win.erase()
