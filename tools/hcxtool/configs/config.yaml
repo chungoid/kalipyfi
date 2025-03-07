@@ -10,4 +10,4 @@ presets:
       -A: true
       -F: true
 wpa-sec:
-  api_key:
+  api_key: ''

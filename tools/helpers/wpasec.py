@@ -13,7 +13,7 @@ def upload_to_wpasec(tool, pcap_path: Path, api_key: str) -> bool:
     :param api_key: The WPA-sec API key.
     :returns: True if successful, False otherwise.
     """
-    url = "https://wpa-sec.stanev.org/?api&upload"
+    url = "https://wpa-sec.stanev.org/?api&upload=1"
     headers = {"Cookie": f"key={api_key}"}
     try:
         tool.logger.debug(f"Uploading {pcap_path} to WPA-SEC...")
