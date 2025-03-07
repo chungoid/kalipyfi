@@ -16,6 +16,7 @@ presets:
   1:
     description: aggressive
     options:
+      --autobpf: true
       --gpsd: true
       -A: true
       -F: true

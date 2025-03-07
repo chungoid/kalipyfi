@@ -69,7 +69,7 @@ def get_wpasec_api_key(tool) -> str:
     Raises:
         ValueError: if the API key is not found.
     """
-    api_key = tool.config_data.get("user", {}).get("wpasec-key")
+    api_key = tool.config_data.get("wpa-sec", {}).get("api_key")
     if not api_key:
         raise ValueError("WPA-sec API key not found in configuration.")
     return api_key
