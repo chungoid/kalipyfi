@@ -158,11 +158,3 @@ class IPCServer:
         if self._server_socket:
             self._server_socket.close()
         self.logger.info("IPCServer: Stopped.")
-
-# Usage in main_menu.py or similar entry point:
-# Replace the call to start_ipc_server(ui_instance, socket_path) with:
-#
-#     ipc_server = IPCServer(ui_instance, socket_path)
-#     ipc_server.start()
-#
-# This will launch the IPC server in a dedicated thread while your UI remains active.
