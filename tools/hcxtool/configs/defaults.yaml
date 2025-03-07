@@ -1,0 +1,95 @@
+# defaults.yaml - Comprehensive hcxdumptool command line options for building scan profiles
+
+scan_profile:
+  autobpf:
+    descript: "Automatically generate & apply bpf filter for macs associated with any attached interface (aps/clients)"
+  -c:
+    description: "Set channel(s) to scan. Must include band information (e.g., 1a,6a,11a). Default: 1a,6a,11a."
+    value: "1a,6a,11a"
+  -f:
+    description: "Set frequency (e.g., 2412,2417,5180). Leave blank to use default channel behavior."
+    value: ""
+  -F:
+    description: "Use all available frequencies from INTERFACE. Boolean flag (set true to enable)."
+    value:
+  -t:
+    description: "Minimum stay time in seconds. Default: 1 second."
+    value: "1"
+  -A:
+    description: "ACK incoming frames. (Requires INTERFACE to support active monitor mode.)"
+    value:
+  --bpf:
+    description: "Input BPF code from file (max 4096 instructions)."
+    value: ""
+  --disable_deauthentication:
+    description: "Do not transmit DEAUTHENTICATION/DISASSOCIATION frames."
+    value:
+  --disable_proberequest:
+    description: "Do not transmit PROBEREQUEST frames."
+    value:
+  --disable_association:
+    description: "Do not perform authentication/association."
+    value:
+  --disable_reassociation:
+    description: "Do not attempt to re-associate a client."
+    value:
+  --disable_beacon:
+    description: "Disable internal BEACON transmission (default: one per second)."
+    value:
+  --proberesponsetx:
+    description: "Number of PROBERESPONSE frames to transmit from the ESSID ring buffer. Default: 5."
+    value: ""
+  --essidlist:
+    description: "Initialize ESSID list using the specified file."
+    value: ""
+  --errormax:
+    description: "Maximum allowed errors before termination. Default: 100."
+    value: ""
+  --watchdogmax:
+    description: "Maximum timeout in seconds when no packets are received. Default: 600."
+    value: ""
+  --attemptclientmax:
+    description: "Maximum attempts to request an EAPOL M2. Default: 10 (set 0 to disable CLIENT attacks)."
+    value: ""
+  --attemptapmax:
+    description: "Maximum BEACONs to request a PMKID or handshake. Default: 4. Setting to 0 may disable some attacks."
+    value: ""
+  --tot:
+    description: "Enable timeout timer in minutes."
+    value: ""
+  --exitoneapol:
+    description: "Exit on first EAPOL occurrence. Bitmask: 1=PMKID, 2=EAPOL M2M3, 4=EAPOL M1M2/M1M2ROGUE, 8=EAPOL M1."
+    value: ""
+  --onsigterm:
+    description: "Action on SIGTERM (poweroff or reboot)."
+    value: ""
+  --ongpiobutton:
+    description: "Action when a GPIO button is pressed (poweroff or reboot)."
+    value: ""
+  --ontot:
+    description: "Action when timeout occurs (poweroff or reboot)."
+    value: ""
+  --onwatchdog:
+    description: "Action when watchdog timer triggers (poweroff or reboot)."
+    value: ""
+  --onerror:
+    description: "Action on error termination (poweroff or reboot)."
+    value: ""
+  --gpio_button:
+    description: "GPIO pin number for button (2-27). Default: 0 (not in use)."
+    value: "0"
+  --gpio_statusled:
+    description: "GPIO pin number for status LED (2-27). Default: 0 (not in use)."
+    value: "0"
+  --nmea_dev:
+    description: "NMEA device to open (e.g., /dev/ttyACM0)."
+    value: ""
+  --gpsd:
+    description: "Use gpsd to get position; will switch gpsd to NMEA0183 mode. Boolean flag."
+    value: false
+  --rcascan:
+    description: "Perform a Radio Channel Assignment scan only. Specify 'a' for active or 'p' for passive."
+    value: ""
+  --rds:
+    description: "Sort real-time display output. Value depends on scan or attack mode."
+    value: ""
