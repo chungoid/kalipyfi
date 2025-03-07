@@ -159,9 +159,9 @@ class Hcxtool(Tool, ABC):
             return
 
 
-        ##############################
-        ##### utilities for user #####
-        ##############################
+        ######################
+        ##### utilities  #####
+        ######################
 
     def get_wpasec_api_key(self) -> str:
         return wpasec_get_api_key(self)
@@ -182,3 +182,37 @@ class Hcxtool(Tool, ABC):
         """
         key_path = ["wpa-sec", "api_key"]
         update_yaml_value(self.config_file, key_path, new_key)
+
+    def export_results(self) -> None:
+        """
+        Runs the export workflow: generate master results CSV from all pcapng files and
+        then update that CSV with keys from founds.txt if found.
+        """
+        from tools.helpers.pcapng_to_csv import results_to_csv, append_keys_to_results
+        results_csv = self.results_dir / "results.csv"
+        founds_txt = self.results_dir / "founds.txt"
+
+        # check for caps
+        pcapng_files = list(self.results_dir.glob("*.pcapng"))
+        if not pcapng_files:
+            self.logger.info("No pcapng files found in the results directory.")
+            return
+
+        # extract
+        try:
+            results_to_csv(self.results_dir)
+            self.logger.info("Master results.csv has been updated from pcapng files.")
+        except Exception as e:
+            self.logger.error(f"Error while generating results.csv: {e}")
+            return
+
+        if not founds_txt.exists():
+            self.logger.info("founds.txt not found; skipping key appending step.")
+            return
+
+        # append keys
+        try:
+            append_keys_to_results(results_csv, founds_txt)
+            self.logger.info("Results CSV updated with keys from founds.txt.")
+        except Exception as e:
+            self.logger.error(f"Error while appending keys: {e}")

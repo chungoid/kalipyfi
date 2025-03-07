@@ -193,6 +193,7 @@ class HcxToolSubmenu:
             parent_win.refresh()
             parent_win.getch()
 
+
     def view_scans(self, parent_win) -> None:
         """
         Handles the 'View Scans' option.
@@ -203,11 +204,8 @@ class HcxToolSubmenu:
           0. Cancel (return to scans list)
         """
         client = IPCClient()
-
-
-
-        socket_path = get_published_socket_path()
         tool_name = getattr(self.tool, 'name', 'hcxtool')
+
         message = {"action": "GET_SCANS", "tool": tool_name}
         self.logger.debug(f"view_scans: Sending GET_SCANS for tool '{tool_name}'")
         response = client.send(message)
@@ -283,12 +281,14 @@ class HcxToolSubmenu:
             # return to the scans list
             return
 
+
     def upload(self, parent_win) -> None:
         """
         Handles the 'Upload' option.
         Lists available .pcapng files from the results directory using pagination and lets the user choose an upload option.
         """
         results_dir = getattr(self.tool, "results_dir", "results")
+
         try:
             files = [f for f in os.listdir(results_dir) if f.endswith(".pcapng")]
         except Exception as e:
@@ -333,6 +333,7 @@ class HcxToolSubmenu:
         """
         # Retrieve the API key from the tool's configuration
         api_key = self.tool.get_wpasec_api_key()
+
         if not api_key:
             parent_win.clear()
             parent_win.addstr(0, 0, "No API key configured for WPA-sec download!")
@@ -398,9 +399,10 @@ class HcxToolSubmenu:
           - Set WPA-sec Key
           - Create Scan Profile
           - Edit Scan Profile
+          - Export Results (new)
           - Back
         """
-        menu_options = ["Set WPA-sec Key", "Create Scan Profile", "Edit Scan Profile"]
+        menu_options = ["Set WPA-sec Key", "Create Scan Profile", "Edit Scan Profile", "Export Results"]
         selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
         if selection == "back":
             return
@@ -410,6 +412,16 @@ class HcxToolSubmenu:
             self.create_scan_profile_menu(parent_win)
         elif selection == "Edit Scan Profile":
             self.edit_scan_profile_menu(parent_win)
+        elif selection == "Export Results":
+            parent_win.clear()
+            parent_win.addstr(0, 0, "Exporting results (this may take a moment)...")
+            parent_win.refresh()
+            self.tool.export_results()
+            parent_win.clear()
+            parent_win.addstr(0, 0, "Export complete. Press any key to continue...")
+            parent_win.refresh()
+            parent_win.getch()
+
 
     def create_scan_profile_menu(self, parent_win) -> None:
         """

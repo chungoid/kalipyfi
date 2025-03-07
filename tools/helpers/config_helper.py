@@ -28,11 +28,6 @@ def update_yaml_value(config_path: Path, key_path: list, new_value) -> None:
     ------
     Exception
         If there is an error reading from or writing to the configuration file.
-
-    Example
-    -------
-    >>> from pathlib import Path
-    >>> update_yaml_value(Path("config.yaml"), ["wpa-sec", "api_key"], "new_api_key")  # doctest: +SKIP
     """
     try:
         with config_path.open("r") as f:
