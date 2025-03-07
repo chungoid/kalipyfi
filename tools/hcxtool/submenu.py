@@ -10,7 +10,7 @@ from typing import Any, List
 from utils.ipc_client import IPCClient
 from tools.helpers.tool_utils import format_scan_display
 from tools.helpers.webserver import start_webserver
-from tools.helpers.wpasec import download_from_wpasec
+from tools.helpers.wpasec import download_from_wpasec, upload_to_wpasec
 
 class HcxToolSubmenu:
     def __init__(self, tool_instance):
@@ -432,9 +432,9 @@ class HcxToolSubmenu:
             elif selection == "Set WPA-sec Key":
                 self.set_wpasec_key_menu(parent_win)
             elif selection == "Upload":
-                self.upload(parent_win)
+                self.tool.upload(parent_win)
             elif selection == "Download":
-                self.download(parent_win)
+                self.tool.download(parent_win)
             elif selection == "Export Results":
                 self.tool.export_results()
                 parent_win.clear()
