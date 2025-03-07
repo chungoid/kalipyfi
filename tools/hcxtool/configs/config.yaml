@@ -1,13 +1,55 @@
 interfaces:
   wlan:
+  - description: hotspot
+    locked: true
+    name: wlan0
   - description: monitor
     locked: false
     name: wlan1
+  - description: monitor
+    locked: false
+    name: wlan2
+  - description: client
+    locked: true
+    name: wlan3
 presets:
   1:
     description: aggressive
     options:
+      autobpf: true
+      --gpsd: true
+      -A: true
+      -F: true
+  2:
+    description: passive
+    options:
+      autobpf: true
+      --gpsd: true
+      --attemptapmax: 0
+      -F: true
+  3:
+    description: silent
+    options:
+      autobpf: true
+      --gpsd: true
+      --attemptapmax: 0
+      --disable_beacon: true
+      -F: true
+  4:
+    description: rca a
+    options:
+      autobpf: true
+      --gpsd: true
+      --rcascan: a
+      -A: true
+      -F: true
+  5:
+    description: rca p
+    options:
+      autobpf: true
+      --gpsd: true
+      --rcascan: p
       -A: true
       -F: true
 wpa-sec:
-  api_key: ''
+  api_key:
