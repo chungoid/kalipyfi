@@ -108,7 +108,7 @@ def append_keys_to_results(results_csv: Path, founds_txt: Path) -> None:
                     continue
                 raw_bssid, random_val, raw_ssid, key_val = parts
                 bssid = normalize_mac(raw_bssid)
-                ssid = raw_ssid.strip().lower()  # Normalizing the ssid too
+                ssid = raw_ssid.strip().lower()  # normalizing the ssid too
                 founds_map[(bssid, ssid)] = key_val
     except Exception as e:
         logging.error(f"Error reading {founds_txt}: {e}")
@@ -182,7 +182,7 @@ def nmea_to_decimal(coord_str: str, direction: str) -> float:
         if not coord_str or not direction:
             return 0.0
 
-        # Determine number of degree digits based on direction:
+        # For latitude (N/S), use 2 digits; for longitude (E/W), use 3 digits.
         deg_digits = 2 if direction.upper() in ['N', 'S'] else 3
 
         degrees = float(coord_str[:deg_digits])
@@ -198,10 +198,8 @@ def nmea_to_decimal(coord_str: str, direction: str) -> float:
 
 def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
     """
-    Reads the results CSV, filters out invalid GPS entries, converts longitudes
-    to negative if necessary, and creates an interactive map with markers for each valid entry.
-
-    Debug logging is added to trace the processing steps.
+    Reads the results CSV, filters out invalid GPS entries, and creates an interactive map
+    with markers for each valid entry. Debug logging is added to trace the processing steps.
 
     :param results_csv: Path to the results CSV file.
     :param output_html: Name of the HTML file to save.
@@ -216,7 +214,6 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
         return
 
     try:
-        # convert columns to float
         df["Latitude"] = df["Latitude"].astype(float)
         df["Longitude"] = df["Longitude"].astype(float)
         logger.debug("Converted Latitude and Longitude columns to float.")
@@ -224,7 +221,7 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
         logger.error(f"Error converting coordinates: {e}")
         return
 
-    # filter out 0's from hcxpcapngtool results (erroneous data)
+    # Filter out rows with 0.0 for either coordinate.
     df_valid = df[(df["Latitude"] != 0.0) & (df["Longitude"] != 0.0)]
     logger.debug(f"After filtering zeros, valid entries: {df_valid.shape[0]}")
 
@@ -232,19 +229,17 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
         logger.error("No valid GPS entries found.")
         return
 
-    # debugging
     logger.debug(f"Sample valid entries:\n{df_valid.head()}")
 
-
-    # computer center
+    # Compute center.
     avg_lat = df_valid["Latitude"].mean()
     avg_lon = df_valid["Longitude"].mean()
     logger.debug(f"Map center computed as: ({avg_lat}, {avg_lon})")
 
     m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
 
-    # add markers for valid rows
-    for idx, row in df_valid.iterrows():
+    # Add markers.
+    for _, row in df_valid.iterrows():
         popup_content = (
             f"<strong>Date:</strong> {row['Date']}<br>"
             f"<strong>Time:</strong> {row['Time']}<br>"
@@ -259,11 +254,11 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
         ).add_to(m)
         logger.debug(f"Added marker for {row['BSSID']} at ({row['Latitude']}, {row['Longitude']})")
 
-    # save
     html_path = results_csv.parent / output_html
     try:
         m.save(html_path)
         logger.info(f"Map saved to {html_path}")
     except Exception as e:
         logger.error(f"Error saving map to {html_path}: {e}")
+
 
