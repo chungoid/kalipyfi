@@ -35,23 +35,20 @@ class ProcessManager:
 
     def shutdown_all(self):
         logging.info("Initiating shutdown_all in ProcessManager.")
-        # Log current status before shutdown
         logging.debug("Status before shutdown:\n" + self.get_status_report())
 
         for pid, proc_data in list(self.processes.items()):
             try:
-                logging.debug(f"Attempting to kill process tree for PID {pid} ({proc_data.role})")
-                ProcessManager.kill_process_tree(pid)
-                logging.debug(f"Successfully sent kill signal to PID {pid}")
+                # Get the process group for this process
+                pgid = os.getpgid(pid)
+                logging.debug(f"Killing process group {pgid} for PID {pid} ({proc_data.role})")
+                os.killpg(pgid, signal.SIGTERM)
             except Exception as e:
-                logging.error(f"Error killing process tree for PID {pid} ({proc_data.role}): {e}")
+                logging.error(f"Error killing process group for PID {pid} ({proc_data.role}): {e}")
 
-        # Log status after sending kill signals
-        logging.debug("Status after shutdown signals:\n" + self.get_status_report())
-
-        # Cleanup dead processes from the registry
+        # Optionally, call cleanup to remove dead entries
         self.cleanup()
-        logging.info("ProcessManager shutdown_all complete.")
+        logging.info("Shutdown_all complete.")
 
     def debug_status(self):
         """Logs the status of each registered process."""

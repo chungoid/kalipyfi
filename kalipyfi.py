@@ -80,7 +80,7 @@ def main():
     timeout = 30
     start_time = time.time()
     while time.time() - start_time < timeout:
-        if os.path.exists(CURRENT_SOCKET_FILE):  # Check if the file exists
+        if os.path.exists(CURRENT_SOCKET_FILE):  # Check if main_menu wrote new sock file yet
             socket_path = get_published_socket_path()
             if ipc_ping(socket_path):
                 logging.info("UI IPC server is ready; proceeding with process registration.")
