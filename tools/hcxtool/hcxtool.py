@@ -4,11 +4,12 @@ from abc import ABC
 from pathlib import Path
 from typing import Optional, Any, Dict
 
-from tools.helpers.config_helper import update_yaml_value
 #locals
 from tools.tools import Tool
+from tools.helpers.config_helper import update_yaml_value
 from utils.tool_registry import register_tool
 from tools.hcxtool.submenu import HcxToolSubmenu
+from tools.helpers.wpasec import get_wpasec_api_key as wpasec_get_api_key
 
 @register_tool("hcxtool")
 class Hcxtool(Tool, ABC):
@@ -161,6 +162,9 @@ class Hcxtool(Tool, ABC):
         ##############################
         ##### utilities for user #####
         ##############################
+
+    def get_wpasec_api_key(self) -> str:
+        return wpasec_get_api_key(self)
 
     def set_wpasec_key(self, new_key: str) -> None:
         """
