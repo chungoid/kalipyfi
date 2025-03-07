@@ -13,8 +13,6 @@ def main():
     kalipyfi_art = pyfiglet.figlet_format("kalipyfi", font="slant")
     kalipyfi_panel = Panel(kalipyfi_art, style="bold cyan")
 
-
-
     # Clear the terminal screen (optional)
     console.clear()
 
