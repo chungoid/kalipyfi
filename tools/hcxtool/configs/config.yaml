@@ -1,17 +1,28 @@
 interfaces:
   wlan:
+  - description: hotspot
+    locked: true
+    name: wlan0
   - description: monitor
     locked: false
     name: wlan1
+  - description: monitor
+    locked: false
+    name: wlan2
+  - description: client
+    locked: true
+    name: wlan3
 presets:
   1:
     description: aggressive
     options:
+      --gpsd: true
       -A: true
       -F: true
   2:
     description: passive
     options:
+      --gpsd: true
       --attemptapmax: 0
       -F: true
   3:
@@ -23,12 +34,14 @@ presets:
   4:
     description: rca a
     options:
+      --gpsd: true
       --rcascan: a
       -A: true
       -F: true
   5:
     description: rca p
     options:
+      --gpsd: true
       --rcascan: p
       -A: true
       -F: true
