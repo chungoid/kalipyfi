@@ -286,6 +286,7 @@ class HcxToolSubmenu:
         Lists available .pcapng files from the results directory using pagination and lets the user choose an upload option.
         """
         results_dir = getattr(self.tool, "results_dir", "results")
+        api_key = self.tool.get_wpasec_api_key()
 
         try:
             files = [f for f in os.listdir(results_dir) if f.endswith(".pcapng")]
@@ -318,7 +319,7 @@ class HcxToolSubmenu:
             for file in files:
                 file_path = os.path.join(results_dir, file)
                 self.logger.debug(f"Uploading {file_path}...")
-                response = upload_to_wpasec(self.tool, file_path)
+                response = upload_to_wpasec(self.tool, results_dir, api_key)
                 if response and response.get("status") == "success":
                     self.logger.info(f"Uploaded {file} successfully.")
                     parent_win.addstr(1, 0, f"Uploaded {file} successfully.")
