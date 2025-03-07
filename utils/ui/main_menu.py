@@ -21,7 +21,7 @@ from utils.helper import setup_signal_handlers, ipc_ping, publish_socket_path, g
     wait_for_tmux_session
 from common.logging_setup import get_log_queue, configure_listener_handlers, worker_configurer
 from utils.ui.ui_manager import UIManager
-from utils.ipc import start_ipc_server
+from utils.ipc import IPCServer
 from utils.tool_registry import tool_registry
 from tools.hcxtool import hcxtool
 
@@ -260,11 +260,12 @@ def main():
     socket_path = publish_socket_path(new_socket_path)
     logging.debug(f"main: Using socket path: {socket_path}")
 
-    # Create the UI manager for the session.
+    # Instantiate ui & ipc server instances
     ui_instance = UIManager("kalipyfi")
+    ipc_server = IPCServer(ui_instance, socket_path)
+    ipc_server.start()
 
     # Start IPC server with the specific socket path
-    start_ipc_server(ui_instance, socket_path)
     time.sleep(2)
 
     # Run the main menu

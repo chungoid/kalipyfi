@@ -7,7 +7,7 @@ from typing import Any, List
 import yaml
 
 # local
-from utils import ipc
+from utils.ipc_client import IPCClient
 from tools.helpers.tool_utils import format_scan_display
 from utils.helper import get_published_socket_path
 
@@ -63,12 +63,6 @@ class HcxToolSubmenu:
         -------
         str
             The selected option (the original string from menu_items), or "back" if cancelled.
-
-        Example
-        -------
-        >>> selection = self.draw_paginated_menu(parent_win, "Select Option", [f"Item {i}" for i in range(1, 21)])  # doctest: +SKIP
-        >>> print(selection)
-        Item 7
         """
         h, w = parent_win.getmaxyx()
         # Reserve 6 lines for borders, title, and instructions.
@@ -207,11 +201,15 @@ class HcxToolSubmenu:
           2. Stop (send STOP_SCAN command)
           0. Cancel (return to scans list)
         """
+        client = IPCClient()
+
+
+
         socket_path = get_published_socket_path()
         tool_name = getattr(self.tool, 'name', 'hcxtool')
         message = {"action": "GET_SCANS", "tool": tool_name}
         self.logger.debug(f"view_scans: Sending GET_SCANS for tool '{tool_name}'")
-        response = ipc.send_ipc_command(message, socket_path)
+        response = client.send(message)
         scans = response.get("scans", [])
         parent_win.clear()
         if not scans:
@@ -255,7 +253,7 @@ class HcxToolSubmenu:
                 "pane_id": selected_scan.get("pane_id"),
                 "new_title": new_title
             }
-            swap_response = ipc.send_ipc_command(swap_message, socket_path)
+            swap_response = client.send(swap_message)
             parent_win.clear()
             if swap_response.get("status") == "SWAP_SCAN_OK":
                 parent_win.addstr(0, 0, "Scan swapped successfully!")
@@ -271,7 +269,7 @@ class HcxToolSubmenu:
                 "tool": tool_name,
                 "pane_id": selected_scan.get("pane_id")
             }
-            stop_response = ipc.send_ipc_command(stop_message, socket_path)
+            stop_response = client.send(stop_message)
             parent_win.clear()
             if stop_response.get("status") == "STOP_SCAN_OK":
                 parent_win.addstr(0, 0, "Scan stopped successfully!")

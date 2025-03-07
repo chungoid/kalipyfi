@@ -2,16 +2,17 @@
 import curses
 import logging
 
-from utils import ipc
+from utils.ipc_client import IPCClient
 from config.constants import TOOL_PATHS
 from common.process_manager import process_manager
 from utils.tool_registry import tool_registry
 from utils.helper import get_published_socket_path
 
-socket_path = get_published_socket_path()
-
 ## using a self contained draw_menu rather than main_menu's global right now just for testing
 ## intend to switch to 1 global draw_menu that works across all submenus and main_menu
+
+socket_path = get_published_socket_path()
+client = IPCClient()
 
 def draw_menu(stdscr, title, menu_items):
     stdscr.clear()
@@ -49,7 +50,7 @@ def exit_menu(stdscr):
             continue
         if ch == "1":
             message = {"action": "DETACH_UI"}
-            response = ipc.send_ipc_command(message, socket_path)
+            response = client.send(message)
             if response:
                 stdscr.clear()
                 stdscr.addstr(0, 0, "Detach command sent. Detaching UI...")
@@ -58,7 +59,7 @@ def exit_menu(stdscr):
                 break
         elif ch == "2":
             message = {"action": "KILL_UI"}
-            response = ipc.send_ipc_command(message, socket_path)
+            response = client.send(message)
             if response:
                 stdscr.clear()
                 stdscr.addstr(0, 0, "Kill command sent. Killing UI...")
@@ -172,7 +173,7 @@ def debug_status_menu(stdscr):
     title = "Status Report"
     # Send a status request via IPC.
     message = {"action": "DEBUG_STATUS"}
-    response = ipc.send_ipc_command(message, socket_path)
+    response = client.send(message)
     stdscr.clear()
     if response.get("status") == "DEBUG_STATUS_OK":
         report = response.get("report", "No report available.")
