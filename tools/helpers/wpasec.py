@@ -40,7 +40,7 @@ def download_from_wpasec(tool, api_key: str, results_dir: str) -> str | None:
     """
     url = "https://wpa-sec.stanev.org/?api&dl=1"
     headers = {"Cookie": f"key={api_key}"}
-    logging.debug("Downloading founds from WPA-sec...")
+    tool.logging.debug("Downloading founds from WPA-sec...")
 
     try:
         response = requests.get(url, headers=headers)
