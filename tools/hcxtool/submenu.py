@@ -688,7 +688,7 @@ class HcxToolSubmenu:
         submenu_win.refresh()
 
         # Main submenu options (few items, so simple menu is sufficient)
-        menu_items = ["Launch Scan", "View Scans", "Upload", "Utils", "Back"]
+        menu_items = ["Launch Scan", "View Scans", "Upload", "Download", "Utils", "Back"]
         numbered_menu = [f"[{i+1}] {item}" for i, item in enumerate(menu_items[:-1])]
         numbered_menu.append("[0] Back")
 
