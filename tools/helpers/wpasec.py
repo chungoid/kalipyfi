@@ -21,6 +21,7 @@ def upload_to_wpasec(tool, pcap_path: Path, api_key: str) -> bool:
             files = {"file": f}
             response = requests.post(url, headers=headers, files=files)
             response.raise_for_status()
+        tool.logger.info(f"Upload url: {url}")
         tool.logger.info(f"Upload successful: {response.text}")
         return True
     except requests.RequestException as e:
