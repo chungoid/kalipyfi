@@ -21,25 +21,67 @@ from utils.helper import setup_signal_handlers, ipc_ping, publish_socket_path, g
     wait_for_tmux_session
 from common.logging_setup import get_log_queue, configure_listener_handlers, worker_configurer
 from utils.ui.ui_manager import UIManager
-from utils.ipc import start_ipc_server, ipc_server, reconnect_ipc_socket
+from utils.ipc import start_ipc_server
 from utils.tool_registry import tool_registry
 from tools.hcxtool import hcxtool
 
 from utils.helper import shutdown_flag
+
 
 def draw_menu(stdscr, title, menu_items):
     stdscr.clear()
     stdscr.refresh()
     h, w = stdscr.getmaxyx()
     logging.debug(f"draw_menu: Terminal size: {h}x{w}")
-    box_height = len(menu_items) + 4
-    box_width = max(len(title), *(len(item) for item in menu_items)) + 4
+
+    # Calculate minimum size needed
+    min_height = len(menu_items) + 4
+    min_width = max(len(title), *(len(item) for item in menu_items)) + 4
+
+    # If terminal is too small, create a smaller menu with scrolling capability
+    if h < min_height or w < min_width:
+        logging.warning(f"Terminal too small ({h}x{w}), creating compact menu")
+        # Create a menu that fits the available space
+        box_height = min(h - 2, len(menu_items) + 2)
+        box_width = min(w - 2, min_width)
+
+        # Centered as much as possible
+        start_y = max(0, (h - box_height) // 2)
+        start_x = max(0, (w - box_width) // 2)
+
+        if box_height <= 0 or box_width <= 0:
+            logging.error(f"Terminal size ({h}x{w}) too small for even a compact menu")
+            return None
+
+        win = curses.newwin(box_height, box_width, start_y, start_x)
+        win.keypad(True)
+        win.box()
+
+        # Show title if there's room
+        if box_width >= len(title) + 2 and box_height > 2:
+            win.addstr(1, max(1, (box_width - len(title)) // 2), title[:box_width - 2], curses.A_BOLD)
+
+        # Show as many menu items as possible
+        visible_items = min(box_height - 2, len(menu_items))
+        for idx in range(visible_items):
+            item_text = menu_items[idx][:box_width - 4]
+            if 1 + idx < box_height - 1:  # Ensure we don't write outside the window
+                win.addstr(1 + idx, 1, item_text)
+
+        win.refresh()
+        logging.debug("draw_menu: Compact menu drawn successfully.")
+        return win
+
+    # Original code for normal sized terminals
+    box_height = min_height
+    box_width = min_width
     start_y = (h - box_height) // 2
     start_x = (w - box_width) // 2
-    logging.debug(f"draw_menu: Menu dimensions: height={box_height}, width={box_width}, start_y={start_y}, start_x={start_x}")
-    if box_height <= 0 or box_width <= 0 or start_y < 0 or start_x < 0:
-        logging.error("draw_menu: Invalid window dimensions, aborting draw_menu.")
+
+    if start_y < 0 or start_x < 0:
+        logging.error(f"Invalid window position: start_y={start_y}, start_x={start_x}")
         return None
+
     win = curses.newwin(box_height, box_width, start_y, start_x)
     win.keypad(True)
     win.box()
@@ -144,6 +186,8 @@ class MainMenu:
             return
 
         logging.debug("MainMenu: Entering main loop.")
+
+        # The rest of your original code
         while not shutdown_flag:
             key = menu_win.getch()
             if key == curses.KEY_RESIZE:
@@ -151,6 +195,9 @@ class MainMenu:
                 self.stdscr.clear()
                 self.stdscr.refresh()
                 menu_win = self._redraw_menu()
+                if menu_win is None:
+                    logging.error("MainMenu: Screen became too small after resize.")
+                    break
                 continue
             try:
                 char = chr(key)
@@ -192,36 +239,6 @@ class MainMenu:
         self.stdscr.clear()
         self.stdscr.refresh()
 
-def run_ipc():
-    logger = logging.getLogger("run_ipc")
-    logger.debug("run_ipc() started.")
-
-    from utils.ui.ui_manager import UIManager
-    # Create a UIManager instance for the 'kalipyfi' session.
-    ui_instance = UIManager("kalipyfi")
-
-    # Generate a unique socket name and publish it.
-    socket_path = get_unique_socket_path()
-    publish_socket_path(socket_path)
-    logger.debug(f"run_ipc: Unique socket generated and published: {socket_path}")
-
-    # Start the IPC server on this unique socket.
-    ipc_server(ui_instance, socket_path)
-    logger.info(f"run_ipc: IPC server started on socket: {socket_path}")
-    process_manager.register_process(ipc_server, os.getpid())
-
-    # Wait until the tmux session is fully ready.
-    from utils.helper import wait_for_tmux_session, log_ui_state_phase
-    try:
-        session = wait_for_tmux_session("kalipyfi", timeout=30, poll_interval=0.5)
-        log_ui_state_phase(logger, ui_instance, "before", "after waiting for tmux session in run_ipc()")
-        logger.info(f"run_ipc: tmux session is fully ready: {session.get('session_name')}")
-    except TimeoutError as e:
-        logger.error("run_ipc: Timeout waiting for tmux session: " + str(e))
-        sys.exit(1)
-
-    return ui_instance
-
 
 def main():
     logging.debug("Starting main_menu.py: main()")
@@ -237,17 +254,29 @@ def main():
 
     # wait for tmuxp to load
     wait_for_tmux_session("kalipyfi", timeout=30, poll_interval=0.5)
+
+    # Generate a unique socket path and write to /tmp/
+    new_socket_path = get_unique_socket_path()
+    socket_path = publish_socket_path(new_socket_path)
+    logging.debug(f"main: Using socket path: {socket_path}")
+
     # Create the UI manager for the session.
     ui_instance = UIManager("kalipyfi")
-    start_ipc_server(ui_instance)
+
+    # Start IPC server with the specific socket path
+    start_ipc_server(ui_instance, socket_path)
+    time.sleep(2)
+
+    # Run the main menu
     curses.wrapper(lambda stdscr: MainMenu(stdscr).run())
 
+    # Monitor the IPC connection
     while True:
         logging.debug("Main loop iteration started.")
-        if not ipc_ping():
-            logging.debug("Main loop: IPC ping failed. Attempting to reconnect...")
-            new_socket = reconnect_ipc_socket()
-            if new_socket is not None and ipc_ping(new_socket):
+        if not ipc_ping(socket_path):  # Pass the socket path explicitly
+            logging.debug(f"Main loop: IPC ping failed on {socket_path}. Attempting to reconnect...")
+            # Try to reconnect using the same path we've published
+            if socket_path is not None and ipc_ping(socket_path):
                 logging.debug("Main loop: Reconnected successfully to IPC socket.")
             else:
                 logging.error("Main loop: Reconnection to IPC socket failed.")

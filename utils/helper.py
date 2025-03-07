@@ -9,13 +9,14 @@ import logging
 import libtmux
 
 # local
-from config.constants import DEFAULT_BASE_SOCKET, SOCKET_SUFFIX, UNIQUE_SOCKET_FILE
-
+from config.constants import DEFAULT_BASE_SOCKET, SOCKET_SUFFIX, CURRENT_SOCKET_FILE
 
 shutdown_flag = False
 
-def ipc_ping(socket_path: str = UNIQUE_SOCKET_FILE) -> bool:
+def ipc_ping(socket_path: str = None) -> bool:
     import socket
+    if socket_path is None:
+        socket_path = get_published_socket_path()
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
             s.settimeout(1)
@@ -27,18 +28,19 @@ def ipc_ping(socket_path: str = UNIQUE_SOCKET_FILE) -> bool:
     except Exception:
         return False
 
+
 def get_unique_socket_path(base=DEFAULT_BASE_SOCKET, suffix=SOCKET_SUFFIX):
     """Generate a unique socket path using the process ID and a timestamp."""
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     pid = os.getpid()
     return f"{base}_{pid}_{timestamp}{suffix}"
 
-def publish_socket_path(socket_path, publish_file=UNIQUE_SOCKET_FILE):
-    """Write the unique socket path to a well-known file so that clients can later read it."""
+def publish_socket_path(socket_path, publish_file=CURRENT_SOCKET_FILE):
     with open(publish_file, "w") as f:
         f.write(socket_path)
+    return socket_path
 
-def get_published_socket_path(publish_file=UNIQUE_SOCKET_FILE):
+def get_published_socket_path(publish_file=CURRENT_SOCKET_FILE):
     """Read the published socket path from the well-known file."""
     with open(publish_file, "r") as f:
         return f.read().strip()
@@ -46,6 +48,8 @@ def get_published_socket_path(publish_file=UNIQUE_SOCKET_FILE):
 def cleanup_tmp():
     if os.path.exists("/tmp/kalipyfi_main.yaml"):
         os.remove("/tmp/kalipyfi_main.yaml")
+    if os.path.exists(CURRENT_SOCKET_FILE):
+        os.remove(CURRENT_SOCKET_FILE)
 
 def handle_shutdown_signal(signum, frame):
     global shutdown_flag

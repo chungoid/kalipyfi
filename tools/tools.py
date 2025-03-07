@@ -9,10 +9,11 @@ from pathlib import Path
 from abc import abstractmethod
 
 # local
-from config.constants import BASE_DIR, UNIQUE_SOCKET_FILE
+from config.constants import BASE_DIR
 from common.logging_setup import get_log_queue, worker_configurer
 from common.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
+from utils.helper import get_published_socket_path
 from utils.ipc import send_ipc_command
 
 
@@ -103,6 +104,7 @@ class Tool:
 
 
     def run_to_ipc(self, scan_profile: str, cmd_dict: dict):
+        socket_path = get_published_socket_path()
         """
         Launch the scan command in a background pane via IPC.
         The IPC server will:
@@ -121,7 +123,7 @@ class Tool:
         self.logger.debug("Sending IPC scan command: %s", ipc_message)
 
         # response will always be json
-        response = send_ipc_command(ipc_message, UNIQUE_SOCKET_FILE)
+        response = send_ipc_command(ipc_message, socket_path)
 
         if isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             pane_id = response.get("pane_id")
