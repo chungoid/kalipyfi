@@ -332,7 +332,7 @@ class HcxToolSubmenu:
         in the tool's results directory.
         """
         # Retrieve the API key from the tool's configuration
-        api_key = getattr(self.tool, "api_key", None)
+        api_key = self.tool.get_wpasec_api_key()
         if not api_key:
             parent_win.clear()
             parent_win.addstr(0, 0, "No API key configured for WPA-sec download!")
@@ -357,7 +357,7 @@ class HcxToolSubmenu:
         parent_win.addstr(0, 0, "Downloading founds from WPA-sec...")
         parent_win.refresh()
         results_dir = getattr(self.tool, "results_dir", "results")
-        file_path = download_from_wpasec(api_key, results_dir)
+        file_path = download_from_wpasec(self.tool, api_key, results_dir)
 
         # Show the result
         parent_win.clear()
