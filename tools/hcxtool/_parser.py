@@ -199,43 +199,52 @@ def nmea_to_decimal(coord_str: str, direction: str) -> float:
 def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
     """
     Reads the results CSV, filters out invalid GPS entries, converts longitudes
-    to negative (if needed), and creates an interactive map with markers for each valid entry.
+    to negative if necessary, and creates an interactive map with markers for each valid entry.
+
+    Debug logging is added to trace the processing steps.
 
     :param results_csv: Path to the results CSV file.
     :param output_html: Name of the HTML file to save.
     """
+    logger = logging.getLogger("create_html_map")
+
     try:
         df = pandas.read_csv(results_csv)
+        logger.debug(f"Read CSV: {results_csv}, shape: {df.shape}")
     except Exception as e:
-        logging.error(f"Error reading CSV: {e}")
+        logger.error(f"Error reading CSV {results_csv}: {e}")
         return
 
     try:
         # convert columns to float
         df["Latitude"] = df["Latitude"].astype(float)
         df["Longitude"] = df["Longitude"].astype(float)
+        logger.debug("Converted Latitude and Longitude columns to float.")
     except Exception as e:
-        logging.error(f"Error converting coordinates: {e}")
+        logger.error(f"Error converting coordinates: {e}")
         return
 
-    # filter out 0's for coords (erroneous data)
+    # filter out 0's from hcxpcapngtool results (erroneous data)
     df_valid = df[(df["Latitude"] != 0.0) & (df["Longitude"] != 0.0)]
+    logger.debug(f"After filtering zeros, valid entries: {df_valid.shape[0]}")
+
     if df_valid.empty:
-        logging.error("No valid GPS entries found.")
+        logger.error("No valid GPS entries found.")
         return
 
-    # not sure.. i just flip all positives to negatives
-    if df_valid["Longitude"].min() > 0:
-        df_valid["Longitude"] = df_valid["Longitude"].apply(lambda x: -x)
+    # debugging
+    logger.debug(f"Sample valid entries:\n{df_valid.head()}")
 
-    # compute a center based on valid points
+
+    # computer center
     avg_lat = df_valid["Latitude"].mean()
     avg_lon = df_valid["Longitude"].mean()
+    logger.debug(f"Map center computed as: ({avg_lat}, {avg_lon})")
 
     m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
 
-    # add markers for each valid row
-    for _, row in df_valid.iterrows():
+    # add markers for valid rows
+    for idx, row in df_valid.iterrows():
         popup_content = (
             f"<strong>Date:</strong> {row['Date']}<br>"
             f"<strong>Time:</strong> {row['Time']}<br>"
@@ -248,8 +257,13 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
             location=[row["Latitude"], row["Longitude"]],
             popup=popup_content,
         ).add_to(m)
+        logger.debug(f"Added marker for {row['BSSID']} at ({row['Latitude']}, {row['Longitude']})")
 
     # save
     html_path = results_csv.parent / output_html
-    m.save(html_path)
-    logging.info(f"Map saved to {html_path}")
+    try:
+        m.save(html_path)
+        logger.info(f"Map saved to {html_path}")
+    except Exception as e:
+        logger.error(f"Error saving map to {html_path}: {e}")
+
