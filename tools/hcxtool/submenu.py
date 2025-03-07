@@ -332,6 +332,7 @@ class HcxToolSubmenu:
         """
         # Retrieve the API key from the tool's configuration
         api_key = self.tool.get_wpasec_api_key()
+        logging.debug(f"api key: {api_key}")
 
         if not api_key:
             parent_win.clear()
@@ -432,9 +433,9 @@ class HcxToolSubmenu:
             elif selection == "Set WPA-sec Key":
                 self.set_wpasec_key_menu(parent_win)
             elif selection == "Upload":
-                self.tool.upload(parent_win)
+                self.upload(parent_win)
             elif selection == "Download":
-                self.tool.download(parent_win)
+                self.download(parent_win)
             elif selection == "Export Results":
                 self.tool.export_results()
                 parent_win.clear()
