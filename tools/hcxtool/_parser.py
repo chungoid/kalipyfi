@@ -5,11 +5,33 @@ import logging
 import subprocess
 from pathlib import Path
 
+
 def nmea_to_decimal(coord_str: str, direction: str) -> float:
+    """
+    Converts an NMEA coordinate string to a decimal degree value.
+
+    For latitude (N/S), the coordinate is expected in ddmm.mmmmm format.
+    For longitude (E/W), if the coordinate string is 11 characters long,
+    it's assumed to be in ddmm.mmmmm format (i.e. missing a leading 0), otherwise
+    it uses dddmm.mmmmm.
+
+    :param coord_str: The raw coordinate string.
+    :param direction: The direction ('N', 'S', 'E', or 'W').
+    :return: The coordinate in decimal degrees.
+    """
     try:
         if not coord_str or not direction:
             return 0.0
-        deg_digits = 2 if direction.upper() in ['N', 'S'] else 3
+
+        if direction.upper() in ['N', 'S']:
+            deg_digits = 2
+        else:  # for 'E' or 'W'
+            # If the string is 11 characters, assume it is ddmm.mmmmm
+            if len(coord_str) == 11:
+                deg_digits = 2
+            else:
+                deg_digits = 3
+
         degrees = float(coord_str[:deg_digits])
         minutes = float(coord_str[deg_digits:])
         decimal = degrees + minutes / 60.0
@@ -20,12 +42,14 @@ def nmea_to_decimal(coord_str: str, direction: str) -> float:
         logging.error(f"Error converting NMEA coordinate '{coord_str}' with direction '{direction}': {e}")
         return 0.0
 
+
 def run_hcxpcapngtool(results_dir: Path, temp_output: str = "tmpresults.csv") -> Path:
     cmd = f"hcxpcapngtool --csv={temp_output} *.pcapng"
     logging.debug(f"Running command: {cmd} in {results_dir}")
     subprocess.run(cmd, shell=True, cwd=results_dir, check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return results_dir / temp_output
+
 
 def parse_temp_csv(temp_csv_path: Path, master_output: str = "results.csv") -> Path:
     results_dir = temp_csv_path.parent
@@ -63,6 +87,7 @@ def parse_temp_csv(temp_csv_path: Path, master_output: str = "results.csv") -> P
             writer.writerow(row)
     logging.info(f"Wrote {len(new_rows)} rows to master CSV {master_csv}")
     return master_csv
+
 
 def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
     founds_map = {}
@@ -116,6 +141,7 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
         logging.info(f"Updated {updated_count} rows in master CSV with keys.")
     except Exception as e:
         logging.error(f"Error writing master CSV: {e}")
+
 
 def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
     logger = logging.getLogger("create_html_map")
