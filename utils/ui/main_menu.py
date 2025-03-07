@@ -276,21 +276,6 @@ def main():
     logging.info("Shutdown complete. Exiting main_menu.py")
     sys.exit(0)
 
-"""
-    # Monitor the IPC connection
-    while True:
-        logging.debug("Main loop iteration started.")
-        if not ipc_ping(socket_path):  # Pass the socket path explicitly
-            logging.debug(f"Main loop: IPC ping failed on {socket_path}. Attempting to reconnect...")
-            # Try to reconnect using the same path we've published
-            if socket_path is not None and ipc_ping(socket_path):
-                logging.debug("Main loop: Reconnected successfully to IPC socket.")
-            else:
-                logging.error("Main loop: Reconnection to IPC socket failed.")
-        else:
-            logging.debug("Main loop: IPC ping succeeded.")
-        time.sleep(1)
-"""
 
 if __name__ == "__main__":
     main()
