@@ -206,7 +206,7 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
     """
     try:
         # Read CSV without aliasing; using pandas directly.
-        df = pd.read_csv(results_csv)
+        df = pandas.read_csv(results_csv)
     except Exception as e:
         print(f"Error reading CSV: {e}")
         return
