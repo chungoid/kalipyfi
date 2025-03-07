@@ -49,6 +49,10 @@ presets:
       -A: true
       -F: true
       --gpsd: true
+      # tips: (autobpf: true) will protect the scan devices associated clients/ap's 
+      # (e.g. your wlan0 hotspot, and its ssh clients or your home wifi) from a scan
+      # interface interfering with friendly connections.
+      #
       # tools have self.selected_interface which is set before sending scans.. omit interface from config
       # omit -w as well, hcxtool will create its own file and output to tools/hcxtools/results/
       # use option output_prefix if you want a custom prefix.. also, --gpsd: true will handle .nmea file creation
