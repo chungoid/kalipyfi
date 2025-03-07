@@ -390,19 +390,17 @@ class HcxToolSubmenu:
         parent_win.refresh()
         parent_win.getch()
 
-
     def utils_menu(self, parent_win) -> None:
         """
         Displays a Utils submenu with options:
           - WPA-sec (contains all WPA-sec related functions)
           - Create Scan Profile
           - Edit Scan Profile
-          - Back
+        (The "[0] Back" option is automatically added by draw_paginated_menu.)
         """
-        menu_options = ["WPA-sec", "Create Scan Profile", "Edit Scan Profile", "Back"]
+        menu_options = ["WPA-sec", "Create Scan Profile", "Edit Scan Profile"]
 
         while True:
-            # Pass plain option strings; draw_paginated_menu will add numbering.
             selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
             if selection.lower() == "back":
                 break
@@ -423,9 +421,9 @@ class HcxToolSubmenu:
           - Upload
           - Download
           - Export Results
-          - Back
+        (The "[0] Back" option is automatically added by draw_paginated_menu.)
         """
-        menu_options = ["Set WPA-sec Key", "Upload", "Download", "Export Results", "Back"]
+        menu_options = ["Set WPA-sec Key", "Upload", "Download", "Export Results"]
 
         while True:
             selection = self.draw_paginated_menu(parent_win, "WPA-sec", menu_options)
@@ -461,7 +459,6 @@ class HcxToolSubmenu:
                     parent_win.getch()
             parent_win.clear()
             parent_win.refresh()
-
 
     def create_scan_profile_menu(self, parent_win) -> None:
         """
