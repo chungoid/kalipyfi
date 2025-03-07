@@ -16,15 +16,15 @@ def upload_to_wpasec(tool, pcap_path: Path, api_key: str) -> bool:
     url = "https://wpa-sec.stanev.org/?api&upload"
     headers = {"Cookie": f"key={api_key}"}
     try:
-        tool.logging.debug(f"Uploading {pcap_path} to WPA-SEC...")
+        tool.logger.debug(f"Uploading {pcap_path} to WPA-SEC...")
         with pcap_path.open("rb") as f:
             files = {"file": f}
             response = requests.post(url, headers=headers, files=files)
             response.raise_for_status()
-        tool.logging.info(f"Upload successful: {response.text}")
+        tool.logger.info(f"Upload successful: {response.text}")
         return True
     except requests.RequestException as e:
-        tool.logging.error(f"Error uploading PCAP file: {e}")
+        tool.logger.error(f"Error uploading PCAP file: {e}")
         return False
 
 
@@ -40,7 +40,7 @@ def download_from_wpasec(tool, api_key: str, results_dir: str) -> str | None:
     """
     url = "https://wpa-sec.stanev.org/?api&dl=1"
     headers = {"Cookie": f"key={api_key}"}
-    tool.logging.debug("Downloading founds from WPA-sec...")
+    tool.logger.debug("Downloading founds from WPA-sec...")
 
     try:
         response = requests.get(url, headers=headers)
@@ -53,10 +53,10 @@ def download_from_wpasec(tool, api_key: str, results_dir: str) -> str | None:
         with open(founds_path, "w") as f:
             f.write(response.text)
 
-        tool.logging.info(f"Downloaded founds and saved to {founds_path}")
+        tool.logger.info(f"Downloaded founds and saved to {founds_path}")
         return founds_path
     except Exception as e:
-        tool.logging.exception(f"Error downloading from WPA-sec: {e}")
+        tool.logger.exception(f"Error downloading from WPA-sec: {e}")
         return None
 
 def get_wpasec_api_key(tool) -> str:
