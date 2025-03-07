@@ -1,17 +1,16 @@
 import os
+import yaml
 import curses
 import logging
 from pathlib import Path
 from typing import Any, List
 
-import yaml
 
-from tools.helpers.wpasec import download_from_wpasec
 # local
 from utils.ipc_client import IPCClient
 from tools.helpers.tool_utils import format_scan_display
-from utils.helper import get_published_socket_path
-
+from tools.helpers.webserver import start_webserver
+from tools.helpers.wpasec import download_from_wpasec
 
 class HcxToolSubmenu:
     def __init__(self, tool_instance):
@@ -394,33 +393,77 @@ class HcxToolSubmenu:
 
     def utils_menu(self, parent_win) -> None:
         """
-        Handles the 'Utils' option.
-        Provides a paginated menu with options for utility functions:
-          - Set WPA-sec Key
-          - Create Scan Profile
-          - Edit Scan Profile
-          - Export Results (new)
-          - Back
+        Displays a Utils submenu with options:
+          1. WPA-sec (contains all WPA-sec related functions)
+          2. Create Scan Profile
+          3. Edit Scan Profile
+          0. Back
         """
-        menu_options = ["Set WPA-sec Key", "Create Scan Profile", "Edit Scan Profile", "Export Results"]
-        selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
-        if selection == "back":
-            return
-        elif selection == "Set WPA-sec Key":
-            self.set_wpasec_key_menu(parent_win)
-        elif selection == "Create Scan Profile":
-            self.create_scan_profile_menu(parent_win)
-        elif selection == "Edit Scan Profile":
-            self.edit_scan_profile_menu(parent_win)
-        elif selection == "Export Results":
+        menu_options = ["WPA-sec", "Create Scan Profile", "Edit Scan Profile"]
+        numbered_menu = [f"[{i + 1}] {item}" for i, item in enumerate(menu_options)]
+        numbered_menu.append("[0] Back")
+
+        while True:
+            selection = self.draw_paginated_menu(parent_win, "Utils", numbered_menu)
+            if selection == "back":
+                break
+            elif selection.startswith("[1]"):
+                self.wpasec_menu(parent_win)
+            elif selection.startswith("[2]"):
+                self.create_scan_profile_menu(parent_win)
+            elif selection.startswith("[3]"):
+                self.edit_scan_profile_menu(parent_win)
             parent_win.clear()
-            parent_win.addstr(0, 0, "Exporting results (this may take a moment)...")
             parent_win.refresh()
-            self.tool.export_results()
+
+
+    def wpasec_menu(self, parent_win) -> None:
+        """
+        Displays a WPA-sec submenu with options:
+          1. Set WPA-sec Key
+          2. Upload
+          3. Download
+          4. Export Results
+          0. Back
+        """
+        menu_options = ["Set WPA-sec Key", "Upload", "Download", "Export Results"]
+        numbered_menu = [f"[{i + 1}] {option}" for i, option in enumerate(menu_options)]
+        numbered_menu.append("[0] Back")
+
+        while True:
+            selection = self.draw_paginated_menu(parent_win, "WPA-sec", numbered_menu)
+            if selection == "back":
+                break
+            elif selection.startswith("[1]"):
+                self.set_wpasec_key_menu(parent_win)
+            elif selection.startswith("[2]"):
+                self.upload(parent_win)
+            elif selection.startswith("[3]"):
+                self.download(parent_win)
+            elif selection.startswith("[4]"):
+                self.tool.export_results()
+                parent_win.clear()
+                parent_win.addstr(0, 0, "Export complete. Spawn webserver to view results? (y/n): ")
+                parent_win.refresh()
+                try:
+                    key = parent_win.getch()
+                    ch = chr(key)
+                except Exception:
+                    ch = ''
+                if ch.lower() == 'y':
+                    start_webserver(self.tool.results_dir)
+                    parent_win.clear()
+                    parent_win.addstr(0, 0,
+                                      "Webserver started on port 8000.\nVisit http://<device-ip>:8000/map.html\nPress any key to continue...")
+                    parent_win.refresh()
+                    parent_win.getch()
+                else:
+                    parent_win.clear()
+                    parent_win.addstr(0, 0, "Export complete. Press any key to continue...")
+                    parent_win.refresh()
+                    parent_win.getch()
             parent_win.clear()
-            parent_win.addstr(0, 0, "Export complete. Press any key to continue...")
             parent_win.refresh()
-            parent_win.getch()
 
 
     def create_scan_profile_menu(self, parent_win) -> None:
@@ -685,8 +728,12 @@ class HcxToolSubmenu:
 
     def __call__(self, stdscr) -> None:
         """
-        Launches the HCXTool submenu.
-        Before displaying the menu, clears any previous selections.
+        Launches the HCXTool Submenu.
+        Main options are:
+          1. Launch Scan
+          2. View Scans
+          3. Utils
+          0. Back
         """
         curses.curs_set(0)
         self.tool.selected_interface = None
@@ -699,9 +746,9 @@ class HcxToolSubmenu:
         submenu_win.clear()
         submenu_win.refresh()
 
-        # Main submenu options (few items, so simple menu is sufficient)
-        menu_items = ["Launch Scan", "View Scans", "Upload", "Download", "Utils", "Back"]
-        numbered_menu = [f"[{i+1}] {item}" for i, item in enumerate(menu_items[:-1])]
+        # Main submenu options
+        menu_items = ["Launch Scan", "View Scans", "Utils", "Back"]
+        numbered_menu = [f"[{i + 1}] {item}" for i, item in enumerate(menu_items[:-1])]
         numbered_menu.append("[0] Back")
 
         while True:
@@ -716,10 +763,6 @@ class HcxToolSubmenu:
             elif ch == "2":
                 self.view_scans(submenu_win)
             elif ch == "3":
-                self.upload(submenu_win)
-            elif ch == "4":
-                self.download(submenu_win)
-            elif ch == "5":
                 self.utils_menu(submenu_win)
             elif ch == "0" or key == 27:
                 break

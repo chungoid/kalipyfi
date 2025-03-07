@@ -166,6 +166,7 @@ class Hcxtool(Tool, ABC):
     def get_wpasec_api_key(self) -> str:
         return wpasec_get_api_key(self)
 
+
     def set_wpasec_key(self, new_key: str) -> None:
         """
         This wrapper method updates the configuration file (self.config_file) by modifying
@@ -183,22 +184,23 @@ class Hcxtool(Tool, ABC):
         key_path = ["wpa-sec", "api_key"]
         update_yaml_value(self.config_file, key_path, new_key)
 
+
     def export_results(self) -> None:
         """
-        Runs the export workflow: generate master results CSV from all pcapng files and
-        then update that CSV with keys from founds.txt if found.
+        Runs the export workflow: generate master results CSV from all pcapng files,
+        update that CSV with keys from founds.txt (if found), and then create an HTML map.
         """
-        from tools.helpers.pcapng_to_csv import results_to_csv, append_keys_to_results
+        from tools.hcxtool._parser import results_to_csv, append_keys_to_results, create_html_map
         results_csv = self.results_dir / "results.csv"
         founds_txt = self.results_dir / "founds.txt"
 
-        # check for caps
+        # Check for PCAPNG files.
         pcapng_files = list(self.results_dir.glob("*.pcapng"))
         if not pcapng_files:
             self.logger.info("No pcapng files found in the results directory.")
             return
 
-        # extract
+        # Extract results from PCAPNG files
         try:
             results_to_csv(self.results_dir)
             self.logger.info("Master results.csv has been updated from pcapng files.")
@@ -206,13 +208,21 @@ class Hcxtool(Tool, ABC):
             self.logger.error(f"Error while generating results.csv: {e}")
             return
 
-        if not founds_txt.exists():
+        # Append keys from founds.txt if it exists
+        if founds_txt.exists():
+            try:
+                append_keys_to_results(results_csv, founds_txt)
+                self.logger.info("Results CSV updated with keys from founds.txt.")
+            except Exception as e:
+                self.logger.error(f"Error while appending keys: {e}")
+        else:
             self.logger.info("founds.txt not found; skipping key appending step.")
-            return
 
-        # append keys
+        # Create an HTML map from the updated results.csv
         try:
-            append_keys_to_results(results_csv, founds_txt)
-            self.logger.info("Results CSV updated with keys from founds.txt.")
+            create_html_map(results_csv)
+            self.logger.info("HTML map created from results.csv.")
         except Exception as e:
-            self.logger.error(f"Error while appending keys: {e}")
+            self.logger.error(f"Error while creating HTML map: {e}")
+
+
