@@ -316,34 +316,41 @@ class HcxToolSubmenu:
             parent_win.addstr(0, 0, "Uploading all files...")
             parent_win.refresh()
             curses.napms(1500)
+            row = 1
             for file in files:
-                file_path = os.path.join(results_dir, file)
+                file_path = Path(results_dir) / file
                 self.logger.debug(f"Uploading {file_path}...")
-                response = upload_to_wpasec(self.tool, results_dir, api_key)
-                if response and response.get("status") == "success":
+                success = upload_to_wpasec(self.tool, file_path, api_key)
+                if success:
                     self.logger.info(f"Uploaded {file} successfully.")
-                    parent_win.addstr(1, 0, f"Uploaded {file} successfully.")
+                    parent_win.addstr(row, 0, f"Uploaded {file} successfully.")
                 else:
-                    error_message = response.get("error", "Unknown error") if response else "No response from server"
-                    self.logger.error(f"Failed to upload {file}. Error: {error_message}")
-                    parent_win.addstr(1, 0, f"Failed to upload {file}. Error: {error_message}")
+                    self.logger.error(f"Failed to upload {file}.")
+                    parent_win.addstr(row, 0, f"Failed to upload {file}.")
+                row += 1
+            parent_win.addstr(row + 1, 0, "Press any key to return to the upload menu...")
             parent_win.refresh()
             parent_win.getch()
+            # Re-display the upload menu
+            self.upload(parent_win)
         else:
-            file_path = os.path.join(results_dir, selection)
+            file_path = Path(results_dir) / selection
             parent_win.addstr(0, 0, f"Uploading {selection}...")
             parent_win.refresh()
             curses.napms(1500)
-            response = upload_to_wpasec(self.tool, file_path)
-            if response and response.get("status") == "success":
+            success = upload_to_wpasec(self.tool, file_path, api_key)
+            if success:
                 self.logger.info(f"Uploaded {selection} successfully.")
                 parent_win.addstr(1, 0, f"Uploaded {selection} successfully.")
             else:
-                error_message = response.get("error", "Unknown error") if response else "No response from server"
-                self.logger.error(f"Failed to upload {selection}. Error: {error_message}")
-                parent_win.addstr(1, 0, f"Failed to upload {selection}. Error: {error_message}")
+                self.logger.error(f"Failed to upload {selection}.")
+                parent_win.addstr(1, 0, f"Failed to upload {selection}.")
+            parent_win.addstr(2, 0, "Press any key to return to the upload menu...")
             parent_win.refresh()
             parent_win.getch()
+            # Re-display the upload menu
+            self.upload(parent_win)
+
 
     def download(self, parent_win) -> None:
         """
