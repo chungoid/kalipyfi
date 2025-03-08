@@ -145,6 +145,7 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
     except Exception as e:
         logging.error(f"Error reading founds.txt: {e}")
         return
+
     rows = []
     try:
         with open(master_csv, 'r', newline='') as f:
@@ -154,6 +155,7 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
     except Exception as e:
         logging.error(f"Error reading master CSV: {e}")
         return
+
     if "Key" not in header:
         header.append("Key")
         key_index = len(header) - 1
@@ -161,6 +163,7 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
             row.append("")
     else:
         key_index = header.index("Key")
+
     updated_count = 0
     for row in rows:
         if len(row) < 4:
@@ -170,6 +173,7 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
         if (csv_bssid, csv_ssid) in founds_map:
             row[key_index] = founds_map[(csv_bssid, csv_ssid)]
             updated_count += 1
+
     try:
         with open(master_csv, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -178,6 +182,26 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
         logging.info(f"Updated {updated_count} rows in master CSV with keys.")
     except Exception as e:
         logging.error(f"Error writing master CSV: {e}")
+        return
+
+    # update the database with the keys where available
+    try:
+        conn = get_db_connection(BASE_DIR)
+        cursor = conn.cursor()
+        # update each matching row in the hcxtool_results table
+        for (bssid, ssid), key_val in founds_map.items():
+            query = """
+                UPDATE hcxtool_results 
+                SET key = ?
+                WHERE LOWER(REPLACE(bssid, ':', '')) = ?
+                  AND LOWER(ssid) = ?
+            """
+            cursor.execute(query, (key_val, bssid, ssid))
+        conn.commit()
+        conn.close()
+        logging.info("Database updated with new keys from founds.txt.")
+    except Exception as e:
+        logging.error(f"Error updating the database with keys: {e}")
 
 
 def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
