@@ -37,12 +37,14 @@ def insert_hcxtool_results(conn: sqlite3.Connection,
                           key_value: str) -> None:
     """
     Inserts a new result record into the hcxtool table.
+    If a record with the same bssid and ssid exists, it will be replaced.
     """
     query = """
-    INSERT INTO hcxtool (date, time, bssid, ssid, encryption, latitude, longitude, key)
+    INSERT OR REPLACE INTO hcxtool (date, time, bssid, ssid, encryption, latitude, longitude, key)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """
     execute_query(conn, query, (date, time, bssid, ssid, encryption, latitude, longitude, key_value))
+
 
 def fetch_all_hcxtool_results(conn: sqlite3.Connection):
     """

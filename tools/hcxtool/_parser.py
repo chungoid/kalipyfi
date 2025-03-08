@@ -188,10 +188,10 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
     try:
         conn = get_db_connection(BASE_DIR)
         cursor = conn.cursor()
-        # update each matching row in the hcxtool_results table
+        # update each matching row in the hcxtool table
         for (bssid, ssid), key_val in founds_map.items():
             query = """
-                UPDATE hcxtool 
+                UPDATE hcxtool
                 SET key = ?
                 WHERE LOWER(REPLACE(bssid, ':', '')) = ?
                   AND LOWER(ssid) = ?
