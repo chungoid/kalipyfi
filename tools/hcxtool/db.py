@@ -25,7 +25,7 @@ def init_hcxtool_schema(conn: sqlite3.Connection) -> None:
     """
     execute_query(conn, query)
 
-def insert_hcxtool_result(conn: sqlite3.Connection,
+def insert_hcxtool_results(conn: sqlite3.Connection,
                           date: str,
                           time: str,
                           bssid: str,
@@ -35,17 +35,17 @@ def insert_hcxtool_result(conn: sqlite3.Connection,
                           longitude: float,
                           key_value: str) -> None:
     """
-    Inserts a new result record into the hcxtool_results table.
+    Inserts a new result record into the hcxtool table.
     """
     query = """
-    INSERT INTO hcxtool_results (date, time, bssid, ssid, encryption, latitude, longitude, key)
+    INSERT INTO hcxtool (date, time, bssid, ssid, encryption, latitude, longitude, key)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """
     execute_query(conn, query, (date, time, bssid, ssid, encryption, latitude, longitude, key_value))
 
 def fetch_all_hcxtool_results(conn: sqlite3.Connection):
     """
-    Fetches all records from the hcxtool_results table.
+    Fetches all records from the hcxtool table.
     """
-    query = "SELECT * FROM hcxtool_results"
+    query = "SELECT * FROM hcxtool"
     return fetch_all(conn, query)

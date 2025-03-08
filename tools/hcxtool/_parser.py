@@ -7,7 +7,7 @@ from pathlib import Path
 
 from config.constants import BASE_DIR
 from database.db_manager import get_db_connection
-from tools.hcxtool.db import insert_hcxtool_result
+from tools.hcxtool.db import insert_hcxtool_results
 
 
 def nmea_to_decimal(coord_str: str, direction: str) -> float:
@@ -106,7 +106,7 @@ def parse_temp_csv(temp_csv_path: Path, master_output: str = "results.csv") -> P
 
             new_rows.append([date, time_val, bssid, ssid, encryption, latitude, longitude])
             # pass an empty string for 'key' ..add it later if user gets wpasec dl
-            insert_hcxtool_result(conn, date, time_val, bssid, ssid, encryption, latitude, longitude, "")
+            insert_hcxtool_results(conn, date, time_val, bssid, ssid, encryption, latitude, longitude, "")
 
     conn.close()
     # delete tmp
