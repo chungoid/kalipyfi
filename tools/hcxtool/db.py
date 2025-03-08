@@ -10,7 +10,7 @@ def init_hcxtool_schema(conn: sqlite3.Connection) -> None:
     Date, Time, BSSID, SSID, Encryption, Latitude, Longitude, Key.
     """
     query = """
-    CREATE TABLE IF NOT EXISTS hcxtool_results (
+    CREATE TABLE IF NOT EXISTS hcxtool (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bssid TEXT NOT NULL,
     date TEXT NOT NULL,
