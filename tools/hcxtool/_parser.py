@@ -125,8 +125,8 @@ def parse_temp_csv(temp_csv_path: Path, master_output: str = "results.csv") -> P
     logging.info(f"Wrote {len(new_rows)} rows to master CSV {master_csv}")
     return master_csv
 
-
-def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
+def read_founds(founds_txt: Path) -> dict:
+    """Reads founds.txt and returns a dict keyed by (bssid, ssid) with key values."""
     founds_map = {}
     try:
         with open(founds_txt, 'r') as f:
@@ -137,71 +137,104 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
                 parts = line.split(':')
                 if len(parts) != 4:
                     continue
-                raw_bssid, _, raw_ssid, key_val = parts
+                raw_bssid = parts[0]
+                raw_ssid = parts[2]
+                key_val = parts[3]
                 bssid = raw_bssid.replace(";", "").replace(":", "").strip().lower()
                 ssid = raw_ssid.strip().lower()
                 founds_map[(bssid, ssid)] = key_val
         logging.debug(f"Constructed founds_map with {len(founds_map)} entries.")
     except Exception as e:
         logging.error(f"Error reading founds.txt: {e}")
-        return
+    return founds_map
 
-    rows = []
+
+def read_master_csv(master_csv: Path) -> (dict, list):
+    """Reads master CSV and returns a tuple: (data dict, header)."""
+    data = {}
+    header = ['Date', 'Time', 'BSSID', 'SSID', 'Encryption', 'Latitude', 'Longitude', 'Key']
     try:
         with open(master_csv, 'r', newline='') as f:
             reader = csv.reader(f)
             header = next(reader)
-            rows = list(reader)
+            if "Key" not in header:
+                header.append("Key")
+            key_index = header.index("Key")
+            for row in reader:
+                if len(row) < 4:
+                    continue
+                if len(row) < len(header):
+                    row += [""] * (len(header) - len(row))
+                csv_bssid = row[2].replace(";", "").replace(":", "").strip().lower()
+                csv_ssid = row[3].strip().lower()
+                data[(csv_bssid, csv_ssid)] = row
     except Exception as e:
-        logging.error(f"Error reading master CSV: {e}")
-        return
+        logging.warning(f"Master CSV not found or could not be read ({e}). Starting with empty CSV.")
+    return data, header
 
-    if "Key" not in header:
-        header.append("Key")
-        key_index = len(header) - 1
-        for row in rows:
-            row.append("")
-    else:
-        key_index = header.index("Key")
 
-    updated_count = 0
-    for row in rows:
-        if len(row) < 4:
-            continue
-        csv_bssid = row[2].replace(";", "").replace(":", "").strip().lower()
-        csv_ssid = row[3].strip().lower()
-        if (csv_bssid, csv_ssid) in founds_map:
-            row[key_index] = founds_map[(csv_bssid, csv_ssid)]
-            updated_count += 1
+def merge_data(csv_data: dict, header: list, founds_map: dict) -> dict:
+    """Merges CSV data with founds_map. Updates keys and adds missing entries."""
+    key_index = header.index("Key")
+    # update existing CSV data with founds keys
+    for key_tuple, found_key in founds_map.items():
+        if key_tuple in csv_data:
+            csv_data[key_tuple][key_index] = found_key
+        else:
+            # create a new row with defaults
+            new_row = ["", "", key_tuple[0], key_tuple[1], "", "", "", found_key]
+            csv_data[key_tuple] = new_row
+    logging.info(f"Merged total of {len(csv_data)} entries after combining CSV and founds.txt.")
+    return csv_data
 
+
+def write_master_csv(master_csv: Path, header: list, csv_data: dict) -> None:
+    """Writes the merged data back to the master CSV."""
     try:
         with open(master_csv, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(header)
-            writer.writerows(rows)
-        logging.info(f"Updated {updated_count} rows in master CSV with keys.")
+            for row in csv_data.values():
+                writer.writerow(row)
+        logging.info(f"Master CSV written with {len(csv_data)} entries.")
     except Exception as e:
         logging.error(f"Error writing master CSV: {e}")
-        return
 
-    # update the database with the keys where available
+
+def update_database(csv_data: dict, header: list) -> None:
+    """Updates the hcxtool database with the merged data."""
     try:
         conn = get_db_connection(BASE_DIR)
         cursor = conn.cursor()
-        # update each matching row in the hcxtool table
-        for (bssid, ssid), key_val in founds_map.items():
+        for row in csv_data.values():
+            # row structure: [Date, Time, BSSID, SSID, Encryption, Latitude, Longitude, Key]
             query = """
-                UPDATE hcxtool
-                SET key = ?
-                WHERE LOWER(REPLACE(bssid, ':', '')) = ?
-                  AND LOWER(ssid) = ?
+                INSERT OR REPLACE INTO hcxtool (date, time, bssid, ssid, encryption, latitude, longitude, key)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """
-            cursor.execute(query, (key_val, bssid, ssid))
+            # Convert latitude and longitude if possible; use None if empty or zero
+            try:
+                lat = float(row[5]) if row[5] and row[5] != "0" else None
+            except:
+                lat = None
+            try:
+                lon = float(row[6]) if row[6] and row[6] != "0" else None
+            except:
+                lon = None
+            cursor.execute(query, (row[0], row[1], row[2], row[3], row[4], lat, lon, row[7]))
         conn.commit()
         conn.close()
-        logging.info("Database updated with new keys from founds.txt.")
+        logging.info("Database updated with merged data from CSV and founds.txt.")
     except Exception as e:
-        logging.error(f"Error updating the database with keys: {e}")
+        logging.error(f"Error updating the database with merged data: {e}")
+
+
+def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
+    founds_map = read_founds(founds_txt)
+    csv_data, header = read_master_csv(master_csv)
+    merged_data = merge_data(csv_data, header, founds_map)
+    write_master_csv(master_csv, header, merged_data)
+    update_database(merged_data, header)
 
 
 def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
