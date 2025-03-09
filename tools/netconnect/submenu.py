@@ -3,7 +3,6 @@ import logging
 import subprocess
 from typing import Any, List, Tuple
 
-# Assuming get_wifi_networks is defined as before:
 def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str, str]]:
     """
     Uses nmcli to scan for available networks on the specified interface.
@@ -25,30 +24,8 @@ def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str,
     return networks
 
 
-# Import your founds helper:
 from pathlib import Path
-from config.constants import BASE_DIR
-from tools.hcxtool.db import get_founds  # Or import get_founds_from_hcxtool if that wrapper exists
-
-def get_founds_from_hcxtool(basedir: Path) -> list:
-    """
-    Opens a database connection using basedir and returns found records from hcxtool.
-    Assumes that the founds have a non-empty key and that the SSID is at index 4.
-    """
-    from database.db_manager import get_db_connection
-    conn = get_db_connection(basedir)
-    try:
-        query = """
-            SELECT id, bssid, date, time, ssid, encryption, latitude, longitude, key 
-            FROM hcxtool 
-            WHERE key IS NOT NULL AND key != ''
-        """
-        # Use your helper fetch_all from db_manager
-        from database.db_manager import fetch_all
-        founds = fetch_all(conn, query)
-        return founds
-    finally:
-        conn.close()
+from tools.helpers.sql_utils import get_founds_from_hcxtool
 
 
 class NetConnectSubmenu:
