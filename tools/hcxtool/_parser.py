@@ -239,12 +239,16 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
 
 def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
     logger = logging.getLogger("create_html_map")
+
+    # read the CSV file
     try:
         df = pandas.read_csv(results_csv)
         logger.debug(f"Read CSV: {results_csv}, shape: {df.shape}")
     except Exception as e:
         logger.error(f"Error reading CSV {results_csv}: {e}")
         return
+
+    # convert coordinate columns to float
     try:
         df["Latitude"] = df["Latitude"].astype(float)
         df["Longitude"] = df["Longitude"].astype(float)
@@ -252,30 +256,48 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
     except Exception as e:
         logger.error(f"Error converting coordinates: {e}")
         return
+
+    # filter out rows with NaN in coordinates and zeros
+    initial_count = df.shape[0]
+    df = df.dropna(subset=["Latitude", "Longitude"])
+    after_dropna_count = df.shape[0]
+    logger.debug(f"Dropped {initial_count - after_dropna_count} rows due to NaN in coordinates.")
+
     df_valid = df[(df["Latitude"] != 0.0) & (df["Longitude"] != 0.0)]
     logger.debug(f"After filtering zeros, valid entries: {df_valid.shape[0]}")
+
     if df_valid.empty:
-        logger.error("No valid GPS entries found.")
+        logger.error("No valid GPS entries found after filtering NaNs and zeros.")
         return
+
     logger.debug(f"Sample valid entries:\n{df_valid.head()}")
+
+    # compute map center from valid coordinates
     avg_lat = df_valid["Latitude"].mean()
     avg_lon = df_valid["Longitude"].mean()
     logger.debug(f"Map center computed as: ({avg_lat}, {avg_lon})")
+
+    # create the folium map centered at computed coordinates
     m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
-    for _, row in df_valid.iterrows():
+
+    # add markers to the map for each valid entry
+    for index, row in df_valid.iterrows():
         popup_content = (
-            f"<strong>Date:</strong> {row['Date']}<br>"
-            f"<strong>Time:</strong> {row['Time']}<br>"
-            f"<strong>BSSID:</strong> {row['BSSID']}<br>"
-            f"<strong>SSID:</strong> {row['SSID']}<br>"
-            f"<strong>Encryption:</strong> {row['Encryption']}<br>"
+            f"<strong>Date:</strong> {row.get('Date', '')}<br>"
+            f"<strong>Time:</strong> {row.get('Time', '')}<br>"
+            f"<strong>BSSID:</strong> {row.get('BSSID', '')}<br>"
+            f"<strong>SSID:</strong> {row.get('SSID', '')}<br>"
+            f"<strong>Encryption:</strong> {row.get('Encryption', '')}<br>"
             f"<strong>Key:</strong> {row.get('Key', '')}"
         )
-        folium.Marker(
-            location=[row["Latitude"], row["Longitude"]],
-            popup=popup_content,
-        ).add_to(m)
-        logger.debug(f"Added marker for {row['BSSID']} at ({row['Latitude']}, {row['Longitude']})")
+        try:
+            marker_location = [row["Latitude"], row["Longitude"]]
+            folium.Marker(location=marker_location, popup=popup_content).add_to(m)
+            logger.debug(f"Added marker for {row.get('BSSID', 'N/A')} at {marker_location}")
+        except Exception as marker_e:
+            logger.error(f"Error adding marker for row {index}: {marker_e}")
+
+    # save the map to an HTML file
     html_path = results_csv.parent / output_html
     try:
         m.save(html_path)
