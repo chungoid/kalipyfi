@@ -234,12 +234,12 @@ class NetConnectSubmenu:
             parent_win.getch()
             return
 
-        # Retrieve found networks from the database.
+        # retrieve found networks from the database
         founds = get_founds_from_hcxtool(self.tool.base_dir)
-        # Build a dictionary mapping SSID to key (password) from founds.
+        # build a dictionary mapping SSID to key
         founds_dict = {record[4]: record[8] for record in founds if len(record) > 8 and record[4]}
 
-        # Filter scan networks to those whose SSID is in founds_dict.
+        # filter scan networks to those whose SSID is in founds_dict
         filtered_networks = [(ssid, sec) for ssid, sec in scan_networks if ssid in founds_dict]
         if not filtered_networks:
             parent_win.clear()
@@ -257,19 +257,19 @@ class NetConnectSubmenu:
             return
 
         chosen_ssid = None
-        #chosen_security = None
+        chosen_security = None
         for ssid, security in filtered_networks:
             sec_str = " (Secured)" if security and security != "--" else " (Open)"
             if f"{ssid}{sec_str}" == selection:
                 chosen_ssid = ssid
-                #chosen_security = security
+                chosen_security = security
                 break
         if not chosen_ssid:
             self.logger.debug("No network selected; aborting connect-from-founds.")
             return
 
         self.tool.selected_network = chosen_ssid
-        # Auto-fill the password from the founds dictionary.
+        # auto-fill the password
         self.tool.network_password = founds_dict.get(chosen_ssid, "")
 
         parent_win.clear()
