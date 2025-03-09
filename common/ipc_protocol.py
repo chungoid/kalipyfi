@@ -168,15 +168,29 @@ def handle_get_scans(ui_instance, request: dict) -> dict:
     tool_name = request.get("tool")
     if not tool_name:
         logger.error("handle_get_scans: Missing tool parameter")
-        return {ERROR_KEY: "Missing tool parameter for GET_SCANS"}
-    try:
-        scans = [scan.to_dict() for scan in ui_instance.active_scans.values()
-                 if scan.tool.lower() == tool_name.lower()]
-        logger.debug(f"handle_get_scans: Found scans: {scans}")
-        return {"status": "OK", "scans": scans}
-    except Exception as e:
-        logger.exception("handle_get_scans: Exception occurred")
-        return {ERROR_KEY: str(e)}
+        return {IPC_CONSTANTS["keys"]["ERROR_KEY"]: "Missing tool parameter for GET_SCANS"}
+
+    matching_scans = []
+    for pane_id, scan in ui_instance.active_scans.items():
+        try:
+            # Log basic info about each scan object.
+            logger.debug(f"Processing scan from pane {pane_id}: type={type(scan)}, scan={scan}")
+            # Make sure scan has a 'tool' attribute.
+            if not hasattr(scan, "tool"):
+                logger.error(f"Scan in pane {pane_id} has no 'tool' attribute: {scan}")
+                continue
+
+            if scan.tool.lower() == tool_name.lower():
+                scan_dict = scan.to_dict()
+                matching_scans.append(scan_dict)
+                logger.debug(f"Added scan: {scan_dict}")
+            else:
+                logger.debug(f"Scan from pane {pane_id} does not match tool '{tool_name}'. Found tool: '{scan.tool}'")
+        except Exception as e:
+            logger.exception(f"Error processing scan from pane {pane_id}: {e}")
+
+    logger.debug(f"handle_get_scans: Total matching scans: {len(matching_scans)}")
+    return {"status": "OK", "scans": matching_scans}
 
 
 def handle_swap_scan(ui_instance, request: dict) -> dict:
