@@ -2,6 +2,8 @@ import curses
 import logging
 import subprocess
 from typing import Any, List, Tuple
+
+from config.constants import BASE_DIR
 from tools.helpers.sql_utils import get_founds_from_hcxtool
 
 
@@ -239,7 +241,7 @@ class NetConnectSubmenu:
             return
 
         # retrieve found networks from the database
-        founds = get_founds_from_hcxtool(self.tool.base_dir)
+        founds = get_founds_from_hcxtool(BASE_DIR)
         # build a dictionary mapping SSID to key
         founds_dict = {record[4]: record[8] for record in founds if len(record) > 8 and record[4]}
         self.logger.debug(f"found networks in hcxtool db: {founds_dict}")
