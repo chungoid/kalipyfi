@@ -25,7 +25,15 @@ class IPCClient:
                     message_str = pack_message(message)
                     self.logger.debug(f"Sending message: {message_str}")
                     client.send(message_str.encode())
-                    response_bytes = client.recv(1024)
+
+                    # read til no more data
+                    response_bytes = b""
+                    while True:
+                        part = client.recv(4096)
+                        if not part:
+                            break
+                        response_bytes += part
+
                     response_str = response_bytes.decode().strip()
                     self.logger.debug(f"Received response: {response_str}")
                     return unpack_message(response_str)
