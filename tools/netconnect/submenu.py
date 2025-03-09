@@ -319,12 +319,41 @@ class NetConnectSubmenu:
             parent_win.refresh()
             parent_win.getch()
 
+
+    def launch_disconnect(self, parent_win) -> None:
+        """
+        Disconnects the network on a selected interface.
+          1. Prompts the user to select an interface.
+          2. Calls the tool’s disconnect() method.
+        """
+        # reset selected interface
+        self.tool.selected_interface = None
+
+        selected_iface = self.select_interface(parent_win)
+        if not selected_iface:
+            self.logger.debug("No interface selected; aborting disconnect.")
+            return
+
+        self.tool.selected_interface = selected_iface
+
+        parent_win.clear()
+        parent_win.addstr(0, 0, f"Disconnecting {selected_iface}...")
+        parent_win.refresh()
+        try:
+            self.tool.disconnect()
+            parent_win.addstr(1, 0, "Disconnected successfully.")
+        except Exception as e:
+            parent_win.addstr(1, 0, f"Error disconnecting: {e}")
+        parent_win.refresh()
+        parent_win.getch()
+
     def __call__(self, stdscr) -> None:
         """
         Launches the NetConnect submenu.
         Main options:
-          1. Connect
-          2. Connect from Founds
+          1. Manual Connect
+          2. Auto-Connect
+          3. Disconnect
           0. Back
         """
         curses.curs_set(0)
@@ -338,8 +367,8 @@ class NetConnectSubmenu:
         submenu_win.clear()
         submenu_win.refresh()
 
-        menu_items = ["Manual Connect", "Auto-Connect", "Back"]
-        numbered_menu = [f"[{i+1}] {item}" for i, item in enumerate(menu_items[:-1])]
+        menu_items = ["Manual Connect", "Auto-Connect", "Disconnect", "Back"]
+        numbered_menu = [f"[{i + 1}] {item}" for i, item in enumerate(menu_items[:-1])]
         numbered_menu.append("[0] Back")
 
         while True:
@@ -353,7 +382,10 @@ class NetConnectSubmenu:
                 self.launch_connect(submenu_win)
             elif ch == "2":
                 self.launch_connect_from_founds(submenu_win)
+            elif ch == "3":
+                self.launch_disconnect(submenu_win)
             elif ch == "0" or key == 27:
                 break
             submenu_win.clear()
             submenu_win.refresh()
+

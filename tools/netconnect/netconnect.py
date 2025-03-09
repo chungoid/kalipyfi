@@ -107,3 +107,35 @@ class NetConnectTool(Tool):
 
         self.logger.info("Connected to network using wpa_supplicant.")
 
+    def disconnect(self) -> None:
+        """
+        Disconnects the network on the selected interface by:
+          1. Releasing the DHCP lease.
+          2. Killing any wpa_supplicant process running on that interface.
+        """
+        if not self.selected_interface:
+            self.logger.error("No interface selected for disconnecting!")
+            return
+
+        iface = self.selected_interface
+
+        # release dhcp lease
+        try:
+            subprocess.check_call(
+                ["dhclient", "-r", iface],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            self.logger.info(f"Released DHCP lease on {iface}.")
+        except Exception as e:
+            self.logger.error(f"Error releasing DHCP lease on {iface}: {e}")
+
+        # kill wpa_supplicant for interface
+        try:
+            pkill_cmd = f"pkill -f 'wpa_supplicant.*-i {iface}'"
+            subprocess.check_call(pkill_cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.logger.info(f"Killed wpa_supplicant on {iface}.")
+        except Exception as e:
+            self.logger.error(f"Error killing wpa_supplicant on {iface}: {e}")
+
+

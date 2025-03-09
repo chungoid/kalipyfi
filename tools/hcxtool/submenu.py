@@ -65,7 +65,7 @@ class HcxToolSubmenu:
             The selected option (the original string from menu_items), or "back" if cancelled.
         """
         h, w = parent_win.getmaxyx()
-        # Reserve 6 lines for borders, title, and instructions.
+        # reserve 6 lines for borders, title, and instructions
         max_items = max(h - 6, 1)
         total_items = len(menu_items)
         total_pages = (total_items + max_items - 1) // max_items
@@ -232,7 +232,7 @@ class HcxToolSubmenu:
 
         selected_scan = scans[selected_index]
 
-        # Present secondary menu: Swap, Stop, Cancel.
+        # present secondary menu: Swap, Stop, Cancel
         parent_win.clear()
         secondary_menu = ["Swap", "Stop", "Cancel"]
         sec_menu_items = [f"[{i + 1}] {item}" for i, item in enumerate(secondary_menu)]
