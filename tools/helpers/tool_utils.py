@@ -1,4 +1,8 @@
+import logging
+import subprocess
 from datetime import datetime, timedelta
+from typing import List, Tuple
+
 
 def format_scan_display(scan: dict) -> str:
     """
@@ -51,3 +55,45 @@ def format_scan_display(scan: dict) -> str:
         elapsed_str = "N/A"
 
     return f"{tool_str} | {interface_str} | {preset_desc} | {elapsed_str}"
+
+def get_connected_interfaces(logger: logging.Logger) -> List[str]:
+    """
+    Uses nmcli to retrieve a list of devices that are currently in the 'connected' state.
+    Returns a list of interface names.
+    """
+    cmd = ["nmcli", "-t", "-f", "DEVICE,STATE", "device"]
+    try:
+        output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True)
+    except Exception as e:
+        logger.error(f"Error retrieving connected interfaces: {e}")
+        return []
+    connected = []
+    for line in output.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 2:
+            device, state = parts[0].strip(), parts[1].strip()
+            if state.lower() == "connected":
+                connected.append(device)
+    logger.debug(f"Connected interfaces: {connected}")
+    return connected
+
+def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str, str]]:
+    """
+    Uses nmcli to scan for available networks on the specified interface.
+    Returns a list of tuples in the form (SSID, SECURITY).
+    """
+    cmd = ["sudo", "nmcli", "-t", "-f", "SSID,SECURITY", "device", "wifi", "list", "ifname", interface]
+    try:
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+    except Exception as e:
+        logger.error(f"nmcli scan failed: {e}")
+        return []
+    networks = []
+    for line in output.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 2:
+            ssid = parts[0].strip()
+            security = parts[1].strip()
+            networks.append((ssid, security))
+    return networks
+

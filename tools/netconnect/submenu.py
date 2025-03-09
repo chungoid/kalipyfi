@@ -1,31 +1,11 @@
 import curses
 import logging
-import subprocess
 from typing import Any, List, Tuple
 
 # local
 from tools.helpers.sql_utils import get_founds_ssid_and_key
+from tools.helpers.tool_utils import get_connected_interfaces, get_wifi_networks
 
-
-def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str, str]]:
-    """
-    Uses nmcli to scan for available networks on the specified interface.
-    Returns a list of tuples in the form (SSID, SECURITY).
-    """
-    cmd = ["sudo", "nmcli", "-t", "-f", "SSID,SECURITY", "device", "wifi", "list", "ifname", interface]
-    try:
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
-    except Exception as e:
-        logger.error(f"nmcli scan failed: {e}")
-        return []
-    networks = []
-    for line in output.splitlines():
-        parts = line.split(":")
-        if len(parts) >= 2:
-            ssid = parts[0].strip()
-            security = parts[1].strip()  # '--' indicates open network
-            networks.append((ssid, security))
-    return networks
 
 class NetConnectSubmenu:
     def __init__(self, tool_instance):
@@ -119,6 +99,22 @@ class NetConnectSubmenu:
             parent_win.getch()
             return None
         selection = self.draw_paginated_menu(parent_win, "Select Interface", available)
+        if selection == "back":
+            return None
+        return selection
+
+    def select_connected_interface(self, parent_win) -> Any:
+        """
+        Presents a paginated menu of currently connected interfaces using get_connected_interfaces().
+        """
+        connected = get_connected_interfaces(self.logger)
+        if not connected:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No connected interfaces found!")
+            parent_win.refresh()
+            parent_win.getch()
+            return None
+        selection = self.draw_paginated_menu(parent_win, "Select Connected Interface", connected)
         if selection == "back":
             return None
         return selection
@@ -319,19 +315,14 @@ class NetConnectSubmenu:
             parent_win.refresh()
             parent_win.getch()
 
-
     def launch_disconnect(self, parent_win) -> None:
         """
-        Disconnects the network on a selected interface.
-          1. Prompts the user to select an interface.
-          2. Calls the tool’s disconnect() method.
+        Disconnects the network on a selected (currently connected) interface.
         """
-        # reset selected interface
-        self.tool.selected_interface = None
-
-        selected_iface = self.select_interface(parent_win)
+        # only show connected interfaces
+        selected_iface = self.select_connected_interface(parent_win)
         if not selected_iface:
-            self.logger.debug("No interface selected; aborting disconnect.")
+            self.logger.debug("No connected interface selected; aborting disconnect.")
             return
 
         self.tool.selected_interface = selected_iface
