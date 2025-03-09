@@ -242,9 +242,11 @@ class NetConnectSubmenu:
         founds = get_founds_from_hcxtool(self.tool.base_dir)
         # build a dictionary mapping SSID to key
         founds_dict = {record[4]: record[8] for record in founds if len(record) > 8 and record[4]}
+        self.logger.debug(f"found networks in hcxtool db: {founds_dict}")
 
         # filter scan networks to those whose SSID is in founds_dict
         filtered_networks = [(ssid, sec) for ssid, sec in scan_networks if ssid in founds_dict]
+        self.logger.debug(f"filtered networks from nmcli scan & founds_dict: {filtered_networks}")
         if not filtered_networks:
             parent_win.clear()
             parent_win.addstr(0, 0, "No found networks are currently available!")
