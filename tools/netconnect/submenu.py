@@ -3,7 +3,7 @@ import logging
 import subprocess
 from typing import Any, List, Tuple
 
-from config.constants import BASE_DIR
+# local
 from tools.helpers.sql_utils import get_founds_ssid_and_key
 
 
@@ -222,24 +222,24 @@ class NetConnectSubmenu:
           5. Auto-fill the SSID and password (key) based on the found records.
           6. Launch the connection.
         """
-        # Reset selections.
+        # reset selections
         self.tool.selected_interface = None
         self.tool.selected_network = None
         self.tool.network_password = None
 
-        # Step 1: Select interface.
+        # select interface
         selected_iface = self.select_interface(parent_win)
         if not selected_iface:
             self.logger.debug("No interface selected; aborting connect-from-founds.")
             return
         self.tool.selected_interface = selected_iface
 
-        # Show message: scanning for networks.
+        # show message: scanning for networks
         parent_win.clear()
         parent_win.addstr(0, 0, f"Scanning for networks on {selected_iface}...")
         parent_win.refresh()
 
-        # Step 2: Scan for networks.
+        # scan for networks
         scan_networks = get_wifi_networks(selected_iface, self.logger)
         self.logger.debug(f"Networks found from scan: {scan_networks}")
         if not scan_networks:
@@ -249,12 +249,12 @@ class NetConnectSubmenu:
             parent_win.getch()
             return
 
-        # Show message: loading found networks from DB.
+        # show message: loading found networks from DB
         parent_win.clear()
         parent_win.addstr(0, 0, "Loading found networks from database...")
         parent_win.refresh()
 
-        # Step 3: Retrieve found networks from the database.
+        # retrieve found networks from the database
         from config.constants import BASE_DIR
         founds = get_founds_ssid_and_key(BASE_DIR)
         self.logger.debug(f"Raw founds (SSID, key): {founds}")
@@ -264,11 +264,11 @@ class NetConnectSubmenu:
             parent_win.refresh()
             parent_win.getch()
             return
-        # Build a dictionary mapping SSID to key.
+        # build a dictionary mapping SSID to key
         founds_dict = dict(founds)
         self.logger.debug(f"Found networks in DB: {founds_dict}")
 
-        # Step 4: Filter scan results to only those networks whose SSIDs are in founds_dict.
+        # Step 4: Filter scan results to only those networks whose SSIDs are in founds_dict
         filtered_networks = [(ssid, sec) for ssid, sec in scan_networks if ssid in founds_dict]
         self.logger.debug(f"Filtered networks from scan matching founds: {filtered_networks}")
         if not filtered_networks:
@@ -278,7 +278,7 @@ class NetConnectSubmenu:
             parent_win.getch()
             return
 
-        # Step 5: Let the user choose from the filtered networks.
+        # let the user choose from the filtered networks
         menu_items = []
         for ssid, security in filtered_networks:
             sec_str = " (Secured)" if security and security != "--" else " (Open)"
@@ -299,13 +299,13 @@ class NetConnectSubmenu:
             self.logger.debug("No network selected; aborting connect-from-founds.")
             return
 
-        # Set the tool's selected network and auto-fill the password.
+        # set the tool's selected network and auto-fill the password
         self.tool.selected_network = chosen_ssid
         auto_password = founds_dict.get(chosen_ssid, "")
         self.tool.network_password = auto_password
         self.logger.debug(f"Auto-filled password for '{chosen_ssid}': {auto_password}")
 
-        # Step 6: Confirm and launch the connection.
+        # confirm and launch the connection
         parent_win.clear()
         confirm_msg = f"Connecting to '{chosen_ssid}' on {selected_iface} (from founds)..."
         parent_win.addstr(0, 0, confirm_msg)

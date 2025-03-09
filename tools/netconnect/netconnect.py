@@ -3,7 +3,7 @@ import subprocess
 import os
 import logging
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 
 from tools.netconnect.submenu import NetConnectSubmenu
 from tools.tools import Tool
