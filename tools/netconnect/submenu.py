@@ -51,7 +51,7 @@ def get_founds_from_hcxtool(basedir: Path) -> list:
         conn.close()
 
 
-class NetConnectToolSubmenu:
+class NetConnectSubmenu:
     def __init__(self, tool_instance):
         """
         Initialize the submenu for NetConnectTool.
