@@ -25,7 +25,7 @@ class NetConnectTool(Tool):
         self.logger = logging.getLogger(self.name.upper())
         self.submenu = NetConnectSubmenu(self)
         # These are set via the submenu
-        self.selected_interface = None  # e.g., "wlan0"
+        self.selected_interface = None  # "wlan0, wlan1, etc. from config.yaml"
         self.selected_network = None  # SSID of the network
         self.network_password = None  # Password (if needed)
 
@@ -39,7 +39,8 @@ class NetConnectTool(Tool):
             return None
         cmd = ["wpa_passphrase", self.selected_network, self.network_password]
         try:
-            config = subprocess.check_output(cmd, text=True)
+            # capture output
+            config = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
             self.logger.debug("Generated wpa_supplicant config using wpa_passphrase.")
             return config
         except Exception as e:
@@ -61,13 +62,13 @@ class NetConnectTool(Tool):
             self.logger.error("Interface or network not specified!")
             return
 
-        # Generate wpa_supplicant configuration
+        # generate wpa_supplicant configuration
         config_text = self.build_wpa_config()
         if config_text is None:
             self.logger.error("Failed to generate wpa_supplicant configuration.")
             return
 
-        # Write the config to a temporary file
+        # write the config to temp file
         try:
             with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmpfile:
                 tmpfile.write(config_text)
@@ -77,27 +78,27 @@ class NetConnectTool(Tool):
             self.logger.error(f"Error writing temporary config file: {e}")
             return
 
-        # Launch wpa_supplicant in the background
+        # launch wpa_supplicant in the background
         ws_cmd = ["wpa_supplicant", "-B", "-i", self.selected_interface, "-c", tmpfile_path]
         try:
-            subprocess.check_call(ws_cmd)
+            subprocess.check_call(ws_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.logger.info(f"wpa_supplicant launched on {self.selected_interface}")
         except Exception as e:
             self.logger.error(f"Error launching wpa_supplicant: {e}")
             os.unlink(tmpfile_path)
             return
 
-        # Obtain an IP address using dhclient
+        # obtain an IP address using dhclient
         try:
-            subprocess.check_call(["dhclient", self.selected_interface])
+            subprocess.check_call(["dhclient", self.selected_interface],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.logger.info("dhclient ran successfully; IP address obtained.")
         except Exception as e:
             self.logger.error(f"Error running dhclient: {e}")
-            # Optionally, kill wpa_supplicant here if needed.
             os.unlink(tmpfile_path)
             return
 
-        # Clean up the temporary config file
+        # clean up temp file
         try:
             os.unlink(tmpfile_path)
             self.logger.debug("Temporary wpa_supplicant config file removed.")
@@ -105,3 +106,4 @@ class NetConnectTool(Tool):
             self.logger.error(f"Error removing temporary config file: {e}")
 
         self.logger.info("Connected to network using wpa_supplicant.")
+
