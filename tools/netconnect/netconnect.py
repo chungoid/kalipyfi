@@ -1,12 +1,11 @@
+import tempfile
+import subprocess
+import os
 import logging
-import time
 from pathlib import Path
-from typing import List, Optional, Any, Dict
-
-# local
+from typing import List, Optional, Dict, Any
 from tools.tools import Tool
 from utils.tool_registry import register_tool
-from tools.netconnect.submenu import NetConnectSubmenu
 
 
 @register_tool("netconnect")
@@ -15,76 +14,91 @@ class NetConnectTool(Tool):
                  interfaces: Optional[Any] = None, settings: Optional[Dict[str, Any]] = None):
         super().__init__(
             name="netconnect",
-            description="Tool for connecting to a network using nmcli",
+            description="Tool for connecting to a network using wpa_supplicant",
             base_dir=base_dir,
             config_file=config_file,
             interfaces=interfaces,
             settings=settings
         )
         self.logger = logging.getLogger(self.name.upper())
-        self.submenu = NetConnectSubmenu(self)
         # These are set via the submenu
         self.selected_interface = None  # e.g., "wlan0"
         self.selected_network = None  # SSID of the network
-        self.network_password = None  # password if needed
+        self.network_password = None  # Password (if needed)
 
-    def build_command(self) -> List[str]:
+    def build_wpa_config(self) -> Optional[str]:
         """
-        Build the nmcli command to connect to a network.
-        Basic command:
-            nmcli device wifi connect <SSID> ifname <interface> [password <password>]
+        Uses wpa_passphrase to generate a wpa_supplicant configuration for the selected network.
+        Returns the configuration as a string, or None if an error occurs.
         """
-        if not self.selected_interface or not self.selected_network:
-            self.logger.error("Interface or network not specified!")
-            return []
-
-        # Build the base nmcli connection command.
-        cmd = ["nmcli", "device", "wifi", "connect",
-               self.selected_network, "ifname", self.selected_interface]
-
-        # Append password if provided.
-        if self.network_password:
-            cmd.extend(["password", self.network_password])
-
-        self.logger.debug("Built nmcli command: " + " ".join(cmd))
-        return cmd
+        if not self.selected_network or self.network_password is None:
+            self.logger.error("Missing SSID or password for generating wpa_supplicant config.")
+            return None
+        cmd = ["wpa_passphrase", self.selected_network, self.network_password]
+        try:
+            config = subprocess.check_output(cmd, text=True)
+            self.logger.debug("Generated wpa_supplicant config using wpa_passphrase.")
+            return config
+        except Exception as e:
+            self.logger.error(f"Error generating wpa_supplicant config: {e}")
+            return None
 
     def run(self, profile=None) -> None:
         """
-        Builds the nmcli connection command, converts it to a dictionary,
-        and sends it via IPC using the CONNECT_NETWORK action.
-        """
-        self.logger.info("Starting network connection procedure via nmcli.")
+        Connect to the network using wpa_supplicant.
 
-        cmd_list = self.build_command()
-        if not cmd_list:
-            self.logger.error("Unable to build nmcli command, aborting connection attempt.")
+        Steps:
+         1. Generate a temporary wpa_supplicant configuration using wpa_passphrase.
+         2. Write the configuration to a temporary file.
+         3. Launch wpa_supplicant in the background on the selected interface.
+         4. Run a DHCP client (dhclient) to obtain an IP address.
+         5. Clean up the temporary config file.
+        """
+        if not self.selected_interface or not self.selected_network:
+            self.logger.error("Interface or network not specified!")
             return
 
-        # Convert the command list to a structured dictionary.
-        cmd_dict = self.cmd_to_dict(cmd_list)
-        self.logger.debug(f"Command dictionary: {cmd_dict}")
+        # Generate wpa_supplicant configuration
+        config_text = self.build_wpa_config()
+        if config_text is None:
+            self.logger.error("Failed to generate wpa_supplicant configuration.")
+            return
 
-        # Use a pane title based on the interface and network.
-        pane_title = f"{self.selected_interface}_{self.selected_network}"
+        # Write the config to a temporary file
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmpfile:
+                tmpfile.write(config_text)
+                tmpfile_path = tmpfile.name
+            self.logger.debug(f"Temporary wpa_supplicant config written to {tmpfile_path}")
+        except Exception as e:
+            self.logger.error(f"Error writing temporary config file: {e}")
+            return
 
-        # Build the IPC message with a custom action "CONNECT_NETWORK".
-        ipc_message = {
-            "action": "CONNECT_NETWORK",
-            "tool": self.name,
-            "network": self.selected_network,
-            "command": cmd_dict,
-            "interface": self.selected_interface,
-            "timestamp": time.time()
-        }
-        self.logger.debug("Sending IPC connection command: %s", ipc_message)
+        # Launch wpa_supplicant in the background
+        ws_cmd = ["wpa_supplicant", "-B", "-i", self.selected_interface, "-c", tmpfile_path]
+        try:
+            subprocess.check_call(ws_cmd)
+            self.logger.info(f"wpa_supplicant launched on {self.selected_interface}")
+        except Exception as e:
+            self.logger.error(f"Error launching wpa_supplicant: {e}")
+            os.unlink(tmpfile_path)
+            return
 
-        # Send the IPC message.
-        from utils.ipc_client import IPCClient
-        client = IPCClient()
-        response = client.send(ipc_message)
+        # Obtain an IP address using dhclient
+        try:
+            subprocess.check_call(["dhclient", self.selected_interface])
+            self.logger.info("dhclient ran successfully; IP address obtained.")
+        except Exception as e:
+            self.logger.error(f"Error running dhclient: {e}")
+            # Optionally, kill wpa_supplicant here if needed.
+            os.unlink(tmpfile_path)
+            return
 
-        if isinstance(response, dict) and response.get("status", "").startswith("CONNECT_NETWORK_OK"):
-            self.logger.info("Network connect command sent successfully via IPC.")
-        else:
-            self.logger.error("Failed to send network connect command via IPC. Response: %s", response)
+        # Clean up the temporary config file
+        try:
+            os.unlink(tmpfile_path)
+            self.logger.debug("Temporary wpa_supplicant config file removed.")
+        except Exception as e:
+            self.logger.error(f"Error removing temporary config file: {e}")
+
+        self.logger.info("Connected to network using wpa_supplicant.")
