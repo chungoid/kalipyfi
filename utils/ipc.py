@@ -9,7 +9,7 @@ from common.ipc_protocol import (
     pack_message, unpack_message, handle_ping, handle_get_state,
     handle_ui_ready, handle_register_process, handle_get_scans,
     handle_send_scan, handle_swap_scan, handle_update_lock, handle_debug_status,
-    handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui,
+    handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui, handle_connect_network
 )
 from utils.helper import publish_socket_path, get_unique_socket_path
 
@@ -23,6 +23,7 @@ GET_SCANS = IPC_CONSTANTS["actions"]["GET_SCANS"]
 SEND_SCAN = IPC_CONSTANTS["actions"]["SEND_SCAN"]
 SWAP_SCAN = IPC_CONSTANTS["actions"]["SWAP_SCAN"]
 STOP_SCAN = IPC_CONSTANTS["actions"]["STOP_SCAN"]
+CONNECT_NETWORK = IPC_CONSTANTS["actions"]["CONNECT_NETWORK"]
 UPDATE_LOCK = IPC_CONSTANTS["actions"]["UPDATE_LOCK"]
 REMOVE_LOCK = IPC_CONSTANTS["actions"]["REMOVE_LOCK"]
 KILL_UI = IPC_CONSTANTS["actions"]["KILL_UI"]
@@ -124,6 +125,8 @@ class IPCServer:
                 response = handle_send_scan(self.ui_instance, request)
             elif action == SWAP_SCAN:
                 response = handle_swap_scan(self.ui_instance, request)
+            elif action == CONNECT_NETWORK:
+                response = handle_connect_network(self.ui_instance, request)
             elif action == UPDATE_LOCK:
                 response = handle_update_lock(self.ui_instance, request)
             elif action == REMOVE_LOCK:

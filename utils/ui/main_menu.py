@@ -23,6 +23,7 @@ from utils.ipc import IPCServer
 # import all tool modules so they load via decorators
 from utils.tool_registry import tool_registry
 from tools.hcxtool import hcxtool
+from tools.netconnect import netconnect
 
 
 def draw_menu(stdscr, title, menu_items):

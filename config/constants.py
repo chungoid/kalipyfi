@@ -20,6 +20,7 @@ CLEANUP_SCRIPT = TMUXP_DIR / "cleanup.py"
 
 TOOL_PATHS = {
     "hcxtool": TOOLS_DIR / "hcxtool",
+    "netconnect": TOOLS_DIR / "netconnect",
 }
 
 
@@ -55,6 +56,7 @@ IPC_CONSTANTS = {
         "SEND_SCAN": "SEND_SCAN",
         "SWAP_SCAN": "SWAP_SCAN",
         "STOP_SCAN": "STOP_SCAN",
+        "CONNECT_NETWORK": "CONNECT_NETWORK",
         "UPDATE_LOCK": "UPDATE_LOCK",
         "REMOVE_LOCK": "REMOVE_LOCK",
         "KILL_UI": "KILL_UI",

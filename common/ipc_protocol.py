@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 
 from common.process_manager import process_manager
 # local
@@ -259,6 +260,53 @@ def handle_stop_scan(ui_instance, request: dict) -> dict:
     except Exception as e:
         logger.exception("handle_stop_scan: Exception occurred")
         return {ERROR_KEY: f"STOP_SCAN error: {e}"}
+
+
+def handle_connect_network(ui_instance, request: dict) -> dict:
+    """
+    Handles the CONNECT_NETWORK command by launching the nmcli connection command.
+
+    Expected request format:
+      {
+         "action": "CONNECT_NETWORK",
+         "tool": <tool_name>,
+         "network": <SSID>,
+         "command": {
+             "executable": "nmcli",
+             "arguments": ["device", "wifi", "connect", <SSID>, "ifname", <interface>, ...]
+         },
+         "interface": <interface>,
+         "timestamp": <timestamp>
+      }
+
+    The handler launches the command in a dedicated window/pane and returns a response
+    with the pane_id if successful.
+    """
+    logger = logging.getLogger("ipc_proto:handle_connect_network")
+    logger.debug("handle_connect_network: Received request: %s", request)
+
+    tool_name = request.get("tool")
+    network = request.get("network")
+    cmd_dict = request.get("command")
+    interface = request.get("interface", "unknown")
+    timestamp = request.get("timestamp", time.time())
+
+    if not all([tool_name, network, cmd_dict]):
+        logger.error("handle_connect_network: Missing parameters")
+        return {ERROR_KEY: "Missing parameters for CONNECT_NETWORK"}
+
+    try:
+        # Reuse the UI manager method to allocate a new window/pane.
+        pane_id = ui_instance.allocate_scan_window(tool_name, network, cmd_dict, interface, timestamp)
+        if pane_id:
+            logger.debug("handle_connect_network: Successfully allocated pane: %s", pane_id)
+            return {"status": "CONNECT_NETWORK_OK", "pane_id": pane_id}
+        else:
+            logger.error("handle_connect_network: Failed to allocate connection pane")
+            return {ERROR_KEY: "Failed to allocate connection pane"}
+    except Exception as e:
+        logger.exception("handle_connect_network: Exception occurred")
+        return {ERROR_KEY: str(e)}
 
 
 def handle_update_lock(ui_instance, request: dict) -> dict:
