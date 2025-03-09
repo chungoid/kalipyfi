@@ -3,16 +3,11 @@ import logging
 import subprocess
 from typing import Any, List, Tuple
 
-import curses
-import logging
-import subprocess
-from typing import Any, List, Tuple
-
+# Assuming get_wifi_networks is defined as before:
 def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str, str]]:
     """
     Uses nmcli to scan for available networks on the specified interface.
     Returns a list of tuples in the form (SSID, SECURITY).
-    Uses the terse output with selected fields for easier parsing.
     """
     cmd = ["sudo", "nmcli", "-t", "-f", "SSID,SECURITY", "device", "wifi", "list", "ifname", interface]
     try:
@@ -25,12 +20,38 @@ def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str,
         parts = line.split(":")
         if len(parts) >= 2:
             ssid = parts[0].strip()
-            security = parts[1].strip()  # e.g., '--' indicates an open network
+            security = parts[1].strip()  # '--' indicates open network
             networks.append((ssid, security))
     return networks
 
 
-class NetConnectSubmenu:
+# Import your founds helper:
+from pathlib import Path
+from config.constants import BASE_DIR
+from tools.hcxtool.db import get_founds  # Or import get_founds_from_hcxtool if that wrapper exists
+
+def get_founds_from_hcxtool(basedir: Path) -> list:
+    """
+    Opens a database connection using basedir and returns found records from hcxtool.
+    Assumes that the founds have a non-empty key and that the SSID is at index 4.
+    """
+    from database.db_manager import get_db_connection
+    conn = get_db_connection(basedir)
+    try:
+        query = """
+            SELECT id, bssid, date, time, ssid, encryption, latitude, longitude, key 
+            FROM hcxtool 
+            WHERE key IS NOT NULL AND key != ''
+        """
+        # Use your helper fetch_all from db_manager
+        from database.db_manager import fetch_all
+        founds = fetch_all(conn, query)
+        return founds
+    finally:
+        conn.close()
+
+
+class NetConnectToolSubmenu:
     def __init__(self, tool_instance):
         """
         Initialize the submenu for NetConnectTool.
@@ -41,8 +62,7 @@ class NetConnectSubmenu:
 
     def draw_menu(self, parent_win, title: str, menu_items: List[str]) -> Any:
         """
-        Draws a centered menu with a title and list of options in the given parent window.
-        Returns the created window.
+        Draws a centered menu with a title and list of options.
         """
         parent_win.clear()
         h, w = parent_win.getmaxyx()
@@ -61,10 +81,8 @@ class NetConnectSubmenu:
 
     def draw_paginated_menu(self, parent_win, title: str, menu_items: List[str]) -> str:
         """
-        Draws a paginated menu for a list of options.
-        Navigation is done via 'n' (next) and 'p' (previous) keys.
-        A "[0] Back" option is always included.
-        Returns the selected option (the original option string) or "back" if cancelled.
+        Draws a paginated menu. Navigation via 'n' (next) and 'p' (previous) keys.
+        Returns the selected option or "back" if cancelled.
         """
         h, w = parent_win.getmaxyx()
         max_items = max(h - 6, 1)
@@ -76,8 +94,6 @@ class NetConnectSubmenu:
             start_index = current_page * max_items
             end_index = start_index + max_items
             page_items = menu_items[start_index:end_index]
-
-            # Prefix each item with its number on this page.
             display_items = [f"[{i+1}] {option}" for i, option in enumerate(page_items)]
             if total_pages > 1:
                 pagination_info = f"Page {current_page+1}/{total_pages} (n: next, p: previous)"
@@ -106,8 +122,7 @@ class NetConnectSubmenu:
 
     def select_interface(self, parent_win) -> Any:
         """
-        Presents a paginated menu of available interfaces (from self.tool.interfaces['wlan']).
-        Returns the selected interface name or None if cancelled.
+        Presents a paginated menu of available interfaces (from self.tool.interfaces["wlan"]).
         """
         interfaces = self.tool.interfaces.get("wlan", [])
         available = [iface.get("name") for iface in interfaces if iface.get("name")]
@@ -124,9 +139,8 @@ class NetConnectSubmenu:
 
     def select_network(self, parent_win) -> Tuple[Any, Any]:
         """
-        Uses nmcli to scan for WiFi networks on the selected interface.
-        Displays the available networks using a paginated menu and returns a tuple:
-        (selected SSID, security flag). Returns (None, None) if cancelled.
+        Scans for networks using nmcli on the selected interface and displays them.
+        Returns a tuple (SSID, SECURITY) or (None, None) if cancelled.
         """
         if not self.tool.selected_interface:
             self.logger.error("Interface not selected for scanning networks.")
@@ -140,7 +154,6 @@ class NetConnectSubmenu:
             return (None, None)
         menu_items = []
         for ssid, security in networks:
-            # Indicate if the network is secured (assuming '--' means open)
             sec_str = " (Secured)" if security and security != "--" else " (Open)"
             menu_items.append(f"{ssid}{sec_str}")
         selection = self.draw_paginated_menu(parent_win, "Available Networks", menu_items)
@@ -150,8 +163,7 @@ class NetConnectSubmenu:
         chosen_security = None
         for ssid, security in networks:
             sec_str = " (Secured)" if security and security != "--" else " (Open)"
-            entry = f"{ssid}{sec_str}"
-            if entry == selection:
+            if f"{ssid}{sec_str}" == selection:
                 chosen_ssid = ssid
                 chosen_security = security
                 break
@@ -159,8 +171,7 @@ class NetConnectSubmenu:
 
     def prompt_for_password(self, parent_win, security: str) -> str:
         """
-        Prompts the user for a password if the chosen network is secured.
-        Returns the entered password.
+        Prompts for a password if the network is secured.
         """
         if not security or security == "--":
             return ""
@@ -177,13 +188,12 @@ class NetConnectSubmenu:
 
     def launch_connect(self, parent_win) -> None:
         """
-        Handles the connection process:
-          1. Select an interface.
-          2. Scan and select a network.
-          3. Prompt for a password if needed.
-          4. Launch the connection via the tool's run() method.
+        Standard connection process:
+          1. Select interface.
+          2. Scan for networks.
+          3. Prompt for password if needed.
+          4. Launch connection via self.tool.run().
         """
-        # Clear previous selections.
         self.tool.selected_interface = None
         self.tool.selected_network = None
         self.tool.network_password = None
@@ -200,7 +210,6 @@ class NetConnectSubmenu:
             return
         self.tool.selected_network = chosen_ssid
 
-        # Prompt for a password if the network is secured.
         if chosen_security and chosen_security != "--":
             pwd = self.prompt_for_password(parent_win, chosen_security)
             self.tool.network_password = pwd
@@ -220,15 +229,94 @@ class NetConnectSubmenu:
             parent_win.refresh()
             parent_win.getch()
 
+    def launch_connect_from_founds(self, parent_win) -> None:
+        """
+        Connect from Founds:
+          1. Select interface.
+          2. Scan for networks on the interface.
+          3. Retrieve "founds" from the hcxtool database.
+          4. Filter scan results to only those networks whose SSIDs appear in the founds.
+          5. Auto-fill the SSID and password (key) based on the found records.
+          6. Launch the connection.
+        """
+        self.tool.selected_interface = None
+        self.tool.selected_network = None
+        self.tool.network_password = None
+
+        selected_iface = self.select_interface(parent_win)
+        if not selected_iface:
+            self.logger.debug("No interface selected; aborting connect-from-founds.")
+            return
+        self.tool.selected_interface = selected_iface
+
+        scan_networks = get_wifi_networks(selected_iface, self.logger)
+        if not scan_networks:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No networks found from scan!")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # Retrieve found networks from the database.
+        founds = get_founds_from_hcxtool(self.tool.base_dir)
+        # Build a dictionary mapping SSID to key (password) from founds.
+        founds_dict = {record[4]: record[8] for record in founds if len(record) > 8 and record[4]}
+
+        # Filter scan networks to those whose SSID is in founds_dict.
+        filtered_networks = [(ssid, sec) for ssid, sec in scan_networks if ssid in founds_dict]
+        if not filtered_networks:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No found networks are currently available!")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        menu_items = []
+        for ssid, security in filtered_networks:
+            sec_str = " (Secured)" if security and security != "--" else " (Open)"
+            menu_items.append(f"{ssid}{sec_str}")
+        selection = self.draw_paginated_menu(parent_win, "Available Found Networks", menu_items)
+        if selection == "back":
+            return
+
+        chosen_ssid = None
+        #chosen_security = None
+        for ssid, security in filtered_networks:
+            sec_str = " (Secured)" if security and security != "--" else " (Open)"
+            if f"{ssid}{sec_str}" == selection:
+                chosen_ssid = ssid
+                #chosen_security = security
+                break
+        if not chosen_ssid:
+            self.logger.debug("No network selected; aborting connect-from-founds.")
+            return
+
+        self.tool.selected_network = chosen_ssid
+        # Auto-fill the password from the founds dictionary.
+        self.tool.network_password = founds_dict.get(chosen_ssid, "")
+
+        parent_win.clear()
+        confirm_msg = f"Connecting to '{chosen_ssid}' on {selected_iface} (from founds)..."
+        parent_win.addstr(0, 0, confirm_msg)
+        parent_win.refresh()
+        curses.napms(1500)
+        try:
+            self.tool.run()
+        except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error launching connection: {e}")
+            parent_win.refresh()
+            parent_win.getch()
+
     def __call__(self, stdscr) -> None:
         """
         Launches the NetConnect submenu.
-        Main options are:
+        Main options:
           1. Connect
+          2. Connect from Founds
           0. Back
         """
         curses.curs_set(0)
-        # Clear any previous selections.
         self.tool.selected_interface = None
         self.tool.selected_network = None
         self.tool.network_password = None
@@ -239,7 +327,7 @@ class NetConnectSubmenu:
         submenu_win.clear()
         submenu_win.refresh()
 
-        menu_items = ["Connect", "Back"]
+        menu_items = ["Manual Connect", "Auto-Connect", "Back"]
         numbered_menu = [f"[{i+1}] {item}" for i, item in enumerate(menu_items[:-1])]
         numbered_menu.append("[0] Back")
 
@@ -252,6 +340,8 @@ class NetConnectSubmenu:
                 continue
             if ch == "1":
                 self.launch_connect(submenu_win)
+            elif ch == "2":
+                self.launch_connect_from_founds(submenu_win)
             elif ch == "0" or key == 27:
                 break
             submenu_win.clear()

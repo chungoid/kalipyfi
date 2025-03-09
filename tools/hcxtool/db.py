@@ -52,3 +52,22 @@ def fetch_all_hcxtool_results(conn: sqlite3.Connection):
     """
     query = "SELECT * FROM hcxtool"
     return fetch_all(conn, query)
+
+
+def get_founds(conn: sqlite3.Connection) -> list:
+    """
+    Retrieves all records from the hcxtool table that have a non-empty key value.
+
+    Parameters:
+        conn (sqlite3.Connection): The connection to the hcxtool database.
+
+    Returns:
+        list: A list of tuples representing the found records. Each tuple includes:
+              (id, bssid, date, time, ssid, encryption, latitude, longitude, key)
+    """
+    query = """
+    SELECT id, bssid, date, time, ssid, encryption, latitude, longitude, key 
+    FROM hcxtool 
+    WHERE key IS NOT NULL AND key != ''
+    """
+    return fetch_all(conn, query)
