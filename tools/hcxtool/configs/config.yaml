@@ -12,44 +12,51 @@ interfaces:
   - description: client
     locked: true
     name: wlan3
+  - description: monitor
+    locked: false
+    name: wlan4
 presets:
   1:
-    description: aggressive
+    description: lead
     options:
-      autobpf: true
       --gpsd: true
       -A: true
       -F: true
+      autobpf: true
   2:
+    description: follow
+    options:
+      -A: true
+      -F: true
+      autobpf: true
+  3:
     description: passive
     options:
-      autobpf: true
-      --gpsd: true
       --attemptapmax: 0
+      --gpsd: true
       -F: true
-  3:
+      autobpf: true
+  4:
     description: silent
     options:
-      autobpf: true
-      --gpsd: true
       --attemptapmax: 0
       --disable_beacon: true
+      --gpsd: true
       -F: true
-  4:
+      autobpf: true
+  5:
     description: rca a
     options:
-      autobpf: true
-      --gpsd: true
       --rcascan: a
       -A: true
       -F: true
-  5:
+      autobpf: true
+  6:
     description: rca p
     options:
-      autobpf: true
-      --gpsd: true
       --rcascan: p
       -A: true
       -F: true
+      autobpf: true
 wpa-sec:
   api_key:
