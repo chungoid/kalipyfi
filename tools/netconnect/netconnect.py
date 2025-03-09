@@ -4,6 +4,8 @@ import os
 import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+
+from tools.netconnect.submenu import NetConnectSubmenu
 from tools.tools import Tool
 from utils.tool_registry import register_tool
 
@@ -21,6 +23,7 @@ class NetConnectTool(Tool):
             settings=settings
         )
         self.logger = logging.getLogger(self.name.upper())
+        self.submenu = NetConnectSubmenu(self)
         # These are set via the submenu
         self.selected_interface = None  # e.g., "wlan0"
         self.selected_network = None  # SSID of the network
