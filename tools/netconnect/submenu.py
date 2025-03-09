@@ -2,6 +2,8 @@ import curses
 import logging
 import subprocess
 from typing import Any, List, Tuple
+from tools.helpers.sql_utils import get_founds_from_hcxtool
+
 
 def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str, str]]:
     """
@@ -23,11 +25,6 @@ def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str,
             networks.append((ssid, security))
     return networks
 
-
-from pathlib import Path
-from tools.helpers.sql_utils import get_founds_from_hcxtool
-
-
 class NetConnectSubmenu:
     def __init__(self, tool_instance):
         """
@@ -36,6 +33,16 @@ class NetConnectSubmenu:
         self.tool = tool_instance
         self.logger = logging.getLogger("NetConnectToolSubmenu")
         self.logger.debug("NetConnectToolSubmenu initialized.")
+
+    def scan_networks(self) -> List[Tuple[str, str]]:
+        """
+        Scans for available networks using nmcli on the currently selected interface.
+        Returns a list of tuples in the form (SSID, SECURITY).
+        """
+        if not self.tool.selected_interface:
+            self.logger.error("No interface selected for scanning networks.")
+            return []
+        return get_wifi_networks(self.tool.selected_interface, self.logger)
 
     def draw_menu(self, parent_win, title: str, menu_items: List[str]) -> Any:
         """
@@ -116,13 +123,10 @@ class NetConnectSubmenu:
 
     def select_network(self, parent_win) -> Tuple[Any, Any]:
         """
-        Scans for networks using nmcli on the selected interface and displays them.
+        Scans for networks using the scan_networks method and displays them.
         Returns a tuple (SSID, SECURITY) or (None, None) if cancelled.
         """
-        if not self.tool.selected_interface:
-            self.logger.error("Interface not selected for scanning networks.")
-            return (None, None)
-        networks = get_wifi_networks(self.tool.selected_interface, self.logger)
+        networks = self.scan_networks()
         if not networks:
             parent_win.clear()
             parent_win.addstr(0, 0, "No WiFi networks found!")
