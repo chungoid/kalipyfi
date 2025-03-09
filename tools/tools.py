@@ -326,7 +326,7 @@ class Tool:
         d-m-h-m format, same pcapng/nmea file prefix
         :returns str: Default prefix
         """
-        return datetime.now().strftime("%d-%m_%H:%M")
+        return datetime.now().strftime("%m-%d_%H:%M:%S")
 
 
     #############################
