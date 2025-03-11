@@ -238,9 +238,15 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
 
 
 def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
-    logger = logging.getLogger("create_html_map_with_toggle")
+    """
+    Creates an HTML map with two layers:
+      - "All Scans": contains every valid scan (non-NaN, non-zero coordinates).
+      - "Scans with Keys": contains only scans with a valid (non-NaN, non-empty) key.
+    A layer control is added to allow toggling between these layers.
+    """
+    logger = logging.getLogger("create_html_map")
 
-    # Read the CSV file
+    # read results.csv
     try:
         df = pandas.read_csv(results_csv)
         logger.debug(f"Read CSV: {results_csv}, shape: {df.shape}")
@@ -248,7 +254,7 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
         logger.error(f"Error reading CSV {results_csv}: {e}")
         return
 
-    # Convert coordinate columns to float
+    # coord columns to float
     try:
         df["Latitude"] = df["Latitude"].astype(float)
         df["Longitude"] = df["Longitude"].astype(float)
@@ -257,12 +263,13 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
         logger.error(f"Error converting coordinates: {e}")
         return
 
-    # Drop rows with NaN in coordinates and filter out rows where either coordinate is 0.0
+    # remove nan
     initial_count = df.shape[0]
     df = df.dropna(subset=["Latitude", "Longitude"])
     after_dropna_count = df.shape[0]
     logger.debug(f"Dropped {initial_count - after_dropna_count} rows due to NaN in coordinates.")
 
+    # best way i've found to filter out 0's (missing coords) from hcxpcapngtool
     df_valid = df[(df["Latitude"] != 0.0) & (df["Longitude"] != 0.0)]
     logger.debug(f"After filtering zeros, valid entries: {df_valid.shape[0]}")
 
@@ -272,19 +279,19 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
 
     logger.debug(f"Sample valid entries:\n{df_valid.head()}")
 
-    # Compute map center from valid coordinates
+    # sets center based on all available coords
     avg_lat = df_valid["Latitude"].mean()
     avg_lon = df_valid["Longitude"].mean()
     logger.debug(f"Map center computed as: ({avg_lat}, {avg_lon})")
 
-    # Create the base folium map
+    # base
     m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
 
-    # Create two FeatureGroups: one for all scans, one for scans with keys.
+    # create layers
     fg_all = folium.FeatureGroup(name="All Scans", show=True)
     fg_keys = folium.FeatureGroup(name="Scans with Keys", show=False)
 
-    # Add markers to the appropriate groups
+    # Ensure pandas is imported for checking NaN values.
     for index, row in df_valid.iterrows():
         popup_content = (
             f"<strong>Date:</strong> {row.get('Date', '')}<br>"
@@ -296,27 +303,27 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
         )
         marker_location = [row["Latitude"], row["Longitude"]]
 
-        # Create marker for all scans
+        # all scans layer (shows all entries regardless of key)
         marker_all = folium.Marker(location=marker_location, popup=popup_content)
         fg_all.add_child(marker_all)
 
-        # If the Key field is non-empty, also add a separate marker to the keys group
-        if str(row.get("Key", "")).strip() != "":
+        # with keys layer, only shows scans with keys if toggled
+        key_val = row.get("Key", "")
+        if pandas.notna(key_val) and str(key_val).strip().lower() != "nan" and str(key_val).strip() != "":
             marker_key = folium.Marker(location=marker_location, popup=popup_content)
             fg_keys.add_child(marker_key)
             logger.debug(f"Added marker with key for {row.get('BSSID', 'N/A')} at {marker_location}")
 
-    # Add the FeatureGroups to the map
+    # add both layers
     m.add_child(fg_all)
     m.add_child(fg_keys)
-
-    # Add a LayerControl widget so the user can toggle layers
     m.add_child(folium.LayerControl())
 
-    # Save the map to an HTML file
+    # save
     html_path = results_csv.parent / output_html
     try:
         m.save(html_path)
         logger.info(f"Map saved to {html_path}")
     except Exception as e:
         logger.error(f"Error saving map to {html_path}: {e}")
+
