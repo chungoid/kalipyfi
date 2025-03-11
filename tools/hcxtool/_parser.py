@@ -238,9 +238,9 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
 
 
 def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
-    logger = logging.getLogger("create_html_map")
+    logger = logging.getLogger("create_html_map_with_toggle")
 
-    # read the CSV file
+    # Read the CSV file
     try:
         df = pandas.read_csv(results_csv)
         logger.debug(f"Read CSV: {results_csv}, shape: {df.shape}")
@@ -248,7 +248,7 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
         logger.error(f"Error reading CSV {results_csv}: {e}")
         return
 
-    # convert coordinate columns to float
+    # Convert coordinate columns to float
     try:
         df["Latitude"] = df["Latitude"].astype(float)
         df["Longitude"] = df["Longitude"].astype(float)
@@ -257,7 +257,7 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
         logger.error(f"Error converting coordinates: {e}")
         return
 
-    # filter out rows with NaN in coordinates and zeros
+    # Drop rows with NaN in coordinates and filter out rows where either coordinate is 0.0
     initial_count = df.shape[0]
     df = df.dropna(subset=["Latitude", "Longitude"])
     after_dropna_count = df.shape[0]
@@ -267,20 +267,24 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
     logger.debug(f"After filtering zeros, valid entries: {df_valid.shape[0]}")
 
     if df_valid.empty:
-        logger.error("No valid GPS entries found after filtering NaNs and zeros.")
+        logger.error("No valid GPS entries found after filtering.")
         return
 
     logger.debug(f"Sample valid entries:\n{df_valid.head()}")
 
-    # compute map center from valid coordinates
+    # Compute map center from valid coordinates
     avg_lat = df_valid["Latitude"].mean()
     avg_lon = df_valid["Longitude"].mean()
     logger.debug(f"Map center computed as: ({avg_lat}, {avg_lon})")
 
-    # create the folium map centered at computed coordinates
+    # Create the base folium map
     m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
 
-    # add markers to the map for each valid entry
+    # Create two FeatureGroups: one for all scans, one for scans with keys.
+    fg_all = folium.FeatureGroup(name="All Scans", show=True)
+    fg_keys = folium.FeatureGroup(name="Scans with Keys", show=False)
+
+    # Add markers to the appropriate groups
     for index, row in df_valid.iterrows():
         popup_content = (
             f"<strong>Date:</strong> {row.get('Date', '')}<br>"
@@ -290,14 +294,26 @@ def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
             f"<strong>Encryption:</strong> {row.get('Encryption', '')}<br>"
             f"<strong>Key:</strong> {row.get('Key', '')}"
         )
-        try:
-            marker_location = [row["Latitude"], row["Longitude"]]
-            folium.Marker(location=marker_location, popup=popup_content).add_to(m)
-            logger.debug(f"Added marker for {row.get('BSSID', 'N/A')} at {marker_location}")
-        except Exception as marker_e:
-            logger.error(f"Error adding marker for row {index}: {marker_e}")
+        marker_location = [row["Latitude"], row["Longitude"]]
 
-    # save the map to an HTML file
+        # Create marker for all scans
+        marker_all = folium.Marker(location=marker_location, popup=popup_content)
+        fg_all.add_child(marker_all)
+
+        # If the Key field is non-empty, also add a separate marker to the keys group
+        if str(row.get("Key", "")).strip() != "":
+            marker_key = folium.Marker(location=marker_location, popup=popup_content)
+            fg_keys.add_child(marker_key)
+            logger.debug(f"Added marker with key for {row.get('BSSID', 'N/A')} at {marker_location}")
+
+    # Add the FeatureGroups to the map
+    m.add_child(fg_all)
+    m.add_child(fg_keys)
+
+    # Add a LayerControl widget so the user can toggle layers
+    m.add_child(folium.LayerControl())
+
+    # Save the map to an HTML file
     html_path = results_csv.parent / output_html
     try:
         m.save(html_path)
