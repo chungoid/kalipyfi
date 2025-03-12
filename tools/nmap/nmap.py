@@ -109,7 +109,7 @@ class Nmap(Tool):
         else:
             self.logger.error("Error initiating network scan via IPC: %s", response)
 
-    def run_from_selected_target(self) -> None:
+    def run_target_from_results(self) -> None:
         """
         Executes an nmap scan using the selected target host (self.selected_target_host).
         """
@@ -138,7 +138,7 @@ class Nmap(Tool):
         """
         if self.scan_mode == "target":
             self.logger.debug("Running host-specific scan (target mode).")
-            self.run_from_selected_target()
+            self.run_target_from_results()
         elif self.scan_mode == "cidr":
             self.logger.debug("Running network scan (cidr mode).")
             self.run_from_selected_network()
@@ -146,7 +146,7 @@ class Nmap(Tool):
             # fallback: if a target host is set, prefer host scan; otherwise use network scan.
             if self.selected_target_host:
                 self.logger.debug("Fallback: target host detected, running host-specific scan.")
-                self.run_from_selected_target()
+                self.run_target_from_results()
             elif self.selected_network:
                 self.logger.debug("Fallback: network selection detected, running network scan.")
                 self.run_from_selected_network()
