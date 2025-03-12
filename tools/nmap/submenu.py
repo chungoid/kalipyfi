@@ -143,31 +143,30 @@ class NmapSubmenu(BaseSubmenu):
             return None
 
     def rescan_host_menu(self, parent_win) -> None:
-        """
-        Allows the user to choose a .gnmap file, parse it to extract hosts,
-        prompt for a preset, and then launch a host-specific scan.
-        Debug information is displayed on parent_win.
-        """
-        debug_lines = []
-        debug_lines.append("DEBUG: Entered rescan_host_menu()")
-        self.show_debug_info(parent_win, debug_lines)
+        #debug_lines = []
+        #debug_lines.append("DEBUG: Entered rescan_host_menu()")
+        #self.show_debug_info(debug_lines)
 
-        # Choose a CIDR scan .gnmap file.
+        # Create the debug window once (reserve the bottom 4 lines)
+        #self.debug_win = self.create_debug_window(parent_win, height=4)
+        #self.show_debug_info(debug_lines)
+
+        # Choose a .gnmap file.
         gnmap_file = self.choose_gnmap_file(parent_win)
         if not gnmap_file:
-            debug_lines.append("DEBUG: No gnmap file selected; exiting rescan_host_menu()")
-            self.show_debug_info(parent_win, debug_lines)
+            #debug_lines.append("DEBUG: No gnmap file selected; exiting rescan_host_menu()")
+            #self.show_debug_info(debug_lines)
             parent_win.getch()
             return
-        debug_lines.append(f"DEBUG: Chosen gnmap file: {gnmap_file.resolve()}")
-        self.show_debug_info(parent_win, debug_lines)
+        #debug_lines.append(f"DEBUG: Chosen gnmap file: {gnmap_file.resolve()}")
+        #self.show_debug_info(debug_lines)
 
-        # Parse the chosen file to extract hosts.
+        # Parse the chosen file...
         hosts = []
         try:
             with gnmap_file.open("r") as f:
                 lines = f.readlines()
-            debug_lines.append(f"DEBUG: Read {len(lines)} lines from {gnmap_file.name}")
+            #debug_lines.append(f"DEBUG: Read {len(lines)} lines from {gnmap_file.name}")
             for line in lines:
                 if line.startswith("Host:"):
                     parts = line.split()
@@ -179,80 +178,80 @@ class NmapSubmenu(BaseSubmenu):
                         entry = f"{ip} ({hostname})" if hostname else ip
                         if entry not in hosts:
                             hosts.append(entry)
-                            debug_lines.append(f"DEBUG: Added host entry: {entry}")
-                            self.show_debug_info(parent_win, debug_lines)
+                            #debug_lines.append(f"DEBUG: Added host entry: {entry}")
+                            #self.show_debug_info(debug_lines)
         except Exception as e:
-            debug_lines.append(f"ERROR: Exception parsing {gnmap_file.name}: {e}")
-            self.show_debug_info(parent_win, debug_lines)
+            #debug_lines.append(f"ERROR: Exception parsing {gnmap_file.name}: {e}")
+            #self.show_debug_info(debug_lines)
             parent_win.getch()
             return
 
         if not hosts:
-            debug_lines.append(f"DEBUG: No hosts found in {gnmap_file.name}")
-            self.show_debug_info(parent_win, debug_lines)
+            #debug_lines.append(f"DEBUG: No hosts found in {gnmap_file.name}")
+            #self.show_debug_info(debug_lines)
             parent_win.getch()
             return
 
-        debug_lines.append(f"DEBUG: Parsed hosts: {hosts}")
-        self.show_debug_info(parent_win, debug_lines)
+        #debug_lines.append(f"DEBUG: Parsed hosts: {hosts}")
+        #self.show_debug_info(debug_lines)
 
         # Let the user choose a host.
         selection = self.draw_paginated_menu(parent_win, "Select Host for Rescan", hosts)
-        debug_lines.append(f"DEBUG: User selected host option: {selection}")
-        self.show_debug_info(parent_win, debug_lines)
+        #debug_lines.append(f"DEBUG: User selected host option: {selection}")
+        #self.show_debug_info(debug_lines)
         if selection == "back":
-            debug_lines.append("DEBUG: User cancelled host selection.")
-            self.show_debug_info(parent_win, debug_lines)
+            #debug_lines.append("DEBUG: User cancelled host selection.")
+            #self.show_debug_info(debug_lines)
             parent_win.getch()
             return
 
         try:
             selected_ip = selection.split()[0]
             self.tool.selected_target_host = selected_ip
-            debug_lines.append(f"DEBUG: Extracted target host IP: {selected_ip}")
-            self.show_debug_info(parent_win, debug_lines)
+            #debug_lines.append(f"DEBUG: Extracted target host IP: {selected_ip}")
+            #self.show_debug_info(debug_lines)
         except Exception as e:
-            debug_lines.append(f"ERROR: Error extracting IP from selection '{selection}': {e}")
-            self.show_debug_info(parent_win, debug_lines)
+            #debug_lines.append(f"ERROR: Error extracting IP from selection '{selection}': {e}")
+            #self.show_debug_info(debug_lines)
             parent_win.getch()
             return
 
-        # Prompt for a scan preset.
+        # Prompt for a preset.
         selected_preset = self.select_preset(parent_win)
-        debug_lines.append(f"DEBUG: User selected preset: {selected_preset}")
-        self.show_debug_info(parent_win, debug_lines)
+        #debug_lines.append(f"DEBUG: User selected preset: {selected_preset}")
+        #self.show_debug_info(debug_lines)
         if selected_preset == "back" or not selected_preset:
-            debug_lines.append("DEBUG: User cancelled preset selection.")
-            self.show_debug_info(parent_win, debug_lines)
+            #debug_lines.append("DEBUG: User cancelled preset selection.")
+            #self.show_debug_info(debug_lines)
             parent_win.getch()
             return
 
         self.tool.selected_preset = selected_preset
         self.tool.preset_description = selected_preset.get("description", "")
-        debug_lines.append(f"DEBUG: Set preset description: {self.tool.preset_description}")
-        self.show_debug_info(parent_win, debug_lines)
+        #debug_lines.append(f"DEBUG: Set preset description: {self.tool.preset_description}")
+        #self.show_debug_info(debug_lines)
 
         # Launch the scan.
         try:
             self.tool.scan_mode = "target"
-            debug_lines.append("DEBUG: Set scan_mode to 'target'. Launching host scan...")
-            self.show_debug_info(parent_win, debug_lines)
-            parent_win.getch()  # Pause to allow user to view debug info.
+            #debug_lines.append("DEBUG: Set scan_mode to 'target'. Launching host scan...")
+            #self.show_debug_info(debug_lines)
+            parent_win.getch()  # Pause so the user can see the debug info.
             self.tool.run_target_from_results()
         except Exception as e:
-            debug_lines.append(f"ERROR: Exception during run_target_from_results: {e}")
-            self.show_debug_info(parent_win, debug_lines)
+            #debug_lines.append(f"ERROR: Exception during run_target_from_results: {e}")
+            #self.show_debug_info(debug_lines)
             parent_win.getch()
 
     def utils_menu(self, parent_win) -> None:
-        menu_options = ["Open Results Webserver", "Rescan Specific Host", "Other utilities..."]
+        menu_options = ["Open Results Webserver", "Scan Specific Host", "Other utilities..."]
         while True:
             selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
             if selection.lower() == "back":
                 break
             elif selection == "Open Results Webserver":
                 self.open_results_webserver(parent_win)
-            elif selection == "Scan Host from Results":
+            elif selection == "Scan Specific Host":
                 self.rescan_host_menu(parent_win)
             elif selection == "Other utilities...":
                 parent_win.clear()
@@ -264,39 +263,40 @@ class NmapSubmenu(BaseSubmenu):
 
     def __call__(self, stdscr) -> None:
         """
-        Launches the Nmap submenu using curses. Before showing the menu,
-        it resets key state variables and reloads the configuration so that any
-        updates made to the config are applied.
+        Launches the Nmap submenu using curses.
+        This version creates a debug window at the bottom of the entire screen.
         """
+        import curses
         curses.curs_set(0)
 
-        # reset state variables to ensure a clean start
+        # Reset state variables and reload configuration if needed.
         self.tool.selected_network = None
         self.tool.selected_target_host = None
         self.tool.selected_preset = None
         self.tool.scan_mode = None
         self.tool.parent_dir = None
-
-        # reload available configurations (presets, interfaces, defaults)
         self.tool.reload_config()
-
-        # get updated target networks in case interfaces have changed
         self.tool.target_networks = self.tool.get_target_networks()
 
-        # create the submenu window
-        h, w = stdscr.getmaxyx()
-        submenu_win = curses.newwin(h, w, 0, 0)
+        # Create the debug window using the entire stdscr.
+        self.debug_win = self.create_debug_window(stdscr, height=4)
+
+        # Create the main submenu window (covering entire stdscr except the debug window area)
+        max_y, max_x = stdscr.getmaxyx()
+        menu_height = max_y - 4  # reserve bottom 4 lines for debugging
+        submenu_win = stdscr.derwin(menu_height, max_x, 0, 0)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()
 
-        # define main menu options
-        menu_items = ["Launch Scan", "View Scans", "Utils"]
-        numbered_menu = [f"[{i + 1}] {item}" for i, item in enumerate(menu_items)]
+        # Define main menu options.
+        menu_items = ["Launch Scan", "View Scans", "Utils", "Back"]
+        numbered_menu = [f"[{i + 1}] {item}" for i, item in enumerate(menu_items[:-1])]
         numbered_menu.append("[0] Back")
 
         while True:
-            menu_win = self.draw_menu(submenu_win, f"{self.tool.name}", numbered_menu)
+            # Draw the main menu in the submenu window.
+            menu_win = self.draw_menu(submenu_win, f"{self.tool.name} Submenu", numbered_menu)
             key = menu_win.getch()
             try:
                 ch = chr(key)
@@ -312,5 +312,6 @@ class NmapSubmenu(BaseSubmenu):
                 break
             submenu_win.clear()
             submenu_win.refresh()
+
 
 

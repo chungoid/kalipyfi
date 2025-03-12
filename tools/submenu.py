@@ -1,6 +1,8 @@
 import curses
 import logging
 import socket
+from venv import create
+
 import yaml
 from pathlib import Path
 from typing import List, Any, Union
@@ -35,12 +37,34 @@ class BaseSubmenu:
         self.tool = tool_instance
         self.logger = logging.getLogger("BaseSubmenu")
         self.logger.debug("BaseSubmenu initialized.")
+        self.debug_win = None
 
-    def show_debug_info(self, parent_win, debug_lines: list) -> None:
+    def create_debug_window(self, stdscr, height: int = 4) -> any:
         """
-        Calls the external display_debug_info function to update the given window with debug info.
+        Creates a debug window that occupies the bottom 'height' lines
+        of the entire screen (stdscr).
         """
-        display_debug_info(parent_win, debug_lines)
+        max_y, max_x = stdscr.getmaxyx()
+        debug_win = stdscr.derwin(height, max_x, max_y - height, 0)
+        debug_win.clear()
+        debug_win.refresh()
+        return debug_win
+
+    def show_debug_info(self, debug_lines: list) -> None:
+        """
+        Uses self.debug_win to display the provided debug_lines.
+        If self.debug_win is not set, does nothing.
+        """
+        if self.debug_win is None:
+            return
+        self.debug_win.clear()
+        for idx, line in enumerate(debug_lines):
+            try:
+                self.debug_win.addstr(idx, 0, line)
+            except Exception:
+                # In case the window is too small.
+                pass
+        self.debug_win.refresh()
 
     def draw_menu(self, parent_win, title: str, menu_items: List[str]) -> Any:
         parent_win.clear()
@@ -527,7 +551,6 @@ class BaseSubmenu:
         else:
             # cancel; return
             return
-
 
     def __call__(self, stdscr) -> None:
         """
