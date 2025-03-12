@@ -19,5 +19,6 @@ presets:
   1:
     description: sVC
     options:
-      sVC: true
+      -A: true
+      -T4: true
       --top-ports: 1000
