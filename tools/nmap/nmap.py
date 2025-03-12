@@ -45,39 +45,39 @@ class Nmap(Tool):
         """
         Builds an nmap command for a given target (network or host).
 
-        - For network scans (scan_mode "cidr"), a new subdirectory is created in self.results_dir
-          using generate_default_prefix(), and self.parent_dir is set to that directory.
-        - For host-specific scans (scan_mode "target"), if self.parent_dir is set, a subdirectory
-          named after the target host is created under self.parent_dir.
+        - If scan_mode is "cidr", a new subdirectory is created in self.results_dir
+          using a "cidr_" prefix and a timestamp; this directory is stored in self.parent_dir.
+        - If scan_mode is "target" and self.parent_dir is set, a subdirectory named after
+          the target (IP) is created under self.parent_dir.
+        - Otherwise, the output is stored directly in self.results_dir.
 
-        The command includes:
-          - The target.
-          - A unique file prefix in the proper subdirectory (using -oA).
-          - Additional options from the selected preset.
+        The command uses the -oA option so that XML, grepable, and normal output files are generated.
         """
         cmd = ["nmap", target]
 
-        # determine output dir based on scan type
+        # determine the output directory based on the scan mode
         if self.scan_mode == "cidr":
-            # create new subdir for cidr scans so host specifics can reside within
-            output_dir = self.results_dir / self.generate_default_prefix()
-            self.parent_dir = output_dir
+            if self.parent_dir is None:
+                self.parent_dir = self.results_dir / ("cidr_" + self.generate_default_prefix())
+                self.parent_dir.mkdir(parents=True, exist_ok=True)
+            output_dir = self.parent_dir
         elif self.scan_mode == "target":
             if self.parent_dir is not None:
-                output_dir = self.parent_dir / target  # create targets subdir
+                # create a subdirectory for the target host under the existing parent_dir
+                output_dir = self.parent_dir / target
+                output_dir.mkdir(parents=True, exist_ok=True)
             else:
-                output_dir = self.results_dir # fallback to results dir if parent not available
+                # If no parent_dir exists (should not happen if a CIDR scan was done first) fallback to default results
+                output_dir = self.results_dir / ("target_" + self.generate_default_prefix())
+                output_dir.mkdir(parents=True, exist_ok=True)
         else:
-            # default case if scan_mode is not set
+            # Default case: use the results directory.
             output_dir = self.results_dir
 
-        output_dir.mkdir(parents=True, exist_ok=True)
+        file_prefix = output_dir / self.generate_default_prefix()
+        cmd.extend(["-oA", str(file_prefix)])
 
-        prefix = output_dir / self.generate_default_prefix()
-        # append -oA
-        cmd.extend(["-oA", str(prefix)]) # ensures helpers have greppable filetype, also xml for web view
-
-        # append additional options from configs/config.yaml presets key
+        # append additional options
         options = self.selected_preset.get("options", {})
         for flag, val in options.items():
             if isinstance(val, bool):
