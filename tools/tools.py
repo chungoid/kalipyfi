@@ -13,6 +13,7 @@ from config.constants import BASE_DIR
 from common.logging_setup import get_log_queue, worker_configurer
 from common.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
+from tools.helpers.tool_utils import get_network_from_interface
 from utils.helper import get_published_socket_path
 
 
@@ -60,6 +61,16 @@ class Tool:
         if settings:
             self.defaults.update(settings)
 
+    ##############################################
+    ##### SUBMENU AND CONFIG/INITIALIZATION ######
+    ##############################################
+    @abstractmethod
+    def submenu(self, stdscr) -> None:
+        """
+        Launches the tool-specific submenu using curses.
+        Must be implemented by concrete tool classes.
+        """
+        pass
 
     def _determine_config_path(self, config_file: Optional[str]) -> Path:
         """
@@ -92,16 +103,9 @@ class Tool:
         for d in [self.config_dir, self.results_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
-
-    @abstractmethod
-    def submenu(self, stdscr) -> None:
-        """
-        Launches the tool-specific submenu using curses.
-        Must be implemented by concrete tool classes.
-        """
-        pass
-
-
+    #############################
+    ##### CORE IPC HANDLING #####
+    #############################
     def run_to_ipc(self, scan_profile: str, cmd_dict: dict):
         from utils.ipc_client import IPCClient
         client = IPCClient()
@@ -136,7 +140,27 @@ class Tool:
             self.logger.error("Error executing scan command via IPC: %s", response)
         return response
 
+    def run(self):
+        self.logger.info("No you run..")
+        return
 
+    ######################################
+    ##### HELPER METHODS BY CATEGORY #####
+    ######################################
+### CONFIG ###
+    def reload_config(self) -> None:
+        """
+        Reloads the configuration from the YAML file and updates the
+        in-memory settings (interfaces, presets, defaults, etc.).
+        """
+
+        self.config_data = load_yaml_config(self.config_file, self.logger)
+        self.interfaces = self.config_data.get("interfaces", {})
+        self.presets = self.config_data.get("presets", {})
+        self.defaults = self.config_data.get("defaults", {})
+        self.logger.info(f"Configuration reloaded from {self.config_file}")
+
+### HARDWARE RELATED ###
     def get_scan_interface(self) -> str:
         """
         Returns the selected interface that was set via the submenu.
@@ -145,7 +169,6 @@ class Tool:
             return self.selected_interface
         else:
             raise ValueError("No interface has been selected. Please select an interface via the submenu.")
-
 
     def autobpf_helper(self,
                        scan_interface: str,
@@ -245,23 +268,33 @@ class Tool:
         self.logger.info(f"Found associated client MAC(s): {client_macs}")
         return list(client_macs)
 
-
-    def run(self):
-        self.logger.info("No you run..")
-        return
-
-    def reload_config(self) -> None:
+### NETWORK RELATED ###
+    def refresh_gateways(self):
         """
-        Reloads the configuration from the YAML file and updates the
-        in-memory settings (interfaces, presets, defaults, etc.).
+        Refreshes the gateway information by re-invoking the helper function.
         """
+        from tools.helpers.tool_utils import get_gateways
+        self.gateways = get_gateways()
+        self.logger.info("Gateways refreshed: %s", self.gateways)
 
-        self.config_data = load_yaml_config(self.config_file, self.logger)
-        self.interfaces = self.config_data.get("interfaces", {})
-        self.presets = self.config_data.get("presets", {})
-        self.defaults = self.config_data.get("defaults", {})
-        self.logger.info(f"Configuration reloaded from {self.config_file}")
+    def get_target_networks(self) -> dict:
+        """
+        Returns a dictionary mapping each interface (from self.interfaces)
+        to its computed network (CIDR notation).
+        """
+        target_networks = {}
+        for iface_info in self.interfaces.get("wlan", []):
+            iface = iface_info.get("name")
+            if iface:
+                network = get_network_from_interface(iface)
+                if network:
+                    target_networks[iface] = network
+        return target_networks
 
+
+    ##########################
+    ##### STATIC METHODS #####
+    ##########################
     @staticmethod
     def check_uuid_for_root() -> bool:
         return os.getuid() == 0
@@ -328,11 +361,9 @@ class Tool:
         """
         return datetime.now().strftime("%m-%d_%H:%M:%S")
 
-
     #############################
     ##### SUBMENU UTILITIES #####
     #############################
-
     def update_presets_in_config(self, presets: dict) -> None:
         """
         Updates the tool's configuration file with the new presets, filtering out any options

@@ -8,11 +8,10 @@ from typing import Optional, Any, Dict
 #locals
 from tools.tools import Tool
 from config.constants import BASE_DIR
-from tools.helpers.config_helper import update_yaml_value
+from tools.helpers.tool_utils import update_yaml_value
 from utils.tool_registry import register_tool
 from database.db_manager import get_db_connection
 from tools.hcxtool.db import init_hcxtool_schema
-from tools.hcxtool.submenu import HcxToolSubmenu
 from tools.helpers.wpasec import get_wpasec_api_key as wpasec_get_api_key
 
 @register_tool("hcxtool")
@@ -30,6 +29,8 @@ class Hcxtool(Tool, ABC):
         )
 
         self.logger = logging.getLogger(self.name)
+
+        from tools.hcxtool.submenu import HcxToolSubmenu
         self.submenu = HcxToolSubmenu(self)
 
         # hcxtool-specific database schema (tools/hcxtool/db.py)
@@ -171,7 +172,6 @@ class Hcxtool(Tool, ABC):
         ######################
         ##### utilities  #####
         ######################
-
     def get_wpasec_api_key(self) -> str:
         return wpasec_get_api_key(self)
 
@@ -193,7 +193,6 @@ class Hcxtool(Tool, ABC):
         key_path = ["wpa-sec", "api_key"]
         update_yaml_value(self.config_file, key_path, new_key)
         self.reload_config()
-
 
     def export_results(self) -> None:
         """

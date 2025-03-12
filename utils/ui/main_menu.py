@@ -20,10 +20,14 @@ from common.logging_setup import get_log_queue, configure_listener_handlers, wor
 from utils.ui.ui_manager import UIManager
 from utils.ipc import IPCServer
 
+#####################
+##### IMPORTANT #####
+#####################
 # import all tool modules so they load via decorators
 from utils.tool_registry import tool_registry
 from tools.hcxtool import hcxtool
 from tools.netconnect import netconnect
+from tools.nmap import nmap
 
 
 def draw_menu(stdscr, title, menu_items):
