@@ -46,7 +46,7 @@ class NmapSubmenu(BaseSubmenu):
         Presents a paginated menu for the user to choose a subdirectory (from self.tool.results_dir)
         that contains .gnmap files, then automatically selects the .gnmap file from that subdirectory.
         """
-        # list subdirectories that contain .gnmap files.
+        # list subdirectories that contain .gnmap files
         subdirs = [d for d in self.tool.results_dir.iterdir() if d.is_dir() and list(d.glob("*.gnmap"))]
         if not subdirs:
             parent_win.clear()
@@ -55,7 +55,7 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return None
 
-        # build menu options from subdirectory names.
+        # build menu options from subdirectory names
         subdir_options = [d.name for d in subdirs]
         chosen_subdir_name = self.draw_paginated_menu(parent_win, "Select CIDR Scan Subdirectory", subdir_options)
         if chosen_subdir_name == "back":
@@ -71,7 +71,7 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return None
 
-        # .gnmap files in the chosen subdirectory.
+        # .gnmap files in the chosen subdirectory
         gnmap_files = list(chosen_subdir.glob("*.gnmap"))
         if not gnmap_files:
             parent_win.clear()
@@ -80,28 +80,26 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return None
 
+        # if exactly one file, select it automatically
         if len(gnmap_files) == 1:
             parent_win.clear()
             parent_win.refresh()
-            parent_win.getch()
             return gnmap_files[0]
         else:
+            # if multiple, let the user choose
             options = [f.name for f in gnmap_files]
             selection = self.draw_paginated_menu(parent_win, "Select GNMAP File", options)
             if selection == "back":
                 parent_win.clear()
                 parent_win.refresh()
-                parent_win.getch()
                 return None
             for f in gnmap_files:
                 if f.name in selection:
                     parent_win.clear()
                     parent_win.refresh()
-                    parent_win.getch()
                     return f
             parent_win.clear()
             parent_win.refresh()
-            parent_win.getch()
             return None
 
     def rescan_host_menu(self, parent_win) -> None:
@@ -110,7 +108,6 @@ class NmapSubmenu(BaseSubmenu):
         then parses that file to extract hosts, prompts for a preset,
         and finally launches a host-specific scan.
         """
-        # choose a .gnmap file.
         gnmap_file = self.choose_gnmap_file(parent_win)
         if not gnmap_file:
             return
@@ -144,7 +141,6 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return
 
-        # display parsed hosts
         selection = self.draw_paginated_menu(parent_win, "Select Host for Rescan", hosts)
         if selection == "back":
             return
