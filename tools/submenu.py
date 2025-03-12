@@ -5,6 +5,10 @@ import yaml
 from pathlib import Path
 from typing import List, Any, Union
 
+# locals
+from utils.ipc_client import IPCClient
+from tools.helpers.tool_utils import format_scan_display
+
 # Constant for "back" selection
 BACK_OPTION = "back"
 
@@ -413,6 +417,95 @@ class BaseSubmenu:
                 parent_win.getch()
             parent_win.clear()
             parent_win.refresh()
+
+    def view_scans(self, parent_win) -> None:
+        """
+        Generic view_scans method for displaying active scans and allowing the user to take actions.
+
+        Steps:
+          1. Request active scans via IPC.
+          2. Format the scans for display.
+          3. Allow the user to select a scan from the paginated menu.
+          4. Present a secondary menu with actions:
+               - Swap the scan (change its pane title).
+               - Stop the scan.
+               - Cancel (return).
+        """
+        client = IPCClient()
+        tool_name = getattr(self.tool, 'name', 'tool')
+        message = {"action": "GET_SCANS", "tool": tool_name}
+        self.logger.debug("view_scans: Sending GET_SCANS for tool '%s'", tool_name)
+        response = client.send(message)
+        scans = response.get("scans", [])
+
+        parent_win.clear()
+        if not scans:
+            parent_win.addstr(0, 0, "No active scans found!")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # format each scan for display
+        menu_items = [format_scan_display(scan) for scan in scans]
+        selection = self.draw_paginated_menu(parent_win, "Active Scans", menu_items)
+        if selection == "back":
+            return
+
+        try:
+            selected_index = menu_items.index(selection)
+        except ValueError:
+            self.logger.error("view_scans: Selected scan not found in list.")
+            return
+
+        selected_scan = scans[selected_index]
+
+        # secondary menu for actions on the selected scan
+        parent_win.clear()
+        secondary_menu = ["Swap", "Stop", "Cancel"]
+        sec_menu_items = [f"[{i + 1}] {item}" for i, item in enumerate(secondary_menu)]
+        sec_menu_win = self.draw_menu(parent_win, "Selected Scan Options", sec_menu_items)
+        key = sec_menu_win.getch()
+        try:
+            ch = chr(key)
+        except Exception:
+            ch = ""
+        if ch == "1":
+            # Swap: Change the pane title.
+            new_title = f"{self.tool.selected_interface}_{self.tool.selected_preset.get('description', '')}"
+            swap_message = {
+                "action": "SWAP_SCAN",
+                "tool": tool_name,
+                "pane_id": selected_scan.get("pane_id"),
+                "new_title": new_title
+            }
+            swap_response = client.send(swap_message)
+            parent_win.clear()
+            if swap_response.get("status", "").startswith("SWAP_SCAN_OK"):
+                parent_win.addstr(0, 0, "Scan swapped successfully!")
+            else:
+                error_text = swap_response.get("error", "Unknown error")
+                parent_win.addstr(0, 0, f"Error swapping scan: {error_text}")
+            parent_win.refresh()
+            parent_win.getch()
+        elif ch == "2":
+            # Stop: Send a stop command.
+            stop_message = {
+                "action": "STOP_SCAN",
+                "tool": tool_name,
+                "pane_id": selected_scan.get("pane_id")
+            }
+            stop_response = client.send(stop_message)
+            parent_win.clear()
+            if stop_response.get("status", "").startswith("STOP_SCAN_OK"):
+                parent_win.addstr(0, 0, "Scan stopped successfully!")
+            else:
+                error_text = stop_response.get("error", "Unknown error")
+                parent_win.addstr(0, 0, f"Error stopping scan: {error_text}")
+            parent_win.refresh()
+            parent_win.getch()
+        else:
+            # cancel; return
+            return
 
     def __call__(self, stdscr) -> None:
         """

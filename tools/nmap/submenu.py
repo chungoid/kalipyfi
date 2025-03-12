@@ -1,4 +1,5 @@
 # tools/nmap/submenu.py
+import curses
 import logging
 from pathlib import Path
 from typing import Optional
@@ -172,4 +173,56 @@ class NmapSubmenu(BaseSubmenu):
                 parent_win.getch()
             parent_win.clear()
             parent_win.refresh()
+
+    def __call__(self, stdscr) -> None:
+        """
+        Launches the Nmap submenu using curses. Before showing the menu,
+        it resets key state variables and reloads the configuration so that any
+        updates made to the config are applied.
+        """
+        curses.curs_set(0)
+
+        # reset state variables to ensure a clean start
+        self.tool.selected_network = None
+        self.tool.selected_target_host = None
+        self.tool.selected_preset = None
+        self.tool.scan_mode = None
+        self.tool.parent_dir = None
+
+        # reload available configurations (presets, interfaces, defaults)
+        self.tool.reload_config()
+
+        # get updated target networks in case interfaces have changed
+        self.tool.target_networks = self.tool.get_target_networks()
+
+        # create the submenu window
+        h, w = stdscr.getmaxyx()
+        submenu_win = curses.newwin(h, w, 0, 0)
+        submenu_win.keypad(True)
+        submenu_win.clear()
+        submenu_win.refresh()
+
+        # define main menu options
+        menu_items = ["Launch Scan", "View Scans", "Utils"]
+        numbered_menu = [f"[{i + 1}] {item}" for i, item in enumerate(menu_items)]
+        numbered_menu.append("[0] Back")
+
+        while True:
+            menu_win = self.draw_menu(submenu_win, f"{self.tool.name} Submenu", numbered_menu)
+            key = menu_win.getch()
+            try:
+                ch = chr(key)
+            except Exception:
+                continue
+            if ch == "1":
+                self.launch_scan(submenu_win)
+            elif ch == "2":
+                self.view_scans(submenu_win)
+            elif ch == "3":
+                self.utils_menu(submenu_win)
+            elif ch == "0" or key == 27:
+                break
+            submenu_win.clear()
+            submenu_win.refresh()
+
 
