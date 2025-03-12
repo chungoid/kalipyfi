@@ -296,7 +296,7 @@ class NmapSubmenu(BaseSubmenu):
 
         while True:
             # Draw the main menu in the submenu window.
-            menu_win = self.draw_menu(submenu_win, f"{self.tool.name} Submenu", numbered_menu)
+            menu_win = self.draw_menu(submenu_win, f"{self.tool.name}", numbered_menu)
             key = menu_win.getch()
             try:
                 ch = chr(key)
