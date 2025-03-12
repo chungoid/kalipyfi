@@ -194,7 +194,6 @@ class NmapSubmenu(BaseSubmenu):
         Launches the Nmap submenu using curses.
         This version creates a debug window at the bottom of the entire screen.
         """
-        import curses
         curses.curs_set(0)
 
         # Reset state variables and reload configuration if needed.
@@ -206,8 +205,8 @@ class NmapSubmenu(BaseSubmenu):
         self.tool.reload_config()
         self.tool.target_networks = self.tool.get_target_networks()
 
-        # Create the debug window using the entire stdscr.
-        self.debug_win = self.create_debug_window(stdscr, height=4)
+        # this is optional.. check tools/submenu.py BaseSubmenu
+        #self.debug_win = self.create_debug_window(stdscr, height=4)
 
         # Create the main submenu window (covering entire stdscr except the debug window area)
         max_y, max_x = stdscr.getmaxyx()

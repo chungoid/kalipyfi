@@ -466,15 +466,6 @@ class BaseSubmenu:
     def view_scans(self, parent_win) -> None:
         """
         Generic view_scans method for displaying active scans and allowing the user to take actions.
-
-        Steps:
-          1. Request active scans via IPC.
-          2. Format the scans for display.
-          3. Allow the user to select a scan from the paginated menu.
-          4. Present a secondary menu with actions:
-               - Swap the scan (change its pane title).
-               - Stop the scan.
-               - Cancel (return).
         """
         client = IPCClient()
         tool_name = getattr(self.tool, 'name', 'tool')
@@ -487,10 +478,10 @@ class BaseSubmenu:
         if not scans:
             parent_win.addstr(0, 0, "No active scans found!")
             parent_win.refresh()
-            parent_win.getch()
+            curses.napms(1500)  # pause briefly (1.5 seconds)
             return
 
-        # format each scan for display
+        # Format each scan for display.
         menu_items = [format_scan_display(scan) for scan in scans]
         selection = self.draw_paginated_menu(parent_win, "Active Scans", menu_items)
         if selection == "back":
@@ -504,7 +495,7 @@ class BaseSubmenu:
 
         selected_scan = scans[selected_index]
 
-        # secondary menu for actions on the selected scan
+        # Secondary menu for actions.
         parent_win.clear()
         secondary_menu = ["Swap", "Stop", "Cancel"]
         sec_menu_items = [f"[{i + 1}] {item}" for i, item in enumerate(secondary_menu)]
@@ -514,8 +505,9 @@ class BaseSubmenu:
             ch = chr(key)
         except Exception:
             ch = ""
+        parent_win.clear()
         if ch == "1":
-            # Swap: Change the pane title.
+            # Swap: change pane title.
             new_title = f"{self.tool.selected_interface}_{self.tool.selected_preset.get('description', '')}"
             swap_message = {
                 "action": "SWAP_SCAN",
@@ -524,35 +516,29 @@ class BaseSubmenu:
                 "new_title": new_title
             }
             swap_response = client.send(swap_message)
-            parent_win.clear()
             if swap_response.get("status", "").startswith("SWAP_SCAN_OK"):
                 parent_win.addstr(0, 0, "Scan swapped successfully!")
-                parent_win.refresh()
-                curses.napms(1500)
             else:
                 error_text = swap_response.get("error", "Unknown error")
                 parent_win.addstr(0, 0, f"Error swapping scan: {error_text}")
-            parent_win.refresh()
-            parent_win.getch()
         elif ch == "2":
-            # Stop: Send a stop command.
+            # Stop scan.
             stop_message = {
                 "action": "STOP_SCAN",
                 "tool": tool_name,
                 "pane_id": selected_scan.get("pane_id")
             }
             stop_response = client.send(stop_message)
-            parent_win.clear()
             if stop_response.get("status", "").startswith("STOP_SCAN_OK"):
                 parent_win.addstr(0, 0, "Scan stopped successfully!")
             else:
                 error_text = stop_response.get("error", "Unknown error")
                 parent_win.addstr(0, 0, f"Error stopping scan: {error_text}")
-            parent_win.refresh()
-            parent_win.getch()
         else:
-            # cancel; return
+            # Cancel – simply return.
             return
+        parent_win.refresh()
+        curses.napms(1500)  # 1.5s pause then return
 
     def __call__(self, stdscr) -> None:
         """
