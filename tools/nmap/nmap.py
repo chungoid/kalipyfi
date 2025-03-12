@@ -74,6 +74,7 @@ class Nmap(Tool):
             # Default case: use the results directory.
             output_dir = self.results_dir
 
+        self.logger.debug(f"Scan mode: {self.scan_mode} Creating {output_dir}")
         file_prefix = output_dir / self.generate_default_prefix()
         cmd.extend(["-oA", str(file_prefix)])
 

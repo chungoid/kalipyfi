@@ -1,5 +1,8 @@
 interfaces:
   wlan:
+  - description: ethernet
+    locked: false
+    name: eth0
   - description: hotspot
     locked: true
     name: wlan0
