@@ -110,9 +110,9 @@ class NmapSubmenu(BaseSubmenu):
         then parses that file to extract hosts, prompts for a preset,
         and finally launches a host-specific scan.
         """
+        # choose a .gnmap file.
         gnmap_file = self.choose_gnmap_file(parent_win)
         if not gnmap_file:
-            parent_win.getch()
             return
 
         hosts = []
@@ -131,28 +131,36 @@ class NmapSubmenu(BaseSubmenu):
                         if entry not in hosts:
                             hosts.append(entry)
         except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error parsing {gnmap_file.name}: {e}")
+            parent_win.refresh()
             parent_win.getch()
             return
 
         if not hosts:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No hosts found in the selected .gnmap file!")
+            parent_win.refresh()
             parent_win.getch()
             return
 
+        # display parsed hosts
         selection = self.draw_paginated_menu(parent_win, "Select Host for Rescan", hosts)
         if selection == "back":
-            parent_win.getch()
             return
 
         try:
             selected_ip = selection.split()[0]
             self.tool.selected_target_host = selected_ip
         except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error processing selection: {e}")
+            parent_win.refresh()
             parent_win.getch()
             return
 
         selected_preset = self.select_preset(parent_win)
         if selected_preset == "back" or not selected_preset:
-            parent_win.getch()
             return
 
         self.tool.selected_preset = selected_preset
@@ -160,9 +168,11 @@ class NmapSubmenu(BaseSubmenu):
 
         try:
             self.tool.scan_mode = "target"
-            parent_win.getch()  # Pause before launching the scan.
             self.tool.run_target_from_results()
         except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error launching host scan: {e}")
+            parent_win.refresh()
             parent_win.getch()
 
     def utils_menu(self, parent_win) -> None:

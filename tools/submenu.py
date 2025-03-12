@@ -527,6 +527,8 @@ class BaseSubmenu:
             parent_win.clear()
             if swap_response.get("status", "").startswith("SWAP_SCAN_OK"):
                 parent_win.addstr(0, 0, "Scan swapped successfully!")
+                parent_win.refresh()
+                curses.napms(1500)
             else:
                 error_text = swap_response.get("error", "Unknown error")
                 parent_win.addstr(0, 0, f"Error swapping scan: {error_text}")
