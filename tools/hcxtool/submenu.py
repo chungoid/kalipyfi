@@ -318,7 +318,7 @@ class HcxToolSubmenu(BaseSubmenu):
         numbered_menu.append("[0] Back")
 
         while True:
-            menu_win = self.draw_menu(submenu_win, "HCXTool Submenu", numbered_menu)
+            menu_win = self.draw_menu(submenu_win, "hcxtool", numbered_menu)
             key = menu_win.getch()
             try:
                 ch = chr(key)
