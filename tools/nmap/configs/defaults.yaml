@@ -1,0 +1,133 @@
+scan_profile:
+  description: "Default Nmap scan profile"
+  options:
+    # TARGET SPECIFICATION (user can override these if desired)
+    --exclude:
+      value: ""
+      description: "Comma-separated list of hosts/networks to exclude"
+    --excludefile:
+      value: ""
+      description: "File containing hosts/networks to exclude"
+
+    # HOST DISCOVERY
+    -sn:
+      value:
+      description: "Ping scan (disable port scan) for host discovery (Default: True)"
+    -Pn:
+      value:
+      description: "Treat all hosts as online (skip host discovery) (Default: False)"
+    -PS:
+      value:
+      description: "TCP SYN discovery probes on specified ports (Default: False)"
+    -PE:
+      value:
+      description: "ICMP echo request probes (Default: False)"
+
+    # SCAN TECHNIQUES
+    -sS:
+      value:
+      description: "TCP SYN scan (Default: True)"
+    -sT:
+      value:
+      description: "TCP Connect scan (Default: False)"
+    -sU:
+      value:
+      description: "UDP scan (Default: False)"
+    -sN:
+      value:
+      description: "TCP Null scan (Default: False)"
+    --scanflags:
+      value: ""
+      description: "Custom TCP scan flags"
+
+    # PORT SPECIFICATION AND SCAN ORDER
+    -p:
+      value: ""
+      description: "Specify ports or ranges (e.g., 22,80,443 or 1-65535) (Default: 1000)"
+    --top-ports:
+      value: ""
+      description: "Scan specified top number of most common ports "
+    -r:
+      value:
+      description: "Scan ports sequentially (Default: False)"
+
+    # SERVICE/VERSION DETECTION
+    -sV:
+      value:
+      description: "Probe open ports to determine service/version info (Default: True)"
+    --version-intensity:
+      value: ""
+      description: "Set version scan intensity (0: light, 9: aggressive) (Default: 5)"
+    --version-light:
+      value:
+      description: "Limit probes to most likely services (Default: False)"
+    --version-all:
+      value:
+      description: "Try every available probe (Default: False)"
+
+    # SCRIPT SCAN
+    -sC:
+      value:
+      description: "Equivalent to --script=default (Default: False)"
+    --script:
+      value: ""
+      description: "Comma-separated list of NSE scripts or categories"
+    --script-args:
+      value: ""
+      description: "Arguments for NSE scripts (n1=v1,n2=v2,...)"
+
+    # OS DETECTION
+    -O:
+      value:
+      description: "Enable OS detection (Default: False)"
+    --osscan-limit:
+      value:
+      description: "Limit OS detection to promising targets (Default: False)"
+    --osscan-guess:
+      value:
+      description: "Guess OS more aggressively (Default: False)"
+
+    # TIMING AND PERFORMANCE
+    -T:
+      value: ""
+      description: "Timing template (0-5, higher is faster) (Default: 4)"
+    --min-rate:
+      value: ""
+      description: "Minimum number of packets per second (Default: 100)"
+    --max-retries:
+      value: ""
+      description: "Maximum number of probe retransmissions (Default: 3)"
+    --host-timeout:
+      value: ""
+      description: "Time to wait before giving up on a host (e.g., 30s)"
+
+    # FIREWALL/IDS EVASION AND SPOOFING
+    -f:
+      value:
+      description: "Fragment packets (Default: False)"
+    -D:
+      value: ""
+      description: "Decoy IP addresses (comma-separated list)"
+    -S:
+      value: ""
+      description: "Spoof source address"
+    -e:
+      value: ""
+      description: "Use specified network interface"
+    -g:
+      value: ""
+      description: "Specify source port"
+    --spoof-mac:
+      value: ""
+      description: "Spoof your MAC address"
+
+    # MISC / MISCELLANEOUS
+    -6:
+      value:
+      description: "Enable IPv6 scanning (Default: False)"
+    -A:
+      value:
+      description: "Enable OS detection, version detection, script scanning, and traceroute (Default: False)"
+    --privileged:
+      value:
+      description: "Assume the user is fully privileged (Default: False)"
