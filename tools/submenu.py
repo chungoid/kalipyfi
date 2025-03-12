@@ -12,6 +12,21 @@ from tools.helpers.tool_utils import format_scan_display
 # Constant for "back" selection
 BACK_OPTION = "back"
 
+def display_debug_info(win, debug_lines: list) -> None:
+    """
+    Clears the given window and prints each debug line.
+    This function is used to display real-time debugging information.
+    """
+    win.clear()
+    for idx, line in enumerate(debug_lines):
+        try:
+            win.addstr(idx, 0, line)
+        except Exception:
+            # In case the window is too small
+            pass
+    win.refresh()
+
+
 class BaseSubmenu:
     def __init__(self, tool_instance):
         """
@@ -20,6 +35,12 @@ class BaseSubmenu:
         self.tool = tool_instance
         self.logger = logging.getLogger("BaseSubmenu")
         self.logger.debug("BaseSubmenu initialized.")
+
+    def show_debug_info(self, parent_win, debug_lines: list) -> None:
+        """
+        Calls the external display_debug_info function to update the given window with debug info.
+        """
+        display_debug_info(parent_win, debug_lines)
 
     def draw_menu(self, parent_win, title: str, menu_items: List[str]) -> Any:
         parent_win.clear()
@@ -506,6 +527,7 @@ class BaseSubmenu:
         else:
             # cancel; return
             return
+
 
     def __call__(self, stdscr) -> None:
         """
