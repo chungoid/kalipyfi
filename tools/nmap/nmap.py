@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+# locals
 from tools.tools import Tool
 from tools.helpers.tool_utils import get_gateways
 from utils.tool_registry import register_tool
@@ -10,6 +11,7 @@ from utils.tool_registry import register_tool
 class Nmap(Tool):
     def __init__(self, base_dir: Path, config_file: Optional[str] = None,
                  interfaces: Optional[Any] = None, presets: Optional[Dict[str, Any]] = None):
+
         super().__init__(
             name="nmap",
             description="Network scanning using nmap",
@@ -18,7 +20,7 @@ class Nmap(Tool):
             interfaces=interfaces,
             settings=presets
         )
-        self.logger = logging.getLogger("NMAP")
+        self.logger = logging.getLogger(self.name)
 
         # Set a scan mode flag:
         # 'cidr' for full network,

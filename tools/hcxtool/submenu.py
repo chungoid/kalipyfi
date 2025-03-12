@@ -6,8 +6,6 @@ from pathlib import Path
 from typing import Any, Union
 
 # local imports
-from utils.ipc_client import IPCClient
-from tools.helpers.tool_utils import format_scan_display
 from tools.helpers.webserver import start_webserver
 from tools.helpers.wpasec import download_from_wpasec, upload_to_wpasec
 
