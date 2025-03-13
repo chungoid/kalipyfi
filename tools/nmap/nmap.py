@@ -101,11 +101,18 @@ class Nmap(Tool):
             self.logger.error("No preset selected; cannot build command.")
             return
 
+        # so scandata can assist view scans menu in showing all fields
+        if not self.selected_interface:
+            self.selected_interface = self.selected_network
+
+        # so scandata can assist view scans menu in showing all fields
+        self.preset_description = self.selected_preset["description"]
+
+        # Build command using the network target.
         cmd_list = self.build_nmap_command(self.selected_network)
         cmd_dict = self.cmd_to_dict(cmd_list)
-        self.preset_description = self.selected_preset.get("description", "nmap_scan")
         profile = self.preset_description
-        response = self.run_to_ipc(scan_profile = profile, cmd_dict = cmd_dict)
+        response = self.run_to_ipc(profile, cmd_dict)
         if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             self.logger.info("Network scan initiated successfully: %s", response)
         else:
