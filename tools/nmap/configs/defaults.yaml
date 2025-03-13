@@ -1,5 +1,4 @@
 scan_profile:
-  description: "Default Nmap scan profile"
   # TARGET SPECIFICATION (user can override these if desired)
   --exclude:
     value: ""
