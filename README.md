@@ -76,12 +76,13 @@ Customize as Needed:
 
 Example:
 ```bash
+from abc import ABC
 from tools.tools import Tool
 from utils.tool_registry import register_tool
 from your_submenu_module import YourToolSubmenu
 
 @register_tool("yourtool")
-class YourTool(Tool):
+class YourTool(Tool, ABC):
     def __init__(self, base_dir, config_file=None, interfaces=None, presets=None):
         super().__init__(
             name="yourtool",
