@@ -20,13 +20,15 @@ sudo kalipyfi
 
 ## Usage
 
-- Define your scans via tool specific config/config.yaml files.
-- ex: /tools/hcxtool/configs/config.yaml
+- Every tool has a config.yaml file located within that tools configs directory
+- Define interfaces & cli cmd presets as shown below
+- Database is stored in the parent directory of kalipyfi as .kalipyfi to remain separated from repository management
+- Otherwise, simply explore menu options.
 ```yaml
 interfaces:
   wlan:
-  - description: hotspot # short desc. e.g. hotspot
-    locked: true # optionally set to locked so tools ignore it (future)
+  - description: hotspot # short description
+    locked: true # optionally set to locked so tools ignore it (defunct, likely removing)
     name: wlan0 # interface name 
   - description: monitor
     locked: false
@@ -38,24 +40,61 @@ interfaces:
   
 presets:
   1: 
-    description: aggressive #short desc
-    options: # append tool commandline options below. 
-      autobpf: true # this one is an optional addition.
+    description: sVC # description you'll see in menu
+    options: # cli args as you'd set them if you were running the command
       -A: true
-      -F: true
-      --gpsd: true
-      # tips: (autobpf: true) will protect the scan devices associated clients/ap's 
-      # (e.g. your wlan0 hotspot, and its ssh clients or your home wifi) from a scan
-      # interface interfering with friendly connections.
-      #
-      # tools have self.selected_interface which is set before sending scans.. omit interface from config
-      # omit -w as well, hcxtool will create its own file and output to tools/hcxtools/results/
-      # use option output_prefix if you want a custom prefix.. also, --gpsd: true will handle .nmea file creation
+      --top-ports: 1000
 ```
 
-- every future tool will share a similar configuration scheme where you can define command-line options
-and then configure an interface via submenus & then select scan profiles to run on the selected interface.
+## Adding Custom Tool Modules
+Subclass the Tool Base Class:
+Create your new tool by subclassing the Tool base class (found in tools/tools.py). This class handles configuration loading, directory setup, command building, and IPC communication. Override the required methods—especially the submenu() method—to define your tool’s custom user interface and functionality.
 
-- if you'd like to make your own tool modules go for it.. enjoy.
+Implement a Custom Submenu:
+Use or extend the submenu base class (similar to the existing HcxToolSubmenu) to build an interactive curses-based UI for your tool. This submenu can provide options specific to your tool while inheriting common navigation and display functionality. The custom submenu should be implemented as a callable (typically via the __call__ method) so that it can be easily integrated with the main UI.
 
+Leverage Existing IPC Handlers:
+Your tool can make use of the existing IPC handlers (located in ipc_protocol.py) to send and receive messages. This enables you to launch scans or other processes in dedicated panes, manage state, and interact with the UI manager without having to write your own inter-process communication logic.
 
+Register Your Tool:
+Simply decorate your tool class with the @register_tool decorator from utils/tool_registry.py. This adds your tool to the global tool registry. Once registered, the main menu (in main_menu.py) automatically imports and displays your custom tool as one of the available modules.
+
+Customize as Needed:
+With your tool registered and its submenu implemented, you can further customize the functionality by adding your own command-line options, logging, and IPC message formats. The modular design ensures that your tool integrates smoothly with the existing UI and process management features.
+
+Example:
+```bash
+from tools.tools import Tool
+from utils.tool_registry import register_tool
+from your_submenu_module import YourToolSubmenu
+
+@register_tool("yourtool")
+class YourTool(Tool):
+    def __init__(self, base_dir, config_file=None, interfaces=None, presets=None):
+        super().__init__(
+            name="yourtool",
+            description="Your custom tool description",
+            base_dir=base_dir,
+            config_file=config_file,
+            interfaces=interfaces,
+            settings=presets
+        )
+        self.logger = logging.getLogger(self.name)
+        self.submenu = YourToolSubmenu(self)
+
+    def submenu(self, stdscr):
+        """
+        Launches your custom CLI interface.
+        Implement your curses-based submenu here.
+        """
+        self.submenu(stdscr)
+
+    def run(self):
+        """
+        Override this method if you need custom behavior when launching a scan or process.
+        Otherwise, you can use the base functionality for IPC communication.
+        """
+        # Build your command and send it via IPC using run_to_ipc()
+        pass
+
+```
