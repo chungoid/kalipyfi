@@ -94,19 +94,19 @@ class YourTool(Tool):
         self.logger = logging.getLogger(self.name)
         self.submenu = YourToolSubmenu(self)
 
-    def submenu(self, stdscr):
-        """
-        Launches your custom CLI interface.
-        Implement your curses-based submenu here.
-        """
-        self.submenu(stdscr)
+    def submenu(self, stdscr) -> None:
+      """
+      Launches your custom submenu (interactive UI) using curses.
+      """
+      self.submenu_instance(stdscr)
         
     def build_command(self) -> list:
       """
       Write custom command building logic for your cli tool here.     
       """
+      return cmd
 
-    def run(self):
+    def run(self) -> None:
         """
         Override this method with custom behavior and a call to run_to_ipc() (from tools/tools.py)
         """
@@ -117,9 +117,11 @@ class YourTool(Tool):
             if not cmd_list:
                 self.logger.critical("Error: build_command() returned an empty command.")
                 return
+                
+            # convert command to dict before sending to IPC    
+            cmd_dict = self.cmd_to_dict(cmd_list)
         
-        # send built and processed command to the IPC server
+            # send built and processed command to the IPC server
             response = self.run_to_ipc(cmd_dict)
-        pass
 
 ```
