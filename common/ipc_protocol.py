@@ -93,8 +93,10 @@ def handle_get_state(ui_instance, request: dict) -> dict:
 
 def handle_send_scan(ui_instance, request: dict) -> dict:
     """
-    Handles the SEND_SCAN command by allocating a new scan pane and launching the scan command.
+    Handles the SEND_SCAN command by allocating a new scan window and launching the scan command.
 
+    def allocate_scan_window(self, tool_name: str, cmd_dict: dict, interface: str,
+                             timestamp: float, preset_description: str) -> str:
     Expected Format:
         {
             "action": "SEND_SCAN",
@@ -121,16 +123,16 @@ def handle_send_scan(ui_instance, request: dict) -> dict:
     logger = logging.getLogger("ipc_proto:handle_send_scan")
     logger.debug(f"handle_send_scan: Received request: {request}")
     tool_name = request.get("tool")                  # tool which sent the scan
-    scan_profile = request.get("scan_profile")       # selected profile from 'preset'
+    #scan_profile = request.get("scan_profile")       # selected profile from 'preset'
     cmd_dict = request.get("command")                # built command to be run in tmux
     interface = request.get("interface", "unknown")
     preset_description = request.get("preset_description")
     timestamp = request.get("timestamp")
-    if not all([tool_name, scan_profile, cmd_dict]):
+    if not all([tool_name, preset_description, cmd_dict]):
         logger.error("handle_send_scan: Missing parameters")
         return {ERROR_KEY: "Missing parameters for SEND_SCAN"}
     try:
-        pane_id = ui_instance.allocate_scan_window(tool_name, scan_profile, cmd_dict, interface, timestamp, preset_description)
+        pane_id = ui_instance.allocate_scan_window(tool_name, cmd_dict, interface, timestamp, preset_description)
         if pane_id:
             logger.debug(f"handle_send_scan: Successfully allocated pane: {pane_id}")
             return {"status": "SEND_SCAN_OK", "pane_id": pane_id}

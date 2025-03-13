@@ -56,7 +56,7 @@ class UIManager:
         """
         scan_data = ScanData(
             tool=tool_name,
-            scan_profile=scan_profile,
+            #scan_profile=scan_profile,
             preset_description=preset_description,
             window_name=window_name,
             pane_id=pane_id,
@@ -180,7 +180,7 @@ class UIManager:
         """
         return window.split_window(attach=False)
 
-    def rename_pane(self, pane: libtmux.Pane, tool_name: str, scan_profile: str) -> str:
+    def rename_pane(self, pane: libtmux.Pane, tool_name: str, scan_description: str) -> str:
         """
         Generates a canonical internal name for the pane.
 
@@ -189,14 +189,14 @@ class UIManager:
 
         :param pane: The libtmux.Pane (unused in renaming, but provided for consistency).
         :param tool_name: The name of the tool.
-        :param scan_profile: The scan profile being used.
+        :param scan_description: The scan profile being used.
         :return: The generated canonical pane name as a string.
         """
-        pane_title = f"{tool_name}_{scan_profile}_{int(time.time())}"
+        pane_title = f"{tool_name}_{scan_description}_{int(time.time())}"
         return pane_title
 
     def create_and_rename_pane(self, window: libtmux.Window, tool_name: str,
-                               scan_profile: str) -> Tuple[libtmux.Pane, str]:
+                               scan_description: str) -> Tuple[libtmux.Pane, str]:
         """
         Creates a new pane in the specified window and generates a canonical internal name for it.
 
@@ -205,13 +205,13 @@ class UIManager:
 
         :param window: The libtmux.Window to create the pane in.
         :param tool_name: The name of the tool initiating the scan.
-        :param scan_profile: The scan profile being used.
+        :param scan_description: The scan profile being used.
         :return: A tuple containing:
                  - The created libtmux.Pane.
                  - The generated internal name (str) for the pane.
         """
         pane = self.create_pane(window)
-        internal_name = self.rename_pane(pane, tool_name, scan_profile)
+        internal_name = self.rename_pane(pane, tool_name, scan_description)
         return pane, internal_name
 
     def create_background_window(self, tool_name: str) -> libtmux.Window:
@@ -260,25 +260,19 @@ class UIManager:
         except Exception as e:
             self.logger.exception(f"Error loading background window for {tool_name}: {e}")
 
-    def allocate_scan_window(self, tool_name: str, scan_profile: str, cmd_dict: dict, interface: str,
+    def allocate_scan_window(self, tool_name: str, cmd_dict: dict, interface: str,
                              timestamp: float, preset_description: str) -> str:
         """
         Creates a dedicated window for a scan, launches the scan command in its single pane,
         and registers the scan with the UI manager.
 
-        The pane's internal name is generated using:
-          - The tool name.
-          - The interface extracted from scan_profile (or falling back to the provided interface).
-          - The preset description (provided as preset_description, defaulting to "unknown" if not given).
-          - The current timestamp.
-        This ensures that the scan description is preserved and later displayed in the view scans submenu.
+        The pane's internal name is built using the tool name, the scan interface, the preset
+        description, and the timestamp. This internal name is used for display in the view scans submenu.
 
         Parameters
         ----------
         tool_name : str
             The name of the tool initiating the scan.
-        scan_profile : str
-            The scan profile being used (typically formatted as "<interface>_<preset>").
         cmd_dict : dict
             A dictionary containing the command details to execute (with keys 'executable' and 'arguments').
         interface : str
@@ -294,36 +288,31 @@ class UIManager:
         str
             The pane identifier where the scan command was launched.
         """
-        # create a unique window name based on tool and timestamp.
+        # Create a unique window name using the tool name and timestamp.
         window_name = f"scan_{tool_name}_{int(timestamp)}"
         self.logger.info(f"Creating dedicated scan window: {window_name}")
         window = self.session.new_window(window_name=window_name, attach=False)
 
-        # use the first pane of the new window (otherwise it splits)
+        # Use the first (and only) pane in the newly created window.
         pane = window.panes[0]
 
-        # extract the interface part from scan_profile if available
-        parts = scan_profile.split("_")
-        iface_from_profile = parts[0] if parts else interface
-
-        # use the provided preset_description or default to "unknown".
+        # Build the canonical internal pane name using the provided interface and preset description.
         preset_desc = preset_description if preset_description else "unknown"
+        pane_internal_name = f"{tool_name}_{interface}_{preset_desc}_{int(timestamp)}"
 
-        # build the internally stored pane name
-        pane_internal_name = f"{tool_name}_{iface_from_profile}_{preset_desc}_{int(timestamp)}"
-
-        # convert the command dictionary to a command string and launch it
+        # Convert the command dictionary to a string and send it to the pane.
         command = self.convert_cmd_dict_to_string(cmd_dict)
         pane.send_keys(command, enter=True)
         self.logger.debug(
             f"Launched scan in dedicated window '{window_name}' pane '{pane_internal_name}' with command: {command}"
         )
 
-        # retrieve lock status and register the scan
+        # Retrieve the interface's lock status and register the scan.
         lock_status = self.get_lock_status(interface)
         pane_id = pane.get("pane_id")
         self._register_scan(window.get("window_name"), pane_id, pane_internal_name, tool_name,
-                            scan_profile, preset_description, command, interface, lock_status, timestamp)
+                            "",  # scan_profile is no longer used
+                            preset_description, command, interface, lock_status, timestamp)
 
         return pane_id
 
