@@ -7,7 +7,7 @@ from tools.helpers.sql_utils import get_founds_ssid_and_key
 from tools.helpers.tool_utils import get_connected_interfaces, get_wifi_networks
 
 
-class NetConnectSubmenu:
+class PyfyConnectSubmenu:
     def __init__(self, tool_instance):
         """
         Initialize the submenu for NetConnectTool.

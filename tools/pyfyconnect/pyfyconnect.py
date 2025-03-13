@@ -2,20 +2,21 @@ import tempfile
 import subprocess
 import os
 import logging
+from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from tools.netconnect.submenu import NetConnectSubmenu
+from tools.pyfyconnect.submenu import PyfyConnectSubmenu
 from tools.tools import Tool
 from utils.tool_registry import register_tool
 
 
-@register_tool("netconnect")
-class NetConnectTool(Tool):
+@register_tool("pyfyconnect")
+class PyfyConnectTool(Tool, ABC):
     def __init__(self, base_dir: Path, config_file: Optional[str] = None,
                  interfaces: Optional[Any] = None, settings: Optional[Dict[str, Any]] = None):
         super().__init__(
-            name="netconnect",
+            name="pyfyconnect",
             description="Tool for connecting to a network using wpa_supplicant",
             base_dir=base_dir,
             config_file=config_file,
@@ -23,7 +24,7 @@ class NetConnectTool(Tool):
             settings=settings
         )
         self.logger = logging.getLogger(self.name.upper())
-        self.submenu = NetConnectSubmenu(self)
+        self.submenu = PyfyConnectSubmenu(self)
         # These are set via the submenu
         self.selected_interface = None  # "wlan0, wlan1, etc. from config.yaml"
         self.selected_network = None  # SSID of the network

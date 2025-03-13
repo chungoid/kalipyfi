@@ -20,7 +20,7 @@ CLEANUP_SCRIPT = TMUXP_DIR / "cleanup.py"
 
 TOOL_PATHS = {
     "hcxtool": TOOLS_DIR / "hcxtool",
-    "netconnect": TOOLS_DIR / "netconnect",
+    "pyfyconnect": TOOLS_DIR / "pyfyconnect",
     "nmap": TOOLS_DIR / "nmap",
 }
 
