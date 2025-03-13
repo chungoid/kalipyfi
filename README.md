@@ -5,16 +5,16 @@
 ## Installation
 ```bash
 git clone https://github.com/chungoid/kalipyfi
+cd kalipyfi
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
 ## change path in kalipyfi (not .py) ##
-## and optionally move to /usr/local/bin/ ##
 SET YOUR DIRECTORY PATH
 KALIPYFI_DIR="/fullpath/to/kalipyfi/"
 
-## and then run:
+## run:
 sudo kalipyfi
 ```
 
@@ -60,19 +60,19 @@ presets: #example from tools/hcxtool/configs/config.yaml
 
 ## Adding Custom Tool Modules
 Subclass the Tool Base Class:
-Create your new tool by subclassing the Tool base class (found in tools/tools.py). This class handles configuration loading, directory setup, command building, and IPC communication. Override the required methods—especially the submenu() method—to define your tool’s custom user interface and functionality.
+- Create your new tool by subclassing the Tool base class (found in tools/tools.py). This class handles configuration loading, directory setup, command building, and IPC communication. Override the required methods—especially the submenu() method—to define your tool’s custom user interface and functionality.
 
 Implement a Custom Submenu:
-Use or extend the submenu base class (similar to the existing HcxToolSubmenu) to build an interactive curses-based UI for your tool. This submenu can provide options specific to your tool while inheriting common navigation and display functionality. The custom submenu should be implemented as a callable (typically via the __call__ method) so that it can be easily integrated with the main UI.
+- Use or extend the submenu base class (similar to the existing HcxToolSubmenu) to build an interactive curses-based UI for your tool. This submenu can provide options specific to your tool while inheriting common navigation and display functionality. The custom submenu should be implemented as a callable (typically via the __call__ method) so that it can be easily integrated with the main UI.
 
 Leverage Existing IPC Handlers:
-Your tool can make use of the existing IPC handlers (located in ipc_protocol.py) to send and receive messages. This enables you to launch scans or other processes in dedicated panes, manage state, and interact with the UI manager without having to write your own inter-process communication logic.
+- Your tool can make use of the existing IPC handlers (located in ipc_protocol.py) to send and receive messages. This enables you to launch scans or other processes in dedicated panes, manage state, and interact with the UI manager without having to write your own inter-process communication logic.
 
 Register Your Tool:
-Simply decorate your tool class with the @register_tool decorator from utils/tool_registry.py. This adds your tool to the global tool registry. Once registered, the main menu (in main_menu.py) automatically imports and displays your custom tool as one of the available modules (don't forget to import your tool in utils/ui/main_menu.py) in the main menu.
+- Simply decorate your tool class with the @register_tool decorator from utils/tool_registry.py. This adds your tool to the global tool registry. Once registered, the main menu (in main_menu.py) automatically imports and displays your custom tool as one of the available modules (don't forget to import your tool in utils/ui/main_menu.py) in the main menu.
 
 Customize as Needed:
-With your tool registered and its submenu implemented, you can further customize the functionality by creating your own command-line options and utilize them in config.yaml (example: autobpf in hcxtool, and its helper in tools/helpers.py), logging, and IPC message formats. The modular design ensures that your tool integrates smoothly with the existing UI and process management features.
+- With your tool registered and its submenu implemented, you can further customize the functionality by creating your own command-line options and utilize them in config.yaml (example: autobpf in hcxtool, and its helper in tools/helpers.py), logging, and IPC message formats. The modular design ensures that your tool integrates smoothly with the existing UI and process management features.
 
 Example:
 ```bash
