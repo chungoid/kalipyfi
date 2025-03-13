@@ -57,10 +57,10 @@ Leverage Existing IPC Handlers:
 Your tool can make use of the existing IPC handlers (located in ipc_protocol.py) to send and receive messages. This enables you to launch scans or other processes in dedicated panes, manage state, and interact with the UI manager without having to write your own inter-process communication logic.
 
 Register Your Tool:
-Simply decorate your tool class with the @register_tool decorator from utils/tool_registry.py. This adds your tool to the global tool registry. Once registered, the main menu (in main_menu.py) automatically imports and displays your custom tool as one of the available modules.
+Simply decorate your tool class with the @register_tool decorator from utils/tool_registry.py. This adds your tool to the global tool registry. Once registered, the main menu (in main_menu.py) automatically imports and displays your custom tool as one of the available modules (don't forget to import your tool in utils/ui/main_menu.py) in the main menu.
 
 Customize as Needed:
-With your tool registered and its submenu implemented, you can further customize the functionality by adding your own command-line options, logging, and IPC message formats. The modular design ensures that your tool integrates smoothly with the existing UI and process management features.
+With your tool registered and its submenu implemented, you can further customize the functionality by creating your own command-line options and utilize them in config.yaml (example: autobpf in hcxtool, and its helper in tools/helpers.py), logging, and IPC message formats. The modular design ensures that your tool integrates smoothly with the existing UI and process management features.
 
 Example:
 ```bash
