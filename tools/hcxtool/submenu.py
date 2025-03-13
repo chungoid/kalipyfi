@@ -1,11 +1,9 @@
 import os
-import yaml
 import curses
 import logging
 from pathlib import Path
-from typing import Any, Union
 
-# local imports
+# locals
 from tools.helpers.webserver import start_webserver
 from tools.helpers.wpasec import download_from_wpasec, upload_to_wpasec
 
@@ -181,12 +179,7 @@ class HcxToolSubmenu(BaseSubmenu):
                 except Exception:
                     ch = ''
                 if ch.lower() == 'y':
-                    start_webserver(self.tool.results_dir)
-                    parent_win.clear()
-                    parent_win.addstr(0, 0,
-                        "Webserver started on port 8000.\nVisit http://<device-ip>:8000/map.html\nPress any key to continue...")
-                    parent_win.refresh()
-                    parent_win.getch()
+                    self.open_results_webserver(parent_win)
                 else:
                     parent_win.clear()
                     parent_win.addstr(0, 0, "Export complete. Press any key to continue...")
