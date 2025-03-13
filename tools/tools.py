@@ -109,7 +109,7 @@ class Tool:
     def run_to_ipc(self, scan_profile: str, cmd_dict: dict):
         from utils.ipc_client import IPCClient
         client = IPCClient()
-        socket_path = get_published_socket_path()
+        #socket_path = get_published_socket_path()
         """
         Launch the scan command in a background pane via IPC.
         The IPC server will:
