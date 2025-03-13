@@ -154,11 +154,11 @@ class Hcxtool(Tool, ABC):
 
             # Set pane title, {interface}_{description}; UI Manager creates.
             preset_description = self.preset_description
-            pane_title = f"{self.selected_interface}_{preset_description}"
-            self.logger.debug(f"Using pane title: {pane_title}")
+            #pane_title = f"{self.selected_interface}_{preset_description}"
+            #self.logger.debug(f"Using pane title: {pane_title}")
 
             # Send the structured command to the IPC server
-            response = self.run_to_ipc(pane_title, cmd_dict)
+            response = self.run_to_ipc(preset_description, cmd_dict)
             if not (response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK")):
                 self.logger.error("Scan failed to send to pane. Response: %s", response)
                 return
