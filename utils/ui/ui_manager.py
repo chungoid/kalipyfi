@@ -39,7 +39,7 @@ class UIManager:
 
 
     def _register_scan(self, window_name: str, pane_id: str, internal_name: str, tool_name: str,
-                       scan_profile: str, preset_description: str, command: str, interface: str,
+                    preset_description: str, command: str, interface: str,
                        lock_status: bool, timestamp: float) -> None:
         """
         Creates a ScanData object and updates the active_scans registry.
@@ -48,7 +48,6 @@ class UIManager:
         :param pane_id: The unique identifier of the pane.
         :param internal_name: The canonical internal name generated for the pane.
         :param tool_name: The name of the tool launching the scan.
-        :param scan_profile: The scan profile used.
         :param command: The executed command string.
         :param interface: The interface used for scanning.
         :param lock_status: The lock status of the interface.
@@ -309,9 +308,9 @@ class UIManager:
         # Retrieve the interface's lock status and register the scan.
         lock_status = self.get_lock_status(interface)
         pane_id = pane.get("pane_id")
-        self._register_scan(window.get("window_name"), pane_id, pane_internal_name, tool_name,
-                            "",  # scan_profile is no longer used
-                            preset_description, command, interface, lock_status, timestamp)
+        self._register_scan(window_name=window.get("window_name"), pane_id=pane_id, internal_name=pane_internal_name,
+                            tool_name=tool_name, preset_description=preset_description, command=command,
+                            interface=interface, lock_status=lock_status, timestamp=timestamp)
 
         return pane_id
 
