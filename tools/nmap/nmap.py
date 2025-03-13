@@ -103,7 +103,9 @@ class Nmap(Tool):
 
         cmd_list = self.build_nmap_command(self.selected_network)
         cmd_dict = self.cmd_to_dict(cmd_list)
-        response = self.run_to_ipc(self.selected_preset.get("description", "nmap_scan"), cmd_dict)
+        self.preset_description = self.selected_preset.get("description", "nmap_scan")
+        profile = self.preset_description
+        response = self.run_to_ipc(scan_profile = profile, cmd_dict = cmd_dict)
         if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             self.logger.info("Network scan initiated successfully: %s", response)
         else:
@@ -122,7 +124,7 @@ class Nmap(Tool):
 
         cmd_list = self.build_nmap_command(self.selected_target_host)
         cmd_dict = self.cmd_to_dict(cmd_list)
-        self.preset_description = self.selected_preset.get("description")
+        self.preset_description = self.selected_preset.get("description", "nmap_scan")
         self.selected_interface = self.selected_network
         profile = self.selected_preset.get("description", "nmap_target_scan")
         response = self.run_to_ipc(profile, cmd_dict)
