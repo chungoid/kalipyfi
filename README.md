@@ -55,7 +55,7 @@ presets: #example from tools/hcxtool/configs/config.yaml
       --disable_beacon: true
       --gpsd: true
       -F: true
-      autobpf: true
+      autobpf: true # example of custom tool arg.. see: tools/helpers/autobpf.py & tools/hcxtool.py
 ```
 
 ## Adding Custom Tool Modules
