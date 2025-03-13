@@ -29,7 +29,6 @@ class InterfaceData:
 @dataclass
 class ScanData:
     tool: str # tool that sent the scan
-    #scan_profile: str # entire scan profile dict
     window_name: str # tmux name for window the scan resides in
     pane_id: str # tmux pane id
     internal_name: str  # internal name for UI manager to use in menus

@@ -140,7 +140,7 @@ class Hcxtool(Tool, ABC):
 
 
     def run(self, profile=None) -> None:
-        # Process the scan profile
+        # process the scan profile
         self.logger.debug("Building scan command.")
         try:
             cmd_list = self.build_command()
@@ -148,17 +148,12 @@ class Hcxtool(Tool, ABC):
                 self.logger.critical("Error: build_command() returned an empty command.")
                 return
 
-            # Convert the command list into a structured dictionary
+            # convert the command list into a structured dictionary
             cmd_dict = self.cmd_to_dict(cmd_list)
             self.logger.debug("Command dict built: %s", cmd_dict)
 
-            # Set pane title, {interface}_{description}; UI Manager creates.
-            preset_description = self.preset_description
-            #pane_title = f"{self.selected_interface}_{preset_description}"
-            #self.logger.debug(f"Using pane title: {pane_title}")
-
-            # Send the structured command to the IPC server
-            response = self.run_to_ipc(preset_description, cmd_dict)
+            # send command to the IPC server
+            response = self.run_to_ipc(cmd_dict)
             if not (response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK")):
                 self.logger.error("Scan failed to send to pane. Response: %s", response)
                 return

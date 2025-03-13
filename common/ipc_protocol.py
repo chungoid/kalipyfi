@@ -123,7 +123,6 @@ def handle_send_scan(ui_instance, request: dict) -> dict:
     logger = logging.getLogger("ipc_proto:handle_send_scan")
     logger.debug(f"handle_send_scan: Received request: {request}")
     tool_name = request.get("tool")                  # tool which sent the scan
-    #scan_profile = request.get("scan_profile")       # selected profile from 'preset'
     cmd_dict = request.get("command")                # built command to be run in tmux
     interface = request.get("interface", "unknown")
     preset_description = request.get("preset_description")
@@ -177,9 +176,8 @@ def handle_get_scans(ui_instance, request: dict) -> dict:
     matching_scans = []
     for pane_id, scan in ui_instance.active_scans.items():
         try:
-            # Log basic info about each scan object.
+            # log basic info about each scan object
             logger.debug(f"Processing scan from pane {pane_id}: type={type(scan)}, scan={scan}")
-            # Make sure scan has a 'tool' attribute.
             if not hasattr(scan, "tool"):
                 logger.error(f"Scan in pane {pane_id} has no 'tool' attribute: {scan}")
                 continue

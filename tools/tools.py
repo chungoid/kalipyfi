@@ -15,6 +15,7 @@ from common.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
 from tools.helpers.tool_utils import get_network_from_interface
 from utils.helper import get_published_socket_path
+from utils.ipc_client import IPCClient
 
 
 class Tool:
@@ -106,10 +107,7 @@ class Tool:
     #############################
     ##### CORE IPC HANDLING #####
     #############################
-    def run_to_ipc(self, scan_profile: str, cmd_dict: dict):
-        from utils.ipc_client import IPCClient
-        client = IPCClient()
-        #socket_path = get_published_socket_path()
+    def run_to_ipc(self, cmd_dict: dict):
         """
         Launch the scan command in a background pane via IPC.
         The IPC server will:
@@ -117,10 +115,11 @@ class Tool:
           - Allocate or identify a pane.
           - Run the provided command.
         """
+        client = IPCClient()
+
         ipc_message = {
             "action": "SEND_SCAN",
             "tool": self.name,
-            "scan_profile": scan_profile,
             "command": cmd_dict,
             "interface": self.selected_interface,
             "preset_description": self.preset_description,

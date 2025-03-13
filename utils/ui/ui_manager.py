@@ -56,7 +56,6 @@ class UIManager:
         """
         scan_data = ScanData(
             tool=tool_name,
-            #scan_profile=scan_profile,
             preset_description=preset_description,
             window_name=window_name,
             pane_id=pane_id,
@@ -180,7 +179,7 @@ class UIManager:
         """
         return window.split_window(attach=False)
 
-    def rename_pane(self, pane: libtmux.Pane, tool_name: str, scan_description: str) -> str:
+    def rename_pane(self, pane: libtmux.Pane, tool_name: str, preset_description: str) -> str:
         """
         Generates a canonical internal name for the pane.
 
@@ -189,14 +188,14 @@ class UIManager:
 
         :param pane: The libtmux.Pane (unused in renaming, but provided for consistency).
         :param tool_name: The name of the tool.
-        :param scan_description: The scan profile being used.
+        :param preset_description: The scan profile being used.
         :return: The generated canonical pane name as a string.
         """
-        pane_title = f"{tool_name}_{scan_description}_{int(time.time())}"
+        pane_title = f"{tool_name}_{preset_description}_{int(time.time())}"
         return pane_title
 
     def create_and_rename_pane(self, window: libtmux.Window, tool_name: str,
-                               scan_description: str) -> Tuple[libtmux.Pane, str]:
+                               preset_description: str) -> Tuple[libtmux.Pane, str]:
         """
         Creates a new pane in the specified window and generates a canonical internal name for it.
 
@@ -205,13 +204,13 @@ class UIManager:
 
         :param window: The libtmux.Window to create the pane in.
         :param tool_name: The name of the tool initiating the scan.
-        :param scan_description: The scan profile being used.
+        :param preset_description: The scan profile being used.
         :return: A tuple containing:
                  - The created libtmux.Pane.
                  - The generated internal name (str) for the pane.
         """
         pane = self.create_pane(window)
-        internal_name = self.rename_pane(pane, tool_name, scan_description)
+        internal_name = self.rename_pane(pane, tool_name, preset_description)
         return pane, internal_name
 
     def create_background_window(self, tool_name: str) -> libtmux.Window:
