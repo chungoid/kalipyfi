@@ -120,7 +120,7 @@ class Tool:
         ipc_message = {
             "action": "SEND_SCAN",
             "tool": self.name,
-            "scan_profile": scan_profile,
+            "scan_profile": self.selected_preset,
             "command": cmd_dict,
             "interface": self.selected_interface,
             "timestamp": time.time()
