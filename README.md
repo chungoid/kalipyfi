@@ -19,6 +19,20 @@ sudo kalipyfi
 ```
 
 ## Usage
+### Current Tools:
+- hcxtools - perform wireless scans
+  - database storage
+  - export to map.html and view in web browser (if gpsd enabled)
+  - upload/download via wpasec
+  - define custom scan configs using cli args in config.yaml
+- nmap - perform network scans
+  - automatic gateway parsing
+  - automatic host parsing
+  - define custom scan configs using cli args in config.yaml
+- pyfyconnect - manage network connections
+  - automatic station parsing
+  - connect from database 
+  - manual connect
 
 - Every tool has a config.yaml file located within that tools configs directory
 - Define interfaces & cli cmd presets as shown below
