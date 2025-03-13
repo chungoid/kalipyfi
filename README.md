@@ -74,7 +74,7 @@ Register Your Tool:
 Customize as Needed:
 - With your tool registered and its submenu implemented, you can further customize the functionality by creating your own command-line options and utilize them in config.yaml (example: autobpf in hcxtool, and its helper in tools/helpers.py), logging, and IPC message formats. The modular design ensures that your tool integrates smoothly with the existing UI and process management features.
 
-Define your tools path in config/constants.py:
+- Define your tools path in config/constants.py:
 ```bash
 TOOL_PATHS = {
     "hcxtool": TOOLS_DIR / "hcxtool",
@@ -83,7 +83,7 @@ TOOL_PATHS = {
     "yourtool": TOOLS_DIR / "yourtool",
 }
 ```
-Import your tool in utils/ui/main_menu.py:
+- Import your tool in utils/ui/main_menu.py:
 ```bash
 # import all tool modules so they load via decorators
 from utils.tool_registry import tool_registry
@@ -92,7 +92,7 @@ from tools.pyfyconnect import pyfyconnect
 from tools.nmap import nmap
 from tools.yourtool import yourtool 
 ```
-Example Class Template For yourtool:
+- Example Class Template For yourtool:
 ```bash
 from abc import ABC
 from tools.tools import Tool
@@ -143,7 +143,7 @@ class YourTool(Tool, ABC):
             # send built and processed command to the IPC server
             response = self.run_to_ipc(cmd_dict)
 ```
-Example Submenu Template For yourtool:
+- Example Submenu Template For yourtool:
 ```bash
 # Import the base submenu class
 from tools.submenu import BaseSubmenu
@@ -252,7 +252,7 @@ class YourToolSubmenu(BaseSubmenu):
             submenu_win.clear()
             submenu_win.refresh()
 ```
-Define new IPC keys or actions in config/constants.py:
+- Define new IPC keys or actions in config/constants.py:
 ```bash
 IPC_CONSTANTS = {
     "keys": {
@@ -284,7 +284,7 @@ IPC_CONSTANTS = {
         "EXAMPLE_TWO": "EXAMPLE_TWO", # like this
     }
 ```
-Create Custom Handler in common/ipc_protocol.py
+- Create Custom Handler in common/ipc_protocol.py
 ```bash 
 def handle_example_one(ui_instance, request: dict) -> dict:
     """
@@ -306,7 +306,7 @@ def handle_example_one(ui_instance, request: dict) -> dict:
         logger.exception("handle_stop_scan: Exception occurred")
         return {ERROR_KEY: f"EXAMPLE_TWO error: {e}"}
 ```
-Add Your Custom Handler in utils/ipc.py:
+- Add Your Custom Handler in utils/ipc.py:
 ```bash
 # add your new action to the unpacked constants
 from config.constants import IPC_CONSTANTS
@@ -321,7 +321,7 @@ EXAMPLE_TWO = IPC_CONSTANTS["actions"]["EXAMPLE_TWO"]
       elif action == EXAMPLE_TWO:
         response = handle_example_two(self.ui_instance, request)
 ```
-Use Your Action in yourtool:
+- Use Your Action in yourtool:
 ```bash
 def yourtool_function() -> Optional[Dict]:
     # import client
