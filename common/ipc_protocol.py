@@ -124,7 +124,7 @@ def handle_send_scan(ui_instance, request: dict) -> dict:
     scan_profile = request.get("scan_profile")       # selected profile from 'preset'
     cmd_dict = request.get("command")                # built command to be run in tmux
     interface = request.get("interface", "unknown")
-    preset_description = request.get("preset_description", "unknown")
+    preset_description = request.get("preset_description")
     timestamp = request.get("timestamp")
     if not all([tool_name, scan_profile, cmd_dict]):
         logger.error("handle_send_scan: Missing parameters")

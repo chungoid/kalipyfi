@@ -260,51 +260,66 @@ class UIManager:
         except Exception as e:
             self.logger.exception(f"Error loading background window for {tool_name}: {e}")
 
-
     def allocate_scan_window(self, tool_name: str, scan_profile: str, cmd_dict: dict, interface: str,
                              timestamp: float, preset_description: str) -> str:
         """
-        Creates a new dedicated window for a scan, runs the scan command in its single pane,
-        and registers the scan.
+        Creates a dedicated window for a scan, launches the scan command in its single pane,
+        and registers the scan with the UI manager.
+
+        The pane's internal name is generated using:
+          - The tool name.
+          - The interface extracted from scan_profile (or falling back to the provided interface).
+          - The preset description (provided as preset_description, defaulting to "unknown" if not given).
+          - The current timestamp.
+        This ensures that the scan description is preserved and later displayed in the view scans submenu.
 
         Parameters
         ----------
-        tool_name: The name of the tool.
-        scan_profile: The scan profile being used.
-        cmd_dict: The command dictionary to be passed to the scan command.
-        interface: The scan interface being used.
-        timestamp: The timestamp from when the scan was started.
-        preset_description: The description key from preset configs.
-
+        tool_name : str
+            The name of the tool initiating the scan.
+        scan_profile : str
+            The scan profile being used (typically formatted as "<interface>_<preset>").
+        cmd_dict : dict
+            A dictionary containing the command details to execute (with keys 'executable' and 'arguments').
+        interface : str
+            The scan interface that will be used.
+        timestamp : float
+            The timestamp indicating when the scan was started.
+        preset_description : str
+            The description extracted from the preset configuration. This value is used
+            to label the scan for display purposes.
 
         Returns
         -------
+        str
+            The pane identifier where the scan command was launched.
         """
-        # unix timestamp for uniqueness. ex. tool_name_001312348302
+        # create a unique window name based on tool and timestamp.
         window_name = f"scan_{tool_name}_{int(timestamp)}"
         self.logger.info(f"Creating dedicated scan window: {window_name}")
         window = self.session.new_window(window_name=window_name, attach=False)
 
-        # single scan per window
+        # use the first pane of the new window (otherwise it splits)
         pane = window.panes[0]
 
-        # expected scan_profile format: "wlan1_passive" (i.e. "<interface>_<preset>")
+        # extract the interface part from scan_profile if available
         parts = scan_profile.split("_")
-        if len(parts) >= 2:
-            iface_from_profile = parts[0]
-            preset_desc = parts[1]
-        else:
-            # fallbacks
-            iface_from_profile = interface
-            preset_desc = "unknown"
+        iface_from_profile = parts[0] if parts else interface
 
+        # use the provided preset_description or default to "unknown".
+        preset_desc = preset_description if preset_description else "unknown"
+
+        # build the internally stored pane name
         pane_internal_name = f"{tool_name}_{iface_from_profile}_{preset_desc}_{int(timestamp)}"
 
+        # convert the command dictionary to a command string and launch it
         command = self.convert_cmd_dict_to_string(cmd_dict)
         pane.send_keys(command, enter=True)
         self.logger.debug(
-            f"Launched scan in dedicated window '{window_name}' pane '{pane_internal_name}' with command: {command}")
+            f"Launched scan in dedicated window '{window_name}' pane '{pane_internal_name}' with command: {command}"
+        )
 
+        # retrieve lock status and register the scan
         lock_status = self.get_lock_status(interface)
         pane_id = pane.get("pane_id")
         self._register_scan(window.get("window_name"), pane_id, pane_internal_name, tool_name,
