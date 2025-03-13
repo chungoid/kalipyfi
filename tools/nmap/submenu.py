@@ -202,13 +202,9 @@ class NmapSubmenu(BaseSubmenu):
         self.tool.reload_config()
         self.tool.target_networks = self.tool.get_target_networks()
 
-        # this is optional.. check tools/submenu.py BaseSubmenu
-        #self.debug_win = self.create_debug_window(stdscr, height=4)
-
-        # Create the main submenu window (covering entire stdscr except the debug window area)
-        max_y, max_x = stdscr.getmaxyx()
-        menu_height = max_y - 4  # reserve bottom 4 lines for debugging
-        submenu_win = stdscr.derwin(menu_height, max_x, 0, 0)
+        # Create the main submenu window
+        h, w = stdscr.getmaxyx()
+        submenu_win = curses.newwin(h, w, 0, 0)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()
