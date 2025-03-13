@@ -84,7 +84,7 @@ def format_scan_display(scan: dict) -> str:
 
         "hcxtool | wlan1 | passive | 0:03:15"
     """
-    # Try to extract the tool, interface, and preset description from internal_name.
+    # try to extract the tool, interface, and preset description from internal_name
     internal_name = scan.get("internal_name", "")
     parts = internal_name.split("_")
     if len(parts) >= 3:
@@ -95,10 +95,10 @@ def format_scan_display(scan: dict) -> str:
         # Fall back to other keys if internal_name isn't in the expected format.
         tool_str = scan.get("tool", "unknown")
         interface_str = scan.get("interface", "unknown")
-        # If scan_profile exists, assume it is formatted like "wlan1_passive" and take the second part.
-        scan_profile = scan.get("scan_profile", "")
-        if "_" in scan_profile:
-            preset_desc = scan_profile.split("_")[-1]
+        # take second part
+        scan_description = scan.get("scan_description", "")
+        if "_" in scan_description:
+            preset_desc = scan_description.split("_")[-1]
         else:
             preset_desc = "N/A"
 
