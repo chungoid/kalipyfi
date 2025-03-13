@@ -4,9 +4,7 @@ import logging
 from pathlib import Path
 
 # locals
-from tools.helpers.webserver import start_webserver
 from tools.helpers.wpasec import download_from_wpasec, upload_to_wpasec
-
 from tools.submenu import BaseSubmenu
 
 class HcxToolSubmenu(BaseSubmenu):

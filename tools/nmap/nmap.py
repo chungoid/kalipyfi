@@ -1,4 +1,5 @@
 import logging
+from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -8,7 +9,7 @@ from tools.helpers.tool_utils import get_gateways
 from utils.tool_registry import register_tool
 
 @register_tool("nmap")
-class Nmap(Tool):
+class Nmap(Tool, ABC):
     def __init__(self, base_dir: Path, config_file: Optional[str] = None,
                  interfaces: Optional[Any] = None, presets: Optional[Dict[str, Any]] = None):
 

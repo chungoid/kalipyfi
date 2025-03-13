@@ -2,7 +2,7 @@
 
 scan_profile:
   autobpf:
-    descript: "Automatically create & apply bpf filter. Protects macs of separate wlan interfaces & their associated macs (aps/clients)"
+    description: "Automatically create & apply bpf filter. Protects macs of separate wlan interfaces & their associated macs (aps/clients)"
   -c:
     description: "Set channel(s) to scan. Must include band information (e.g., 1a,6a,11a). Default: 1a,6a,11a."
     value: "1a,6a,11a"

@@ -1,8 +1,6 @@
 import curses
 import logging
 import socket
-from venv import create
-
 import yaml
 from pathlib import Path
 from typing import List, Any, Union

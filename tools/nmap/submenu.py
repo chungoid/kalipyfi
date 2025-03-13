@@ -170,20 +170,21 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
 
     def utils_menu(self, parent_win) -> None:
-        menu_options = ["Open Results Webserver"]
+        menu_options = ["Open Results Webserver", "Create Scan Profile", "Edit Scan Profile"]
         while True:
             selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
             if selection.lower() == "back":
                 break
             elif selection == "Open Results Webserver":
                 self.open_results_webserver(parent_win)
-            elif selection == "Other utilities...":
+            elif selection == "Create Scan Profile":
+                self.create_preset_profile_menu(parent_win)
+            elif selection == "Edit Scan Profile":
+                self.edit_preset_profile_menu(parent_win)
+            else:
                 parent_win.clear()
-                parent_win.addstr(0, 0, "No other utilities available. Press any key to return.")
                 parent_win.refresh()
-                parent_win.getch()
-            parent_win.clear()
-            parent_win.refresh()
+                return
 
     def __call__(self, stdscr) -> None:
         """
