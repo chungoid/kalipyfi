@@ -167,9 +167,9 @@ class HcxToolSubmenu(BaseSubmenu):
             elif selection == "Download":
                 self.download(parent_win)
             elif selection == "Export Results":
+                parent_win.addstr(0, 0, "Exporting Results... please wait a few moments.")
                 self.tool.export_results()
-                parent_win.addstr(0, 0, "Exporting Results... please wait for confirmation.")
-                curses.napms(3000)
+                curses.napms(2500)
                 parent_win.refresh()
                 parent_win.clear()
                 parent_win.addstr(0, 0, "Export complete. Spawn webserver to view results? (y/n): ")
