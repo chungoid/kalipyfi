@@ -111,8 +111,7 @@ class Nmap(Tool):
         # Build command using the network target.
         cmd_list = self.build_nmap_command(self.selected_network)
         cmd_dict = self.cmd_to_dict(cmd_list)
-        profile = self.preset_description
-        response = self.run_to_ipc(profile, cmd_dict)
+        response = self.run_to_ipc(self.selected_preset["description"], cmd_dict)
         if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             self.logger.info("Network scan initiated successfully: %s", response)
         else:

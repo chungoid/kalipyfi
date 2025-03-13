@@ -39,8 +39,8 @@ class UIManager:
 
 
     def _register_scan(self, window_name: str, pane_id: str, internal_name: str, tool_name: str,
-                         scan_profile: str, command: str, interface: str,
-                         lock_status: bool, timestamp: float) -> None:
+                       scan_profile: str, preset_description: str, command: str, interface: str,
+                       lock_status: bool, timestamp: float) -> None:
         """
         Creates a ScanData object and updates the active_scans registry.
 
@@ -57,6 +57,7 @@ class UIManager:
         scan_data = ScanData(
             tool=tool_name,
             scan_profile=scan_profile,
+            preset_description=preset_description,
             window_name=window_name,
             pane_id=pane_id,
             internal_name=internal_name,
@@ -259,57 +260,25 @@ class UIManager:
         except Exception as e:
             self.logger.exception(f"Error loading background window for {tool_name}: {e}")
 
-    def allocate_scan_pane(self, tool_name: str, scan_profile: str, cmd_dict: dict, interface: str, timestamp: float) -> str:
-        """
-        Now defunct, and prefer allocate_scan_window. One scan per window preserves
-        the intended display state. Too many panes compresses the state & some tools
-        struggle to reformat on swaps.
-
-        :param tool_name:
-        :param scan_profile:
-        :param cmd_dict:
-        :param interface:
-        :param timestamp:
-        :return:
-        """
-        # Ensure the background window exists:
-        window = self.get_or_create_tool_window(tool_name)
-        # Create a new pane in that window:
-        pane = window.split_window(attach=False)
-        pane_internal_name = self.rename_pane(pane, tool_name, scan_profile)
-        command = self.convert_cmd_dict_to_string(cmd_dict)
-        pane.send_keys(command, enter=True)
-        self.logger.debug(f"Launched scan in pane '{pane_internal_name}' with command: {command}")
-        self.logger.info (f"Launched scan in pane '{pane_internal_name}' successfully.")
-        lock_status = self.get_lock_status(interface)
-        pane_id = pane.get("pane_id")
-        self._register_scan(window.get("window_name"), pane_id, pane_internal_name, tool_name, scan_profile, command,
-                            interface, lock_status, timestamp)
-        return pane_id
 
     def allocate_scan_window(self, tool_name: str, scan_profile: str, cmd_dict: dict, interface: str,
-                             timestamp: float) -> str:
+                             timestamp: float, preset_description: str) -> str:
         """
         Creates a new dedicated window for a scan, runs the scan command in its single pane,
         and registers the scan.
 
         Parameters
         ----------
-        tool_name : str
-            Name of the tool.
-        scan_profile : str
-            The scan profile (expected to be formatted like "wlan1_passive").
-        cmd_dict : dict
-            The command dictionary to run.
-        interface : str
-            The selected scan interface.
-        timestamp : float
-            The timestamp from the IPC message.
+        tool_name: The name of the tool.
+        scan_profile: The scan profile being used.
+        cmd_dict: The command dictionary to be passed to the scan command.
+        interface: The scan interface being used.
+        timestamp: The timestamp from when the scan was started.
+        preset_description: The description key from preset configs.
+
 
         Returns
         -------
-        str
-            The pane_id of the dedicated scan pane.
         """
         # unix timestamp for uniqueness. ex. tool_name_001312348302
         window_name = f"scan_{tool_name}_{int(timestamp)}"
@@ -339,7 +308,7 @@ class UIManager:
         lock_status = self.get_lock_status(interface)
         pane_id = pane.get("pane_id")
         self._register_scan(window.get("window_name"), pane_id, pane_internal_name, tool_name,
-                            scan_profile, command, interface, lock_status, timestamp)
+                            scan_profile, preset_description, command, interface, lock_status, timestamp)
 
         return pane_id
 

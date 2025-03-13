@@ -30,6 +30,7 @@ class InterfaceData:
 class ScanData:
     tool: str
     scan_profile: str
+    preset_description = str
     window_name: str
     pane_id: str
     internal_name: str  # Added internal name for UI display purposes.

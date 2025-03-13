@@ -120,9 +120,10 @@ class Tool:
         ipc_message = {
             "action": "SEND_SCAN",
             "tool": self.name,
-            "scan_profile": self.selected_preset,
+            "scan_profile": scan_profile,
             "command": cmd_dict,
             "interface": self.selected_interface,
+            "preset_description": self.preset_description,
             "timestamp": time.time()
         }
         self.logger.debug("Sending IPC scan command: %s", ipc_message)
