@@ -25,7 +25,7 @@ sudo kalipyfi
 - Database is stored in the parent directory of kalipyfi as .kalipyfi to remain separated from repository management
 - Otherwise, simply explore menu options.
 ```yaml
-interfaces:
+interfaces: # example that goes in all tools configs/config.yaml
   wlan:
   - description: hotspot # short description
     locked: true # optionally set to locked so tools ignore it (defunct, likely removing)
@@ -37,13 +37,25 @@ interfaces:
     locked: true
     name: wlan2
   # and so on and so fourth.. add as many as you'd like
-  
-presets:
+```
+```yaml
+presets: # example from tools/nmap/configs/config.yaml
   1: 
     description: sVC # description you'll see in menu
     options: # cli args as you'd set them if you were running the command
       -A: true
-      --top-ports: 1000
+      --top-ports: 1000 
+```
+```yaml
+presets: #example from tools/hcxtool/configs/config.yaml
+  4:
+    description: silent
+    options:
+      --attemptapmax: 0
+      --disable_beacon: true
+      --gpsd: true
+      -F: true
+      autobpf: true
 ```
 
 ## Adding Custom Tool Modules
