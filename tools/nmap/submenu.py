@@ -50,7 +50,9 @@ class NmapSubmenu(BaseSubmenu):
         subdirs = [d for d in self.tool.results_dir.iterdir() if d.is_dir() and list(d.glob("*.gnmap"))]
         if not subdirs:
             parent_win.clear()
-            parent_win.addstr(0, 0, "No subdirectories with .gnmap files found in results directory!")
+            parent_win.addstr(0, 0, "No subdirectories with .gnmap files found in results directory! \n\n"
+                                    "Note: Network Scans are required for host discovery before performing"
+                                    " host-specific scans.")
             parent_win.refresh()
             parent_win.getch()
             return None
@@ -74,10 +76,6 @@ class NmapSubmenu(BaseSubmenu):
         # .gnmap files in the chosen subdirectory
         gnmap_files = list(chosen_subdir.glob("*.gnmap"))
         if not gnmap_files:
-            parent_win.clear()
-            parent_win.addstr(0, 0, "No .gnmap files found in the selected subdirectory!")
-            parent_win.refresh()
-            parent_win.getch()
             return None
 
         # if exactly one file, select it automatically
@@ -172,15 +170,13 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
 
     def utils_menu(self, parent_win) -> None:
-        menu_options = ["Open Results Webserver", "Scan Specific Host", "Other utilities..."]
+        menu_options = ["Open Results Webserver"]
         while True:
             selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
             if selection.lower() == "back":
                 break
             elif selection == "Open Results Webserver":
                 self.open_results_webserver(parent_win)
-            elif selection == "Scan Specific Host":
-                self.rescan_host_menu(parent_win)
             elif selection == "Other utilities...":
                 parent_win.clear()
                 parent_win.addstr(0, 0, "No other utilities available. Press any key to return.")
@@ -217,7 +213,7 @@ class NmapSubmenu(BaseSubmenu):
         submenu_win.refresh()
 
         # Define main menu options.
-        menu_items = ["Launch Scan", "View Scans", "Utils", "Back"]
+        menu_items = ["Network Scan", "Host Scan", "View Scans", "Utils", "Back"]
         numbered_menu = [f"[{i + 1}] {item}" for i, item in enumerate(menu_items[:-1])]
         numbered_menu.append("[0] Back")
 
@@ -232,8 +228,10 @@ class NmapSubmenu(BaseSubmenu):
             if ch == "1":
                 self.launch_scan(submenu_win)
             elif ch == "2":
-                self.view_scans(submenu_win)
+                self.rescan_host_menu(submenu_win)
             elif ch == "3":
+                self.view_scans(submenu_win)
+            elif ch == "4":
                 self.utils_menu(submenu_win)
             elif ch == "0" or key == 27:
                 break
