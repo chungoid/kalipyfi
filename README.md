@@ -100,13 +100,26 @@ class YourTool(Tool):
         Implement your curses-based submenu here.
         """
         self.submenu(stdscr)
+        
+    def build_command(self) -> list:
+      """
+      Write custom command building logic for your cli tool here.     
+      """
 
     def run(self):
         """
-        Override this method if you need custom behavior when launching a scan or process.
-        Otherwise, you can use the base functionality for IPC communication.
+        Override this method with custom behavior and a call to run_to_ipc() (from tools/tools.py)
         """
-        # Build your command and send it via IPC using run_to_ipc()
+        # process your build_command
+        self.logger.debug("Building scan command.")
+        try:
+            cmd_list = self.build_command()
+            if not cmd_list:
+                self.logger.critical("Error: build_command() returned an empty command.")
+                return
+        
+        # send built and processed command to the IPC server
+            response = self.run_to_ipc(cmd_dict)
         pass
 
 ```
