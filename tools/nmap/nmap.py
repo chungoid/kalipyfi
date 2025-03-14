@@ -4,7 +4,7 @@ from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-
+from config.constants import BASE_DIR
 # locals
 from tools.tools import Tool
 from utils.ipc_callback import get_shared_callback_socket
@@ -51,7 +51,7 @@ class Nmap(Tool, ABC):
         self.callback_socket = get_shared_callback_socket()
 
         # nmap-specific database schema (tools/nmap/db.py)
-        conn = get_db_connection(self.base_dir)
+        conn = get_db_connection(BASE_DIR)
         init_nmap_network_schema(conn)
         init_nmap_host_schema(conn)
         conn.close()
