@@ -1,17 +1,17 @@
 import logging
-import time
 from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from config.constants import BASE_DIR
 # locals
+from config.constants import BASE_DIR
 from tools.tools import Tool
-from utils.ipc_callback import get_shared_callback_socket
+from utils.ipc_callback import get_shared_callback_socket, shared_callback_listener
 from utils.tool_registry import register_tool
 from tools.helpers.tool_utils import get_gateways
 from database.db_manager import get_db_connection
 from tools.nmap.db import init_nmap_network_schema, init_nmap_host_schema
+from tools.nmap._parser import parse_network_results
 
 @register_tool("nmap")
 class Nmap(Tool, ABC):
@@ -35,6 +35,7 @@ class Nmap(Tool, ABC):
 
         # For full-network scans
         self.selected_network = None
+        self.current_working_dir = None
 
         # For host-specific scans parsed from .gnmap results
         self.parent_dir = None
@@ -49,12 +50,19 @@ class Nmap(Tool, ABC):
 
         # override tools.py and set callback socket
         self.callback_socket = get_shared_callback_socket()
+        shared_callback_listener.register_callback(self.name, self.on_network_scan_complete)
 
         # nmap-specific database schema (tools/nmap/db.py)
         conn = get_db_connection(BASE_DIR)
         init_nmap_network_schema(conn)
         init_nmap_host_schema(conn)
         conn.close()
+
+    def submenu(self, stdscr) -> None:
+        """
+        Launches the nmap submenu (interactive UI) using curses.
+        """
+        self.submenu_instance(stdscr)
 
     def build_nmap_command(self, target: str) -> list:
         """
@@ -81,6 +89,9 @@ class Nmap(Tool, ABC):
         else:
             output_dir = self.results_dir
 
+        # working directory we can reference
+        self.current_working_dir = output_dir
+
         self.logger.debug(f"Scan mode: {self.scan_mode} Creating output directory: {output_dir}")
         file_prefix = output_dir / self.generate_default_prefix()
         cmd.extend(["-oA", str(file_prefix)])
@@ -105,21 +116,21 @@ class Nmap(Tool, ABC):
             self.logger.error("No preset selected; cannot build command.")
             return
 
-        # Ensure selected_interface is set.
-        if not self.selected_interface:
-            self.selected_interface = self.selected_network
-
-        self.preset_description = self.selected_preset["description"]
-
-        # Build the nmap command.
+        # build cmd for target network
         cmd_list = self.build_nmap_command(self.selected_network)
         self.logger.debug("Command list: %s", cmd_list)
 
-        # Convert command list to dictionary.
+        # convert cmd list to dict for ipc compatibility
         cmd_dict = self.cmd_to_dict(cmd_list)
         self.logger.debug("Command dict: %s", cmd_dict)
 
-        # Use the overridden run_to_ipc in nmap, which includes the callback_socket.
+        # set the preset description from config
+        self.preset_description = self.selected_preset["description"]
+        # ensure selected_interface is set
+        if not self.selected_interface:
+            self.selected_interface = self.selected_network
+
+        # send to ipc
         response = self.run_to_ipc(cmd_dict)
         if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             self.logger.info("Network scan initiated successfully: %s", response)
@@ -138,20 +149,21 @@ class Nmap(Tool, ABC):
             self.logger.error("No preset selected for target rescan.")
             return
 
-        # Build the command list for the target host.
+        # build cmd for target host
         cmd_list = self.build_nmap_command(self.selected_target_host)
         self.logger.debug("Target scan command list: %s", cmd_list)
 
-        # Convert the command list to a dictionary.
+        # convert cmd list to dict for ipc compatibility
         cmd_dict = self.cmd_to_dict(cmd_list)
         self.logger.debug("Target scan command dict: %s", cmd_dict)
 
-        # Set the preset description (defaulting to 'nmap_scan' if not provided)
+        # set the preset description from config
         self.preset_description = self.selected_preset.get("description", "nmap_scan")
-        # Ensure the selected_interface is set appropriately.
-        self.selected_interface = self.selected_network
+        # ensure selected interface
+        if not self.selected_interface:
+            self.selected_interface = self.selected_network
 
-        # Use the overridden run_to_ipc which will include the callback_socket.
+        # send to ipc
         response = self.run_to_ipc(cmd_dict)
         if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             self.logger.info("Target scan initiated successfully: %s", response)
@@ -182,11 +194,80 @@ class Nmap(Tool, ABC):
             else:
                 self.logger.error("No target selected for scan (neither target host nor network).")
 
-    def submenu(self, stdscr) -> None:
+    def _determine_gnmap_file_path(self) -> Optional[Path]:
         """
-        Launches the nmap submenu (interactive UI) using curses.
+        Searches the current working directory for a .gnmap file.
+        Returns the first .gnmap file found (or None if no file exists).
         """
-        self.submenu_instance(stdscr)
+        if not hasattr(self, "current_working_dir"):
+            self.logger.error("current_working_dir is not set.")
+            return None
+        gnmap_files = list(self.current_working_dir.glob("*.gnmap"))
+        if gnmap_files:
+            # If multiple files exist, you might choose to return the most recent one.
+            # For now, we'll just return the first one found.
+            return gnmap_files[0]
+        else:
+            self.logger.error("No .gnmap files found in %s", self.current_working_dir)
+            return None
+
+    def on_network_scan_complete(self, message: dict):
+        self.logger.info("SCAN_COMPLETE callback received: %s", message)
+        gnmap_path = self._determine_gnmap_file_path()
+        if not gnmap_path.exists():
+            self.logger.error("GNMAP file not found at %s", gnmap_path)
+            return
+        self.process_network_results(gnmap_path)
+
+    def process_network_results(self, gnmap_path: Path):
+        """
+        Processes the network scan results from a .gnmap file.
+        It parses the file to extract network-level data and host entries,
+        then inserts the data into the nmap_network table.
+        """
+        from tools.nmap.db import insert_nmap_network_result
+        from database.db_manager import get_db_connection
+        from config.constants import BASE_DIR
+
+        self.logger.info("Processing scan results from %s", gnmap_path)
+        network_data, hosts = parse_network_results(gnmap_path)
+
+        # Set the CIDR using the value selected by the user.
+        network_data["cidr"] = self.selected_network
+
+        # If bssid is empty, attempt an ARP query using the router IP.
+        if not network_data.get("bssid") and network_data.get("router_ip"):
+            arp_output = self.run_shell(f"arp -a {network_data['router_ip']}")
+            import re
+            m = re.search(r"(([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))", arp_output)
+            if m:
+                network_data["bssid"] = m.group(0)
+                self.logger.debug("Extracted BSSID via ARP: %s", network_data["bssid"])
+            else:
+                network_data["bssid"] = ""
+
+        # Open DB connection.
+        conn = get_db_connection(BASE_DIR)
+        try:
+            # Insert network scan data. Notice that we no longer pass scan_date/scan_time.
+            network_id = insert_nmap_network_result(
+                conn,
+                network_data.get("bssid", ""),
+                self.get_iface_macs(self.selected_interface),
+                network_data["cidr"],
+                network_data.get("router_ip", ""),
+                network_data.get("router_hostname", ""),
+                hosts
+            )
+            self.logger.info("Inserted network scan with ID: %s", network_id)
+            conn.commit()
+        except Exception as e:
+            self.logger.error("Error inserting scan results into DB: %s", e)
+        finally:
+            conn.close()
+
+
+
 
 
 

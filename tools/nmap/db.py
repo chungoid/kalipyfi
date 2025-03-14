@@ -23,15 +23,15 @@ def init_nmap_network_schema(conn: sqlite3.Connection) -> None:
     query = """
     CREATE TABLE IF NOT EXISTS nmap_network (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cidr TEXT NOT NULL,
-        station_mac TEXT,
-        router_ip TEXT,
         bssid TEXT,
-        scan_date TEXT NOT NULL,
-        scan_time TEXT NOT NULL,
+        station_mac TEXT,
+        cidr TEXT NOT NULL,
+        router_ip TEXT,
+        router_hostname TEXT,
+        hosts TEXT, -- JSON blob containing hosts (IP, hostname)
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(cidr, station_mac)
-    );
+    UNIQUE(bssid, cidr)
+);
     """
     execute_query(conn, query)
 
@@ -73,31 +73,31 @@ def init_nmap_host_schema(conn: sqlite3.Connection) -> None:
 
 
 def insert_nmap_network_result(conn: sqlite3.Connection,
-                               cidr: str,
-                               station_mac: str,
-                               router_ip: str,
                                bssid: str,
-                               scan_date: str,
-                               scan_time: str) -> int:
+                               station_mac: str,
+                               cidr: str,
+                               router_ip: str,
+                               router_hostname: str,
+                               hosts: str) -> int:
     """
     Inserts a new record into the nmap_network table.
 
     Parameters:
-      - cidr: The scanned network (e.g., "192.168.1.0/24")
+      - bssid: The router's MAC address (BSSID), if available.
       - station_mac: The MAC address of the scanning interface.
+      - cidr: The scanned network (e.g., "192.168.1.0/24").
       - router_ip: The IP address of the router.
-      - bssid: The router's BSSID, if available.
-      - scan_date: The date when the scan was performed.
-      - scan_time: The time when the scan was performed.
+      - router_hostname: The hostname of the router.
+      - hosts: A JSON blob containing host information (list of dicts with host IPs and hostnames).
 
     Returns:
       The inserted record's id.
     """
     query = """
-    INSERT OR REPLACE INTO nmap_network (cidr, station_mac, router_ip, bssid, scan_date, scan_time)
+    INSERT OR REPLACE INTO nmap_network (bssid, station_mac, cidr, router_ip, router_hostname, hosts)
     VALUES (?, ?, ?, ?, ?, ?)
     """
-    cursor = execute_query(conn, query, (cidr, station_mac, router_ip, bssid, scan_date, scan_time))
+    cursor = execute_query(conn, query, (bssid, station_mac, cidr, router_ip, router_hostname, hosts))
     return cursor.lastrowid
 
 
