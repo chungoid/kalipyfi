@@ -2,7 +2,7 @@ interfaces:
   wlan:
   - description: ethernet
     locked: false
-    name: ens33
+    name: eth0
   - description: hotspot
     locked: true
     name: wlan0
