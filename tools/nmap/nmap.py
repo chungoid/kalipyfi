@@ -127,8 +127,8 @@ class Nmap(Tool, ABC):
         # set the preset description from config
         self.preset_description = self.selected_preset["description"]
         # ensure selected_interface is set
-        if not self.selected_interface:
-            self.selected_interface = self.selected_network
+        #if not self.selected_interface:
+            #self.selected_interface = self.selected_network
 
         # send to ipc
         response = self.run_to_ipc(cmd_dict)

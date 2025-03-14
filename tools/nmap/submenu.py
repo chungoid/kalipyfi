@@ -17,6 +17,12 @@ class NmapSubmenu(BaseSubmenu):
     def pre_launch_hook(self, parent_win) -> bool:
         """
         For Nmap, prompt the user to select a target network (CIDR) before launching the scan.
+
+        The user is presented with a menu of items formatted as "iface: network". The interface
+        is extracted from the left-hand side and the network (CIDR) from the right-hand side.
+
+        :param parent_win: The parent window (curses window) used for drawing the menu.
+        :return: True if a valid network and interface are selected, False otherwise.
         """
         networks = self.tool.get_target_networks()  # returns dict: interface -> network
         if not networks:
@@ -26,15 +32,17 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return False
 
-        # build a menu with CIDR's associated with available interfaces
+        # build a menu with CIDRs associated with available interfaces
         menu_items = [f"{iface}: {network}" for iface, network in networks.items()]
         selection = self.draw_paginated_menu(parent_win, "Select Target Network", menu_items)
         if selection == "back":
             return False
         try:
-            _, network = selection.split(":", 1)
+            iface, network = selection.split(":", 1)
+            self.tool.selected_interface = iface.strip()
             self.tool.selected_network = network.strip()
-            self.logger.debug("Selected target network: %s", self.tool.selected_network)
+            self.logger.debug("Selected target network: %s on interface: %s",
+                              self.tool.selected_network, self.tool.selected_interface)
             self.tool.scan_mode = "cidr"
             return True
         except Exception as e:

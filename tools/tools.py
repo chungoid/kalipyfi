@@ -235,6 +235,12 @@ class Tool:
                        extra_macs: Optional[List[str]] = None) -> bool:
         """
         Wrapper method to generate a BPF filter.
+
+        :param: scan_interface: Interface name
+        :param: filter_path: Path to the filter file
+        :param: interfaces: List of interface names
+        :param: extra_macs: List of extra mac addresses to filter
+        :return: bool
         """
         return run_autobpf(self, scan_interface, filter_path, interfaces, extra_macs)
 
@@ -246,9 +252,7 @@ class Tool:
         self.interfaces for the list of specific interface names (e.g., wlan0, wlan1)
         and uses the first available one.
 
-        Returns
-        -------
-        Optional[str]
+        :return: Optional[str]:
             The MAC address as a string if found; otherwise, None.
         """
         if interface == "wlan":
