@@ -1,19 +1,37 @@
-import ipaddress
+
+import yaml
+import time
+import psutil
 import logging
+import netifaces
+import ipaddress
 import subprocess
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Tuple
+from datetime import datetime, timedelta
 
-import netifaces
-import yaml
 
 logger = logging.getLogger("tools/tool_utils")
 
-###########################################
-##### GENERAL UTILITIES FOR ALL TOOLS #####
-###########################################
+################################
+### PROCESS MANAGEMENT UTILS ###
+################################
+def wait_for_scan_process(scan_pid: int, timeout: int = 300, poll_interval: int = 2) -> bool:
+    """
+    Waits until the process with scan_pid terminates.
 
+    Returns True if the process ends before the timeout; otherwise False.
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if not psutil.pid_exists(scan_pid):
+            return True
+        time.sleep(poll_interval)
+    return False
+
+################################
+### FILE/UI FORMATTING UTILS ###
+################################
 def update_yaml_value(config_path: Path, key_path: list, new_value) -> None:
     """
     Updates the YAML configuration file at the specified config_path by setting the
@@ -61,7 +79,6 @@ def update_yaml_value(config_path: Path, key_path: list, new_value) -> None:
         logger.error(f"Failed to write updated configuration to {config_path}: {e}")
         raise
 
-
 def format_scan_display(scan: dict) -> str:
     """
     Format a ScanData dictionary for display.
@@ -96,8 +113,9 @@ def format_scan_display(scan: dict) -> str:
 
     return f"{tool_str} | {interface_str} | {preset_desc} | {elapsed_str}"
 
-
-
+#######################################################
+### OS/HARDWARE/NETWORK INFORMATION GATHERING UTILS ###
+#######################################################
 def get_connected_interfaces(logger: logging.Logger) -> List[str]:
     """
     Uses nmcli to retrieve a list of devices that are currently in the 'connected' state.
@@ -119,7 +137,6 @@ def get_connected_interfaces(logger: logging.Logger) -> List[str]:
     logger.debug(f"Connected interfaces: {connected}")
     return connected
 
-
 def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str, str]]:
     """
     Uses nmcli to scan for available networks on the specified interface.
@@ -139,7 +156,6 @@ def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str,
             security = parts[1].strip()
             networks.append((ssid, security))
     return networks
-
 
 def get_network_from_interface(interface: str) -> str:
     """
@@ -163,7 +179,6 @@ def get_network_from_interface(interface: str) -> str:
     except Exception as e:
         logging.error(f"Error retrieving network for interface {interface}: {e}")
     return ""
-
 
 def get_gateways() -> dict:
     """

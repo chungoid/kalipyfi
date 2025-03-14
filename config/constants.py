@@ -63,6 +63,7 @@ IPC_CONSTANTS = {
         "KILL_UI": "KILL_UI",
         "DETACH_UI": "DETACH_UI",
         "DEBUG_STATUS": "DEBUG_STATUS",
+        "SCAN_COMPLETE": "SCAN_COMPLETE",
     }
 }
 

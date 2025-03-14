@@ -1,12 +1,17 @@
 import logging
+import time
 from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+
 # locals
 from tools.tools import Tool
-from tools.helpers.tool_utils import get_gateways
+from utils.ipc_callback import get_shared_callback_socket
 from utils.tool_registry import register_tool
+from tools.helpers.tool_utils import get_gateways
+from database.db_manager import get_db_connection
+from tools.nmap.db import init_nmap_network_schema, init_nmap_host_schema
 
 @register_tool("nmap")
 class Nmap(Tool, ABC):
@@ -42,16 +47,15 @@ class Nmap(Tool, ABC):
         from tools.nmap.submenu import NmapSubmenu
         self.submenu_instance = NmapSubmenu(self)
 
+        # nmap-specific database schema (tools/nmap/db.py)
+        conn = get_db_connection(self.base_dir)
+        init_nmap_network_schema(conn)
+        init_nmap_host_schema(conn)
+        conn.close()
+
     def build_nmap_command(self, target: str) -> list:
         """
         Builds an nmap command for a given target (network or host).
-
-        - If scan_mode is "cidr", a new subdirectory is created in self.results_dir
-          using a "cidr_" prefix and a timestamp; this directory is stored in self.parent_dir.
-        - If scan_mode is "target" and self.parent_dir is set, a subdirectory named after
-          the target (IP) is created under self.parent_dir.
-        - Otherwise, the output is stored directly in self.results_dir.
-
         The command uses the -oA option so that XML, grepable, and normal output files are generated.
         """
         cmd = ["nmap", target]
@@ -68,18 +72,17 @@ class Nmap(Tool, ABC):
                 output_dir = self.parent_dir / target
                 output_dir.mkdir(parents=True, exist_ok=True)
             else:
-                # If no parent_dir exists (should not happen if a CIDR scan was done first) fallback to default results
+                # fallback to default results if no parent_dir exists
                 output_dir = self.results_dir / ("target_" + self.generate_default_prefix())
                 output_dir.mkdir(parents=True, exist_ok=True)
         else:
-            # Default case: use the results directory.
             output_dir = self.results_dir
 
-        self.logger.debug(f"Scan mode: {self.scan_mode} Creating {output_dir}")
+        self.logger.debug(f"Scan mode: {self.scan_mode} Creating output directory: {output_dir}")
         file_prefix = output_dir / self.generate_default_prefix()
         cmd.extend(["-oA", str(file_prefix)])
 
-        # append additional options
+        # append additional options from the preset
         options = self.selected_preset.get("options", {})
         for flag, val in options.items():
             if isinstance(val, bool):
@@ -94,6 +97,8 @@ class Nmap(Tool, ABC):
     def run_from_selected_network(self) -> None:
         """
         Executes an nmap scan using the selected network (self.selected_network).
+        The IPC message includes the shared callback socket so that the scan
+        completion can be reported asynchronously.
         """
         if not self.selected_network:
             self.logger.error("No target network selected; cannot build command.")
@@ -102,17 +107,27 @@ class Nmap(Tool, ABC):
             self.logger.error("No preset selected; cannot build command.")
             return
 
-        # so scandata can assist view scans menu in showing all fields
+        # Ensure selected_interface is set for display in scan data.
         if not self.selected_interface:
             self.selected_interface = self.selected_network
 
-        # so scandata can assist view scans menu in showing all fields
         self.preset_description = self.selected_preset["description"]
 
-        # Build command using the network target.
+        # Build the nmap command.
         cmd_list = self.build_nmap_command(self.selected_network)
         cmd_dict = self.cmd_to_dict(cmd_list)
-        response = self.run_to_ipc(cmd_dict)
+
+        # Build the IPC message, including the callback socket.
+        ipc_message = {
+            "action": "SEND_SCAN",
+            "tool": self.name,
+            "command": cmd_dict,
+            "interface": self.selected_interface,
+            "preset_description": self.preset_description,
+            "timestamp": time.time(),
+            "callback_socket": get_shared_callback_socket()
+        }
+        response = self.run_to_ipc(ipc_message)
         if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             self.logger.info("Network scan initiated successfully: %s", response)
         else:
@@ -121,6 +136,7 @@ class Nmap(Tool, ABC):
     def run_target_from_results(self) -> None:
         """
         Executes an nmap scan using the selected target host (self.selected_target_host).
+        The IPC message includes the shared callback socket.
         """
         if not self.selected_target_host:
             self.logger.error("No target host selected for rescan from results.")
@@ -133,7 +149,16 @@ class Nmap(Tool, ABC):
         cmd_dict = self.cmd_to_dict(cmd_list)
         self.preset_description = self.selected_preset.get("description", "nmap_scan")
         self.selected_interface = self.selected_network
-        response = self.run_to_ipc(cmd_dict)
+        ipc_message = {
+            "action": "SEND_SCAN",
+            "tool": self.name,
+            "command": cmd_dict,
+            "interface": self.selected_interface,
+            "preset_description": self.preset_description,
+            "timestamp": time.time(),
+            "callback_socket": get_shared_callback_socket()
+        }
+        response = self.run_to_ipc(ipc_message)
         if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             self.logger.info("Target scan initiated successfully: %s", response)
         else:
@@ -153,7 +178,7 @@ class Nmap(Tool, ABC):
             self.logger.debug("Running network scan (cidr mode).")
             self.run_from_selected_network()
         else:
-            # fallback: if a target host is set, prefer host scan; otherwise use network scan.
+            # Fallback: if a target host is set, prefer host scan; otherwise use network scan.
             if self.selected_target_host:
                 self.logger.debug("Fallback: target host detected, running host-specific scan.")
                 self.run_target_from_results()

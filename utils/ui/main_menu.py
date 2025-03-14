@@ -6,19 +6,21 @@ import logging
 import curses
 from pathlib import Path
 from logging.handlers import QueueListener
-
 import libtmux
+
 
 project_base = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_base))
 
 # locals
-from common.process_manager import process_manager
 from utils.helper import setup_signal_handlers, publish_socket_path, get_unique_socket_path, \
     wait_for_tmux_session, shutdown_flag
 from common.logging_setup import get_log_queue, configure_listener_handlers, worker_configurer
+from common.process_manager import process_manager
 from utils.ui.ui_manager import UIManager
 from utils.ipc import IPCServer
+from utils.ipc_callback import get_shared_callback_socket
+
 
 #####################
 ##### IMPORTANT #####
@@ -263,6 +265,10 @@ def main():
     new_socket_path = get_unique_socket_path()
     socket_path = publish_socket_path(new_socket_path)
     logging.debug(f"main: Using socket path: {socket_path}")
+
+    # Set callback socket path
+    callback_socket = get_shared_callback_socket()
+    logging.debug(f"Main: Shared callback socket: {callback_socket}")
 
     # Instantiate ui & ipc server instances
     ui_instance = UIManager("kalipyfi")
