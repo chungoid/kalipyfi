@@ -39,8 +39,8 @@ class UIManager:
 
 
     def _register_scan(self, window_name: str, pane_id: str, internal_name: str, tool_name: str,
-                    preset_description: str, command: str, interface: str,
-                       lock_status: bool, timestamp: float) -> None:
+                        preset_description: str, command: str, interface: str,
+                        lock_status: bool, timestamp: float, pane_pid: int) -> None:
         """
         Creates a ScanData object and updates the active_scans registry.
 
@@ -51,6 +51,7 @@ class UIManager:
         :param command: The executed command string.
         :param interface: The interface used for scanning.
         :param lock_status: The lock status of the interface.
+        :param pane_pid: The unique process identifier for a task in the pane.
         :return: None
         """
         scan_data = ScanData(
@@ -62,7 +63,8 @@ class UIManager:
             interface=interface,
             lock_status=lock_status,
             cmd_str=command,
-            timestamp=timestamp
+            timestamp=timestamp,
+            pane_pid=int(pane_pid) if pane_pid else None
         )
         self.active_scans[pane_id] = scan_data
         self.logger.debug(f"Registered scan: {scan_data}")
@@ -119,6 +121,12 @@ class UIManager:
 
 
     def get_or_create_session(self, session_name: str) -> libtmux.Session:
+        """
+        Returns an existing tmux session with the specified name, or creates one if it does not exist.
+
+        :param session_name: The name of the tmux session to retrieve or create.
+        :return: A libtmux.Session object representing the tmux session.
+        """
         session = self.get_session(session_name)
         self.logger.debug(f"get_or_create_session Found session: {session}")
         if session is None:
@@ -128,6 +136,15 @@ class UIManager:
 
 
     def get_tool_window(self, tool_name: str) -> Optional[libtmux.Window]:
+        """
+        Retrieves the background window for a specified tool from the current tmux session.
+
+        The expected window name is constructed as "bg_<tool_name>". The function logs all
+        window names for debugging and returns the window if it is found.
+
+        :param tool_name: The name of the tool whose background window is being searched.
+        :return: A libtmux.Window object if a window with the expected name is found; otherwise, None.
+        """
         expected_window_name = f"bg_{tool_name}"
         self.logger.debug(
             f"Searching for window with expected name: '{expected_window_name}' in session '{self.session_name}'")
@@ -160,6 +177,9 @@ class UIManager:
         """
         Retrieves the background window for the given tool if it exists;
         otherwise, creates a new background window for the tool.
+
+        :param: tool_name: The name of the tool the window is for.
+        :return: The newly created libtmux.Window.
         """
         window = self.get_tool_window(tool_name)
         if window is None:
@@ -259,32 +279,19 @@ class UIManager:
             self.logger.exception(f"Error loading background window for {tool_name}: {e}")
 
     def allocate_scan_window(self, tool_name: str, cmd_dict: dict, interface: str,
-                             timestamp: float, preset_description: str) -> str:
+                             timestamp: float, preset_description: str, pane_pid: int, callback_socket: str) -> str:
         """
         Creates a dedicated window for a scan, launches the scan command in its single pane,
         and registers the scan with the UI manager.
 
-        The pane's internal name is built using the tool name, the scan interface, the preset
-        description, and the timestamp. This internal name is used for display in the view scans submenu.
-
-        Parameters
-        ----------
-        tool_name : str
-            The name of the tool initiating the scan.
-        cmd_dict : dict
-            A dictionary containing the command details to execute (with keys 'executable' and 'arguments').
-        interface : str
-            The scan interface that will be used.
-        timestamp : float
-            The timestamp indicating when the scan was started.
-        preset_description : str
-            The description extracted from the preset configuration. This value is used
-            to label the scan for display purposes.
-
-        Returns
-        -------
-        str
-            The pane identifier where the scan command was launched.
+        :param tool_name: The name of the tool initiating the scan.
+        :param cmd_dict: A dictionary containing the command details to execute (with keys 'executable' and 'arguments').
+        :param interface: The scan interface that will be used.
+        :param timestamp: The timestamp indicating when the scan was started.
+        :param preset_description: The description extracted from the preset configuration used to label the scan.
+        :param pane_pid: The process id of the task running within the pane.
+        :param callback_socket: The callback socket path for notifications.
+        :return: The pane identifier where the scan command was launched.
         """
         # Create a unique window name using the tool name and timestamp.
         window_name = f"scan_{tool_name}_{int(timestamp)}"
@@ -308,9 +315,15 @@ class UIManager:
         # Retrieve the interface's lock status and register the scan.
         lock_status = self.get_lock_status(interface)
         pane_id = pane.get("pane_id")
+        pane_pid = pane.get("pane_pid")
+        if not pane_pid:
+            pane_pid = subprocess.check_output(f"tmux list-panes -F '#{{pane_pid}}' -t {pane.get('pane_id')}",
+                                               shell=True).decode().strip()
+        self.logger.debug(f"Captured pane_pid: {pane_pid}")
+
         self._register_scan(window_name=window.get("window_name"), pane_id=pane_id, internal_name=pane_internal_name,
                             tool_name=tool_name, preset_description=preset_description, command=command,
-                            interface=interface, lock_status=lock_status, timestamp=timestamp)
+                            interface=interface, lock_status=lock_status, timestamp=timestamp, pane_pid=pane_pid)
 
         return pane_id
 
@@ -355,23 +368,11 @@ class UIManager:
           4. Toggles zoom (via tmux resize-pane -Z) on the new main scan pane so that it fills the window.
           5. Re-selects the main menu pane so that focus remains on the menu.
 
-        Parameters
-        ----------
-        tool_name : str
-            The name of the tool associated with the scan.
-        dedicated_pane_id : str
-            The pane ID of the dedicated scan pane to be swapped in.
-        new_title : str
-            The new internal title to assign to the scan after swapping (e.g., "wlan1_passive").
-
-        Returns
-        -------
-        None
-
-        Raises
-        ------
-        KeyError
-            If no active scan is found for the given dedicated pane ID.
+        :param tool_name: The name of the tool associated with the scan.
+        :param dedicated_pane_id: The pane ID of the dedicated scan pane to be swapped in.
+        :param new_title: The new internal title to assign to the scan after swapping (e.g., "wlan1_passive").
+        :return: None
+        :raises KeyError: If no active scan is found for the given dedicated pane ID.
         """
         if dedicated_pane_id not in self.active_scans:
             self.logger.error(f"No active scan found for pane_id: {dedicated_pane_id}")
@@ -380,7 +381,7 @@ class UIManager:
         scan_data = self.active_scans[dedicated_pane_id]
         old_title = scan_data.internal_name
 
-        # Identify the current main scan pane in the main UI window.
+        # identify the current main scan pane in the main UI window
         main_pane = self.get_main_scan_pane()
         if not main_pane:
             self.logger.error("Main scan pane not found; cannot swap scan pane.")
@@ -389,7 +390,7 @@ class UIManager:
         main_pane_id = main_pane.get("pane_id")
         self.logger.debug(f"Main scan pane identified: {main_pane_id}")
 
-        # Swap the dedicated scan pane with the main scan pane.
+        # swap the dedicated scan pane with the main scan pane
         swap_cmd = f"tmux swap-pane -s {dedicated_pane_id} -t {main_pane_id}"
         self.logger.debug(f"Executing swap-pane command: {swap_cmd}")
         try:
@@ -398,7 +399,7 @@ class UIManager:
             self.logger.error(f"Error executing swap-pane command: {e}")
             return
 
-        # Toggle zoom on the new main scan pane so that it occupies the full window area.
+        # toggle zoom on the new main scan pane so that it occupies the full window area
         zoom_cmd = f"tmux resize-pane -Z -t {main_pane_id}"
         self.logger.debug(f"Executing zoom command: {zoom_cmd}")
         try:
@@ -407,11 +408,11 @@ class UIManager:
             self.logger.error(f"Error executing zoom command: {e}")
             return
 
-        # Update the internal scan data with the new title.
+        # update the internal scan data with the new title
         scan_data.internal_name = new_title
         self.logger.info(f"Swapped scan pane {dedicated_pane_id}: '{old_title}' -> '{new_title}'")
 
-        # Re-select the main menu pane so that focus remains on the menu.
+        # re-select the main menu pane so that focus remains on the menu
         main_menu_pane = self.get_main_menu_pane()
         if main_menu_pane:
             select_cmd = f"tmux select-pane -t {main_menu_pane.get('pane_id')}"
@@ -456,12 +457,19 @@ class UIManager:
         Detaches the UI session by invoking the tmuxp detach-client command.
         This leaves the session running in the background.
         After detaching, exit the process.
+
+        :return: None
         """
         session_name = self.session_data.session_name
         self.logger.info(f"Detaching UI session: {session_name}")
         os.system(f"tmuxp detach-client -s {session_name}")
 
     def kill_ui(self) -> None:
+        """
+        Kills Kalipyfi UI and all process groups.
+
+        :return: None
+        """
         session_name = self.session_data.session_name
         self.logger.info(f"Killing UI session: {session_name}")
 
@@ -506,11 +514,8 @@ class UIManager:
         In your current layout, the main UI window ("kalipyfi") always has its
         main scan pane at pane index "0". This function returns that pane.
 
-        Returns
-        -------
-        Optional[libtmux.Pane]
-            The pane with index "0" in the "kalipyfi" window, or None if the window
-            or pane cannot be found.
+        :return: Optional[libtmux.Pane]:
+            Main scan viewing pane.
         """
         main_window = self.session.find_where({"window_name": "kalipyfi"})
         if not main_window:
@@ -532,10 +537,8 @@ class UIManager:
 
         In our layout, the main menu pane is always at pane_index "1" in the "kalipyfi" window.
 
-        Returns
-        -------
-        Optional[libtmux.Pane]
-            The pane with index "1" in the "kalipyfi" window, or None if not found.
+        :return: Optional[libtmux.Pane]:
+            pane index "1" which should always be the main menu pane.
         """
         main_window = self.session.find_where({"window_name": "kalipyfi"})
         if not main_window:
@@ -556,9 +559,7 @@ class UIManager:
 
         In our layout, the log pane is always at pane_index "2" in the "kalipyfi" window.
 
-        Returns
-        -------
-        Optional[libtmux.Pane]
+        :return: Optional[libtmux.Pane]:
             The pane with index "2" in the "kalipyfi" window, or None if not found.
         """
         main_window = self.session.find_where({"window_name": "kalipyfi"})
@@ -577,14 +578,31 @@ class UIManager:
     def wait_for_tool_window_ready(self, tool_name: str, bg_yaml_path: Path, tmuxp_dir: Path,
                                    expected_panes: int = 4, timeout: int = 30,
                                    poll_interval: float = 0.5) -> libtmux.Window:
+        """
+        Waits until the specified tool's window is fully loaded and ready.
+
+        This function checks for the existence of a tmux window for the given tool.
+        If the window does not exist, it attempts to load it using the provided YAML configuration.
+        Then, it repeatedly polls until the window has at least the expected number of panes
+        and each pane has valid dimensions (height and width greater than zero).
+
+        :param tool_name: The name of the tool whose window is being waited on.
+        :param bg_yaml_path: The path to the background YAML configuration file used to load the window if needed.
+        :param tmuxp_dir: The directory containing the tmuxp configurations.
+        :param expected_panes: The minimum number of panes expected in the window (default is 4).
+        :param timeout: The maximum time in seconds to wait for the window to be ready (default is 30).
+        :param poll_interval: The interval in seconds between successive polls (default is 0.5).
+        :return: The libtmux.Window object representing the ready window.
+        :raises TimeoutError: If the window does not become ready within the specified timeout.
+        """
         start_time = time.time()
-        # First, check if the window exists. If not, load it once.
+        # check if window exists, if not, load it once
         window = self.get_tool_window(tool_name)
         if window is None:
             self.logger.info(f"Background window for '{tool_name}' not found. Attempting to load it.")
             self.load_background_window(tool_name, bg_yaml_path, tmuxp_dir)
 
-        # Now poll until the window is ready.
+        # poll til ready
         iteration = 0
         while time.time() - start_time < timeout:
             iteration += 1
@@ -614,6 +632,11 @@ class UIManager:
 
 
     def debug_list_windows(self) -> None:
+        """
+        debug logging, lists windows in self.session.windows
+
+        :return: None
+        """
         if not hasattr(self, "session") or self.session is None:
             return
         self.logger.debug("Current session windows:")
@@ -623,26 +646,24 @@ class UIManager:
 
     def get_ui_state(self) -> dict:
         """
-        Returns a detailed dictionary representing the current UI state, including
-        all windows and panes with their IDs, names, dimensions, tmux-reported titles,
-        and internal scan titles (if available), along with active scans and interface data.
+        Returns a detailed dictionary representing the current UI state, including all windows and panes,
+        active scans, and interface data.
 
-        Returns
-        -------
-        dict
-            A dictionary with keys:
-                - "windows": A list of dictionaries, each representing a window with:
-                    - "window_id": The window's unique identifier.
-                    - "window_name": The window's name.
-                    - "panes": A list of dictionaries for each pane containing:
-                        - "pane_id": The pane's unique identifier.
-                        - "pane_index": The pane's index within the window.
-                        - "pane_height": The pane's height.
-                        - "pane_width": The pane's width.
-                        - "tmux_title": The pane title as reported by tmuxp.
-                        - "internal_title": The internal title from active scans, or "N/A" if not set.
-                - "active_scans": A mapping of pane IDs to their ScanData (as dictionaries).
-                - "interfaces": A mapping of interface names to their InterfaceData (as dictionaries).
+        The returned dictionary contains the following keys:
+        - "windows": A list of dictionaries, each representing a window with:
+            - "window_id": The window's unique identifier.
+            - "window_name": The window's name.
+            - "panes": A list of dictionaries for each pane containing:
+                - "pane_id": The pane's unique identifier.
+                - "pane_index": The pane's index within the window.
+                - "pane_height": The pane's height.
+                - "pane_width": The pane's width.
+                - "tmux_title": The pane title as reported by tmux.
+                - "internal_title": The internal title from active scans, or "N/A" if not set.
+        - "active_scans": A mapping of pane IDs to their ScanData (converted to dictionaries).
+        - "interfaces": A mapping of interface names to their InterfaceData (converted to dictionaries).
+
+        :return: A dictionary representing the current UI state.
         """
         state = {
             "windows": [],

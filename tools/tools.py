@@ -4,9 +4,12 @@ import shlex
 import subprocess
 import time
 from datetime import datetime
+from threading import Thread
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 from abc import abstractmethod
+
+import psutil
 
 # local
 from config.constants import BASE_DIR
@@ -14,8 +17,6 @@ from common.logging_setup import get_log_queue, worker_configurer
 from common.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
 from tools.helpers.tool_utils import get_network_from_interface
-from utils.helper import get_published_socket_path
-from utils.ipc_callback import get_shared_callback_socket
 from utils.ipc_client import IPCClient
 
 
@@ -119,21 +120,31 @@ class Tool:
           - Allocate or identify a pane.
           - Run the provided command.
         """
+
+        original_cmd = f"{cmd_dict['executable']} {' '.join(cmd_dict['arguments'])}"
+        unique_id = int(time.time())
+        pid_file = f"/tmp/nmap_{unique_id}.pid"
+
+        # group background job & waiting
+        grouped_cmd = f'"( {original_cmd} & echo \\$! > {pid_file}; wait \\$! )"'
+
+        wrapped_cmd = {
+            "executable": "bash",
+            "arguments": ["-c", grouped_cmd]
+        }
+
         client = IPCClient()
 
         ipc_message = {
             "action": "SEND_SCAN",
             "tool": self.name,
-            "command": cmd_dict,
+            "command": wrapped_cmd,
             "interface": self.selected_interface,
             "preset_description": self.preset_description,
             "timestamp": time.time(),
-        } # include callback socket for tools that init as not none
-        if self.callback_socket is not None:
-            ipc_message["callback_socket"] = self.callback_socket
-        self.logger.debug("Sending IPC scan command: %s", ipc_message)
+            "callback_socket": self.callback_socket,
+        }
 
-        # response will always be json
         response = client.send(ipc_message)
 
         if isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
@@ -144,6 +155,47 @@ class Tool:
                 self.logger.warning("Scan command succeeded but pane id is missing.")
         else:
             self.logger.error("Error executing scan command via IPC: %s", response)
+
+        # monitor process via pid file
+        def wait_and_notify():
+            # let file get created
+            time.sleep(1)
+            try:
+                with open(pid_file, "r") as f:
+                    nmap_pid = int(f.read().strip())
+                self.logger.debug(f"Read nmap PID: {nmap_pid} from {pid_file}.")
+            except Exception as e:
+                self.logger.error("Failed to read nmap PID from file: %s", e)
+                return
+
+            try:
+                self.logger.debug(f"Monitoring nmap PID {nmap_pid} with psutil.")
+                while True:
+                    try:
+                        proc = psutil.Process(nmap_pid)
+                        if not proc.is_running():
+                            break
+                    except psutil.NoSuchProcess:
+                        break
+                    time.sleep(1)
+                self.logger.debug(f"nmap PID {nmap_pid} completed successfully.")
+            except Exception as e:
+                self.logger.error(f"Error monitoring nmap PID {nmap_pid}: {e}")
+
+            # notify callback socket
+            try:
+                cb_socket = ipc_message.get("callback_socket")
+                if cb_socket:
+                    from utils.ipc import notify_scan_complete
+                    notify_scan_complete(cb_socket, response.get("pane_id"), nmap_pid, self.name)
+                    self.logger.debug(f"Sent SCAN_COMPLETE for nmap PID {nmap_pid} to socket {cb_socket}.")
+                else:
+                    self.logger.warning("Callback socket missing; no SCAN_COMPLETE sent.")
+            except Exception as e:
+                self.logger.error(f"Error during callback notification: {e}")
+
+        Thread(target=wait_and_notify, daemon=True).start()
+
         return response
 
     def run(self):

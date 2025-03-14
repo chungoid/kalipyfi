@@ -33,6 +33,32 @@ DETACH_UI = IPC_CONSTANTS["actions"]["DETACH_UI"]
 DEBUG_STATUS = IPC_CONSTANTS["actions"]["DEBUG_STATUS"]
 
 
+def notify_scan_complete(callback_socket: str, scan_id: str, pane_pid: int, tool: str) -> None:
+    """
+    Sends a SCAN_COMPLETE notification directly over the callback socket.
+
+    :param callback_socket: The Unix socket path to send the callback message.
+    :param scan_id: The identifier for the scan (e.g., the pane id).
+    :param pane_pid: The process id of the scan.
+    :param tool: The name of the tool that initiated the scan.
+    """
+    logger = logging.getLogger("IPCServer")
+    complete_message = {
+        "action": "SCAN_COMPLETE",
+        "tool": tool,
+        "scan_id": scan_id,
+        "pane_pid": pane_pid
+    }
+    message_str = pack_message(complete_message)
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.connect(callback_socket)
+            sock.send(message_str.encode())
+        logger.debug("SCAN_COMPLETE notification sent successfully to %s.", callback_socket)
+    except Exception as e:
+        logger.error("Failed to send SCAN_COMPLETE callback: %s", e)
+
+
 class IPCServer:
     def __init__(self, ui_instance, socket_path: str = None):
         self.ui_instance = ui_instance
@@ -97,37 +123,6 @@ class IPCServer:
         self._server_socket.close()
         self.logger.info("IPCServer: Server stopped.")
 
-    def notify_scan_complete(self, callback_socket: str, scan_id: str, scan_pid: int) -> None:
-        """
-        Spawns a thread that waits for the scan process to terminate,
-        then sends a SCAN_COMPLETE message to the provided callback socket.
-
-        Parameters:
-          - callback_socket: The Unix socket path for the callback.
-          - scan_id: A unique identifier for the scan (e.g., pane_id).
-          - scan_pid: The PID of the nmap scan process.
-        """
-
-        def _notify():
-            # Wait for the process to complete using our helper.
-            if wait_for_scan_process(scan_pid):
-                complete_message = {
-                    "action": "SCAN_COMPLETE",
-                    "scan_id": scan_id,
-                    "scan_pid": scan_pid
-                }
-                message_str = pack_message(complete_message)
-                try:
-                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as callback_conn:
-                        callback_conn.connect(callback_socket)
-                        callback_conn.send(message_str.encode())
-                    self.logger.debug("SCAN_COMPLETE notification sent successfully.")
-                except Exception as e:
-                    self.logger.error("Failed to send SCAN_COMPLETE callback: %s", e)
-            else:
-                self.logger.error("Timeout waiting for scan process (PID %s) to terminate.", scan_pid)
-
-        Thread(target=_notify, daemon=True).start()
 
     def _handle_connection(self, conn):
         """Handles an individual connection."""
@@ -171,12 +166,6 @@ class IPCServer:
                 response = handle_detach_ui(self.ui_instance, request)
             elif action == SEND_SCAN:
                 response = handle_send_scan(self.ui_instance, request)
-                # Assume response now also includes a "scan_pid" that was recorded when launching the scan.
-                scan_pid = response.get("scan_pid")
-                callback_socket = request.get("callback_socket")
-                if callback_socket and scan_pid:
-                    self.notify_scan_complete(callback_socket, response.get("pane_id"), scan_pid)
-
             else:
                 response = {IPC_CONSTANTS["keys"]["ERROR_KEY"]: "UNKNOWN_COMMAND"}
                 self.logger.debug(f"IPCServer: Unknown command received: {data}")

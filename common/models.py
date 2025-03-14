@@ -37,6 +37,7 @@ class ScanData:
     cmd_str: str = "" # the scans cmd_dict (in string form) that was run
     preset_description: str = "" # specifically the description key from the scan profile
     timestamp: float = None # when the scan was started
+    pane_pid: int = None  # process ID of the running scan
 
     def to_dict(self):
         return asdict(self)

@@ -197,25 +197,37 @@ class Nmap(Tool, ABC):
     def _determine_gnmap_file_path(self) -> Optional[Path]:
         """
         Searches the current working directory for a .gnmap file.
-        Returns the first .gnmap file found (or None if no file exists).
+
+        :return: Optional[Path]:
+            the first .gnmap file found (or None if no file exists).
         """
+        self.logger.debug(f"Checking for .gnmap files in: {self.current_working_dir}")
         if not hasattr(self, "current_working_dir"):
             self.logger.error("current_working_dir is not set.")
             return None
-        gnmap_files = list(self.current_working_dir.glob("*.gnmap"))
+
+        gnmap_files = list(Path(self.current_working_dir).glob("*.gnmap"))
+        self.logger.debug(f"All files in {self.current_working_dir}: {list(Path(self.current_working_dir).iterdir())}")
+
         if gnmap_files:
-            # If multiple files exist, you might choose to return the most recent one.
-            # For now, we'll just return the first one found.
+            self.logger.debug(f".gnmap files found: {[str(f) for f in gnmap_files]}")
             return gnmap_files[0]
         else:
             self.logger.error("No .gnmap files found in %s", self.current_working_dir)
             return None
 
     def on_network_scan_complete(self, message: dict):
+        """
+        Called when a network scan completes & checks for newly created network scans
+        by looking for self.current_working_dir.
+
+        :param message: ipc callback message
+        :return: None
+        """
         self.logger.info("SCAN_COMPLETE callback received: %s", message)
         gnmap_path = self._determine_gnmap_file_path()
-        if not gnmap_path.exists():
-            self.logger.error("GNMAP file not found at %s", gnmap_path)
+        if gnmap_path is None or not gnmap_path.exists():
+            self.logger.error("GNMAP file not found.")
             return
         self.process_network_results(gnmap_path)
 
@@ -224,6 +236,8 @@ class Nmap(Tool, ABC):
         Processes the network scan results from a .gnmap file.
         It parses the file to extract network-level data and host entries,
         then inserts the data into the nmap_network table.
+
+        :param gnmap_path: Path to the .gnmap file.
         """
         from tools.nmap.db import insert_nmap_network_result
         from database.db_manager import get_db_connection
@@ -232,10 +246,10 @@ class Nmap(Tool, ABC):
         self.logger.info("Processing scan results from %s", gnmap_path)
         network_data, hosts = parse_network_results(gnmap_path)
 
-        # Set the CIDR using the value selected by the user.
+        # set cidr value from chosen network
         network_data["cidr"] = self.selected_network
 
-        # If bssid is empty, attempt an ARP query using the router IP.
+        # arp query router IP if bssid is empty
         if not network_data.get("bssid") and network_data.get("router_ip"):
             arp_output = self.run_shell(f"arp -a {network_data['router_ip']}")
             import re
@@ -245,11 +259,10 @@ class Nmap(Tool, ABC):
                 self.logger.debug("Extracted BSSID via ARP: %s", network_data["bssid"])
             else:
                 network_data["bssid"] = ""
-
-        # Open DB connection.
+        # open database connection
         conn = get_db_connection(BASE_DIR)
         try:
-            # Insert network scan data. Notice that we no longer pass scan_date/scan_time.
+            # insert scan data to nmap_network table
             network_id = insert_nmap_network_result(
                 conn,
                 network_data.get("bssid", ""),
