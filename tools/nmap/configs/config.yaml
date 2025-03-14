@@ -17,7 +17,13 @@ interfaces:
     name: wlan3
 presets:
   1:
-    description: sVC
+    description: check-hosts
+    options:
+      -sn: true
+      -T4: true
+
+  2:
+    description: top1000-services
     options:
       -A: true
       -T4: true
