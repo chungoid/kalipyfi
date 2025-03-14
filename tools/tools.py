@@ -15,6 +15,7 @@ from common.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
 from tools.helpers.tool_utils import get_network_from_interface
 from utils.helper import get_published_socket_path
+from utils.ipc_callback import get_shared_callback_socket
 from utils.ipc_client import IPCClient
 
 
@@ -55,6 +56,9 @@ class Tool:
         self.selected_preset = None # set in submenu, this is your yaml built command
         self.preset_description = None # set in submenu, this is the presets description key
         self.extra_macs = None # set in submenu (future addon)
+
+        # Override for tools that need ipc callback
+        self.callback_socket = None
 
         # Optional Overrides
         if interfaces:
@@ -123,8 +127,10 @@ class Tool:
             "command": cmd_dict,
             "interface": self.selected_interface,
             "preset_description": self.preset_description,
-            "timestamp": time.time()
-        }
+            "timestamp": time.time(),
+        } # include callback socket for tools that init as not none
+        if self.callback_socket is not None:
+            ipc_message["callback_socket"] = self.callback_socket
         self.logger.debug("Sending IPC scan command: %s", ipc_message)
 
         # response will always be json

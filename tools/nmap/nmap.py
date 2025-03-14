@@ -47,6 +47,9 @@ class Nmap(Tool, ABC):
         from tools.nmap.submenu import NmapSubmenu
         self.submenu_instance = NmapSubmenu(self)
 
+        # override tools.py and set callback socket
+        self.callback_socket = get_shared_callback_socket()
+
         # nmap-specific database schema (tools/nmap/db.py)
         conn = get_db_connection(self.base_dir)
         init_nmap_network_schema(conn)
@@ -95,11 +98,6 @@ class Nmap(Tool, ABC):
         return cmd
 
     def run_from_selected_network(self) -> None:
-        """
-        Executes an nmap scan using the selected network (self.selected_network).
-        The IPC message includes the shared callback socket so that the scan
-        completion can be reported asynchronously.
-        """
         if not self.selected_network:
             self.logger.error("No target network selected; cannot build command.")
             return
@@ -107,7 +105,7 @@ class Nmap(Tool, ABC):
             self.logger.error("No preset selected; cannot build command.")
             return
 
-        # Ensure selected_interface is set for display in scan data.
+        # Ensure selected_interface is set.
         if not self.selected_interface:
             self.selected_interface = self.selected_network
 
@@ -115,19 +113,14 @@ class Nmap(Tool, ABC):
 
         # Build the nmap command.
         cmd_list = self.build_nmap_command(self.selected_network)
-        cmd_dict = self.cmd_to_dict(cmd_list)
+        self.logger.debug("Command list: %s", cmd_list)
 
-        # Build the IPC message, including the callback socket.
-        ipc_message = {
-            "action": "SEND_SCAN",
-            "tool": self.name,
-            "command": cmd_dict,
-            "interface": self.selected_interface,
-            "preset_description": self.preset_description,
-            "timestamp": time.time(),
-            "callback_socket": get_shared_callback_socket()
-        }
-        response = self.run_to_ipc(ipc_message)
+        # Convert command list to dictionary.
+        cmd_dict = self.cmd_to_dict(cmd_list)
+        self.logger.debug("Command dict: %s", cmd_dict)
+
+        # Use the overridden run_to_ipc in nmap, which includes the callback_socket.
+        response = self.run_to_ipc(cmd_dict)
         if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             self.logger.info("Network scan initiated successfully: %s", response)
         else:
@@ -136,7 +129,7 @@ class Nmap(Tool, ABC):
     def run_target_from_results(self) -> None:
         """
         Executes an nmap scan using the selected target host (self.selected_target_host).
-        The IPC message includes the shared callback socket.
+        The overridden run_to_ipc automatically adds the shared callback socket.
         """
         if not self.selected_target_host:
             self.logger.error("No target host selected for rescan from results.")
@@ -145,20 +138,21 @@ class Nmap(Tool, ABC):
             self.logger.error("No preset selected for target rescan.")
             return
 
+        # Build the command list for the target host.
         cmd_list = self.build_nmap_command(self.selected_target_host)
+        self.logger.debug("Target scan command list: %s", cmd_list)
+
+        # Convert the command list to a dictionary.
         cmd_dict = self.cmd_to_dict(cmd_list)
+        self.logger.debug("Target scan command dict: %s", cmd_dict)
+
+        # Set the preset description (defaulting to 'nmap_scan' if not provided)
         self.preset_description = self.selected_preset.get("description", "nmap_scan")
+        # Ensure the selected_interface is set appropriately.
         self.selected_interface = self.selected_network
-        ipc_message = {
-            "action": "SEND_SCAN",
-            "tool": self.name,
-            "command": cmd_dict,
-            "interface": self.selected_interface,
-            "preset_description": self.preset_description,
-            "timestamp": time.time(),
-            "callback_socket": get_shared_callback_socket()
-        }
-        response = self.run_to_ipc(ipc_message)
+
+        # Use the overridden run_to_ipc which will include the callback_socket.
+        response = self.run_to_ipc(cmd_dict)
         if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             self.logger.info("Target scan initiated successfully: %s", response)
         else:
