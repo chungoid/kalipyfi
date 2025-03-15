@@ -202,7 +202,7 @@ By leveraging these components, Kalipyfi offers a unified, extensible platform w
         Ensure your submenu is callable (typically via the __call__ method) so that it integrates smoothly with the main UI.
 
     Leverage IPC Functionality:
-        Use the existing IPC handlers (located in ipc_protocol.py) to dispatch commands to a background pane and handle callbacks.
+        Use the existing IPC handlers (located in common/ipc_protocol.py) to dispatch commands to a background pane and handle callbacks and optionally enhanced process tracking by initializing self.callback_socket (see Example Templates) in your tools init.
         This allows your tool to execute processes and receive notifications without managing low-level IPC details.
 
     Register Your Plugin:
@@ -215,7 +215,7 @@ By leveraging these components, Kalipyfi offers a unified, extensible platform w
 
 ## Example Templates
 
-### Example Tool Template
+**tools/yourtool/yourtool.py**
 ```python
 from abc import ABC
 from tools.tools import Tool
@@ -238,6 +238,13 @@ class YourTool(Tool, ABC):
         from tools.your.submenu import YourToolSubmenu
         self.submenu = YourToolSubmenu(self)  # initialize your tools submenu so it becomes available within the main menu
 
+                                              # optional: initialize the callback socket (keyed for your tool) if you would like to utilize the callback listener (e.g. SCAN_COMPLETE)
+                                              # check tools/tools.py's run_to_ipc() method to see more. If this is enabled, all commands sent to ipc from your tool will be tracked via psutil.
+                                              # this enables you to do things such as, run task a, & when a is complete, do task b, etc.
+                                              # example usage: nmap host discovery via network scan checks for current working dir, grabs the .gnmap file just created, and parses it & imports to db upon SCAN_COMPLETE.
+        self.callback_socket = get_shared_callback_socket()
+        shared_callback_listener.register_callback(self.name, self.on_network_scan_complete)
+        
                                               # tool-specific database schema (tools/yourtool/db.py)
         conn = get_db_connection(BASE_DIR)    # create a connection to the shared database
         init_hcxtool_schema(conn)             # initialize your tools db schema
@@ -266,7 +273,7 @@ class YourTool(Tool, ABC):
             self.logger.critical(f"Error launching tool: {e}")
 ```
 
-### Example Submenu Template
+**tools/yourtool/submenu.py**
 ```python
 from tools.submenu import BaseSubmenu
 import curses
