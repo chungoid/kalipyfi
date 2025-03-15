@@ -49,17 +49,20 @@ Kalipyfi integrates several tools into a single, cohesive interface:
     Purpose: Performs wireless scans using hcxdumptool.
     Features:
         Captures wireless traffic and stores results in a local SQLite database.
-        Exports scan results to an interactive HTML map (if GPS data is enabled).
-        Supports upload/download operations via WPA-sec integration.
+        Exports scan results to an interactive HTML map (if GPS data is enabled) where each network has its location pinned & a viewable tag for displaying data.
+        Supports upload/download operations via WPA-sec integration as well as merging pcapng results with downloaded results into the database.
         Allows defining custom scan configurations through CLI arguments in its config.yaml.
+        Provides an additional cli arg 'autobpf' which creates a list of mac addresses (interfaces, stations, or hotspot clients) associated with the scan device & protects them from the scan interface.
 
 ### nmap
 
     Purpose: Conducts comprehensive network scans.
     Features:
-        Automatically parses network gateways and hosts.
-        Uses custom presets (defined in its config.yaml) to tailor scan parameters.
         Offers an interactive submenu for target selection and scan execution.
+        Automatically parses network gateways from all available interfaces & allows users to choose a network.
+        Chosen network gateways are set to cidr format & an initial ping scan populates a new nmap_networks table entry is populated with all known hosts.
+        Further service & port scans can be run on either individually selected or all network hosts & the results are imported to the nmap_hosts table.
+        You can easily extend this to fit your use case and parse any scan type by creating a new parser format in `tools/nmap/_parser.py` & altaring the tables schema where/if desired.
 
 ### pyfyconnect
 
@@ -67,7 +70,9 @@ Kalipyfi integrates several tools into a single, cohesive interface:
     Features:
         Generates secure wpa_supplicant configurations.
         Supports both manual and automatic connection workflows.
-        Cleanly disconnects and manages DHCP leases.
+        Automatic connections are handled by presenting a list of available networks from the database.
+        Manual connections prompt the user to select an available network & enter the passphrase manually.
+        Cleanly disconnects and manages DHCP leases without saving any networks to networkmanager. 
 
 # Configuration Files
 
@@ -77,15 +82,15 @@ Each tool (hcxtool, nmap, pyfyconnect, etc.) includes its own config.yaml file c
 
     Interfaces: Lists of available network interfaces.
     Presets: Predefined scan profiles with descriptive names and CLI options.
-    Additional Options: Extra settings that control the behavior of each tool.
+    Additional Options: Extra settings that control the behavior of each tool. (e.g. wpasec-key in 'tools/hcxtool/configs/config.yaml' enabling upload/download via api request)
 
 ### defaults.yaml
 
 The defaults.yaml file provides baseline CLI argument values. Its primary role is to support the "create new scan profile" functionality within the submenus:
 
-    It acts as a fallback when a setting is not specified in config.yaml.
-    Defaults (such as booleans or empty strings) prompt the user to enter a value if needed.
-    Updating defaults.yaml reflects any changes in the underlying CLI options without modifying each tool’s configuration.
+    It provides the current set of available cli args for any given tool so users can create custom config presets from a command builder via submenu prompts.
+    For each available arg the user is prompted to choose from T/F for empty values (represent booleans) or prompted to enter a string for "" values.
+    Updating a tools defaults.yaml to reflect any changes in the underlying CLI options allows quick updates without modifying a tool’s code.
 
 # Extending Kalipyfi (Plugin Development)
 
@@ -211,13 +216,13 @@ By leveraging these components, Kalipyfi offers a unified, extensible platform w
 ## Example Templates
 
 ### Example Tool Template
-```bash
+```python
 from abc import ABC
 from tools.tools import Tool
 from utils.tool_registry import register_tool
 from your_submenu_module import YourToolSubmenu
 
-@register_tool("yourtool")
+@register_tool("yourtool")                    # utilize the decorator & import your tool in utils/ui/main_menu.py
 class YourTool(Tool, ABC):
     def __init__(self, base_dir, config_file=None, interfaces=None, presets=None):
         super().__init__(
@@ -229,7 +234,14 @@ class YourTool(Tool, ABC):
             settings=presets
         )
         self.logger = logging.getLogger(self.name)
-        self.submenu = YourToolSubmenu(self)
+        
+        from tools.your.submenu import YourToolSubmenu
+        self.submenu = YourToolSubmenu(self)  # initialize your tools submenu so it becomes available within the main menu
+
+                                              # tool-specific database schema (tools/yourtool/db.py)
+        conn = get_db_connection(BASE_DIR)    # create a connection to the shared database
+        init_hcxtool_schema(conn)             # initialize your tools db schema
+        conn.close()
 
     def submenu(self, stdscr) -> None:
         self.submenu_instance(stdscr)
@@ -255,7 +267,7 @@ class YourTool(Tool, ABC):
 ```
 
 ### Example Submenu Template
-``` bash
+```python
 from tools.submenu import BaseSubmenu
 import curses
 import logging
