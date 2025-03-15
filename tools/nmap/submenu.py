@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from tools.helpers.tool_utils import get_network_from_interface
 # locals
 from tools.submenu import BaseSubmenu
 
@@ -33,14 +34,14 @@ class NmapSubmenu(BaseSubmenu):
             return False
 
         # build a menu with CIDRs associated with available interfaces
-        menu_items = [f"{iface}: {network}" for iface, network in networks.items()]
+        menu_items = [f"{iface}: {gateway}" for iface, gateway in self.tool.gateways.items()]
         selection = self.draw_paginated_menu(parent_win, "Select Target Network", menu_items)
         if selection == "back":
             return False
         try:
-            iface, network = selection.split(":", 1)
+            iface, gateway = selection.split(":", 1)
             self.tool.selected_interface = iface.strip()
-            self.tool.selected_network = network.strip()
+            self.tool.selected_network = get_network_from_interface(self.tool.selected_interface)
             self.logger.debug("Selected target network: %s on interface: %s",
                               self.tool.selected_network, self.tool.selected_interface)
             self.tool.scan_mode = "cidr"

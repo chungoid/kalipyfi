@@ -11,7 +11,7 @@ from typing import List, Tuple
 from datetime import datetime, timedelta
 
 
-logger = logging.getLogger("tools/tool_utils")
+logger = logging.getLogger(__name__)
 
 ################################
 ### PROCESS MANAGEMENT UTILS ###
@@ -20,7 +20,10 @@ def wait_for_scan_process(scan_pid: int, timeout: int = 300, poll_interval: int 
     """
     Waits until the process with scan_pid terminates.
 
-    Returns True if the process ends before the timeout; otherwise False.
+    :param scan_pid: Process ID
+    :param timeout: Time to wait in seconds
+    :param poll_interval: Time to wait in seconds between polling
+    :return: True if process with scan_pid terminates, False otherwise
     """
     start_time = time.time()
     while time.time() - start_time < timeout:
@@ -37,24 +40,10 @@ def update_yaml_value(config_path: Path, key_path: list, new_value) -> None:
     Updates the YAML configuration file at the specified config_path by setting the
     nested key defined by key_path to new_value.
 
-    Parameters
-    ----------
-    config_path : Path
-        The path to the YAML configuration file.
-    key_path : list
-        A list of keys representing the nested path to the desired value.
-        For example, ["wpa-sec", "api_key"].
-    new_value :
-        The new value to set at the specified key path.
-
-    Returns
-    -------
-    None
-
-    Raises
-    ------
-    Exception
-        If there is an error reading from or writing to the configuration file.
+    :param config_path: Path to the YAML configuration file.
+    :param key_path: Path to the nested key to update.
+    :param new_value: New value to update the nested key with.
+    :return: None
     """
     try:
         with config_path.open("r") as f:
@@ -89,16 +78,7 @@ def format_scan_display(scan: dict) -> str:
       - Preset description (the description from the scan preset).
       - Elapsed time since the scan started.
 
-    Parameters
-    ----------
-    scan : dict
-        A dictionary representation of a ScanData object.
-
-    Returns
-    -------
-    str
-        A formatted string in the form:
-        "tool | interface | preset_description | elapsed_time"
+    :param scan: ScanData dictionary
     """
     tool_str = scan.get("tool", "unknown")
     interface_str = scan.get("interface", "unknown")
@@ -162,9 +142,8 @@ def get_network_from_interface(interface: str) -> str:
     Given an interface name, retrieves its IPv4 address and netmask,
     then computes the network in CIDR notation.
 
-    Returns:
-        A string representation of the network (e.g., "192.168.1.0/24"),
-        or an empty string if the network cannot be determined.
+    :param interface: Interface name
+    :return A string representing the network in CIDR notation or an empty string gif the network cannot be determined.
     """
     try:
         addresses = netifaces.ifaddresses(interface)
@@ -182,7 +161,9 @@ def get_network_from_interface(interface: str) -> str:
 
 def get_gateways() -> dict:
     """
-    Returns a dictionary mapping each network interface to its IPv4 gateway.
+    Get default and non-default gateways for all associated interfaces from netifaces.AF_INET.
+
+    :return: a dictionary mapping each network interface to its IPv4 gateway.
     Uses netifaces to extract default and non-default gateways.
     """
     gateways = {}
@@ -201,6 +182,7 @@ def get_gateways() -> dict:
             if interface not in gateways:
                 gateways[interface] = gateway
 
+    logging.debug(f"gateways: {gateways}")
     return gateways
 
 

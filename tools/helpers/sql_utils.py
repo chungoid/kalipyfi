@@ -2,8 +2,8 @@ import logging
 import sqlite3
 from pathlib import Path
 from database.db_manager import get_db_connection, fetch_all
-#from tools.hcxtool.db import get_founds
 
+logger = logging.getLogger(__name__)
 
 def get_founds_ssid_and_key(basedir: Path) -> list:
     """
