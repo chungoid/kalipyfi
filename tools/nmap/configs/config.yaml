@@ -17,13 +17,13 @@ interfaces:
     name: wlan3
 presets:
   1:
-    description: check-hosts
+    description: db_networks
     options:
       -sn: true
       -T4: true
 
   2:
-    description: top1000-services
+    description: db_hosts
     options:
       -A: true
       -T4: true
