@@ -80,9 +80,9 @@ Kalipyfi integrates several tools into a single, cohesive interface:
 
 Each tool (hcxtool, nmap, pyfyconnect, etc.) includes its own config.yaml file containing tool-specific settings. These files typically define:
 
-    Interfaces: Lists of available network interfaces.
+    Interfaces: Lists of available network interfaces nested by type (e.g. wlan for wifi, bt for bluetooth, etc) to create a logical separation but maintain extendability.
     Presets: Predefined scan profiles with descriptive names and CLI options.
-    Additional Options: Extra settings that control the behavior of each tool. (e.g. wpasec-key in 'tools/hcxtool/configs/config.yaml' enabling upload/download via api request)
+    Custom Options: Extra settings that control the behavior of each tool. (e.g. wpasec-key in 'tools/hcxtool/configs/config.yaml' enabling upload/download via api request)
 
 ### defaults.yaml
 
