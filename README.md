@@ -136,7 +136,7 @@ Kalipyfi’s architecture is built on a solid foundation of interconnected compo
     The IPC system decouples the user interface from the execution of background tasks, allowing commands to be dispatched asynchronously. 
   - **Key Components:**
     - **IPC Server (utils/ipc.py):**  
-      Listens on a Unix socket and dispatches incoming messages (such as `SEND_SCAN`, `SWAP_SCAN`, `REGISTER_PROCESS`, `DEBUG_STATUS`, `KILL_UI`, etc.) to corresponding handler functions defined in `utils/ipc_protocol.py`.
+      Listens on a Unix socket and dispatches incoming messages (such as `SEND_SCAN`, `SWAP_SCAN`, `REGISTER_PROCESS`, `DEBUG_STATUS`, `KILL_UI`, etc.) to corresponding handler functions defined in 'common/ipc_protocol.py`.
     - **IPC Client (utils/ipc_client.py):**  
       Provides a simple API for tools and the main process to send commands to the IPC server, with built-in retries and error handling.
     - **Callback Mechanism (utils/ipc_callback.py):**  
