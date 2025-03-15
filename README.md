@@ -2,114 +2,215 @@
   <img src="utils/ui/tmuxp/img.png" alt="Kalipyfi Logo">
 </div>
 
+Kalipyfi is a modular, interactive scanning and network management platform designed for security professionals and network administrators. It integrates a suite of powerful tools—**hcxtool**, **nmap**, and **pyfyconnect**—into a unified, terminal-based interface leveraging tmux and curses. Moreover, Kalipyfi is built for extensibility, enabling developers to create and integrate custom tool plugins with ease.
+
+## Table of Contents
+- [Installation](#installation)
+- [Usage](#usage)
+  - [hcxtool](#hcxtool)
+  - [nmap](#nmap)
+  - [pyfyconnect](#pyfyconnect)
+- [Configuration Files](#configuration-files)
+  - [config.yaml](#configyaml)
+  - [defaults.yaml](#defaultsyaml)
+- [Extending Kalipyfi (Plugin Development)](#extending-kalipyfi-plugin-development)
+  - [Core Components](#core-components)
+  - [Step-by-Step Guide](#step-by-step-guide)
+  - [Example Templates](#example-templates)
+- [License](#license)
+- [Contributing](#contributing)
+
 ## Installation
+
 ```bash
-git clone https://github.com/chungoid/kalipyfi
+# Clone the repository
+git clone https://github.com/chungoid/kalipyfi.git
 cd kalipyfi
+
+# Set up a virtual environment and install dependencies
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-## change path in kalipyfi (not .py) ##
-SET YOUR DIRECTORY PATH
-KALIPYFI_DIR="/fullpath/to/kalipyfi/"
+# Configure the base directory in Kalipyfi (do not edit source code)
+# Set the full path to your Kalipyfi directory:
+export KALIPYFI_DIR="/fullpath/to/kalipyfi/"
 
-## run:
+# Run the application (sudo required for some network operations)
 sudo kalipyfi
 ```
 
-## Usage
-### Current Tools:
-- hcxtools 
-  - perform wireless scans
-  - database storage
-  - export to map.html and view in web browser (if gpsd enabled)
-  - upload/download via wpasec
-  - define custom scan configs using cli args in config.yaml
-- nmap 
-  - perform network scans
-  - automatic gateway parsing
-  - automatic host parsing
-  - define custom scan configs using cli args in config.yaml
-- pyfyconnect 
-  - manage network connections
-  - automatic station parsing
-  - connect from database 
-  - manual connect
+# Usage
 
-- Every tool has a config.yaml file located within that tools configs directory
-- Define interfaces & cli cmd presets as shown below
-- Database is stored in the parent directory of kalipyfi as .kalipyfi to remain separated from repository management
-- Otherwise, simply explore menu options.
-```yaml
-interfaces: # example that goes in all tools configs/config.yaml
-  wlan:
-  - description: hotspot # short description
-    locked: true # optionally set to locked so tools ignore it (defunct, likely removing)
-    name: wlan0 # interface name 
-  - description: monitor
-    locked: false
-    name: wlan1
-  - description: client
-    locked: true
-    name: wlan2
-  # and so on and so fourth.. add as many as you'd like
-```
-```yaml
-presets: # example from tools/nmap/configs/config.yaml
-  1: 
-    description: sVC # description you'll see in menu
-    options: # cli args as you'd set them if you were running the command
-      -A: true
-      --top-ports: 1000 
-```
-```yaml
-presets: #example from tools/hcxtool/configs/config.yaml
-  4:
-    description: silent
-    options:
-      --attemptapmax: 0
-      --disable_beacon: true
-      --gpsd: true
-      -F: true
-      autobpf: true # example of custom tool arg.. see: tools/helpers/autobpf.py & tools/hcxtool.py
-```
+Kalipyfi integrates several tools into a single, cohesive interface:
 
-## Adding Custom Tool Modules
-Subclass the Tool Base Class:
-- Create your new tool by subclassing the Tool base class (found in tools/tools.py). This class handles configuration loading, directory setup, command building, and IPC communication. Override the required methods—especially the submenu() method—to define your tool’s custom user interface and functionality.
+### hcxtool
 
-Implement a Custom Submenu:
-- Use or extend the submenu base class (similar to the existing HcxToolSubmenu) to build an interactive curses-based UI for your tool. This submenu can provide options specific to your tool while inheriting common navigation and display functionality. The custom submenu should be implemented as a callable (typically via the __call__ method) so that it can be easily integrated with the main UI.
+    Purpose: Performs wireless scans using hcxdumptool.
+    Features:
+        Captures wireless traffic and stores results in a local SQLite database.
+        Exports scan results to an interactive HTML map (if GPS data is enabled).
+        Supports upload/download operations via WPA-sec integration.
+        Allows defining custom scan configurations through CLI arguments in its config.yaml.
 
-Leverage Existing IPC Handlers:
-- Your tool can make use of the existing IPC handlers (located in ipc_protocol.py) to send and receive messages. This enables you to launch scans or other processes in dedicated panes, manage state, and interact with the UI manager without having to write your own inter-process communication logic.
+### nmap
 
-Register Your Tool:
-- Simply decorate your tool class with the @register_tool decorator from utils/tool_registry.py. This adds your tool to the global tool registry. Once registered, the main menu (in main_menu.py) automatically imports and displays your custom tool as one of the available modules (don't forget to import your tool in utils/ui/main_menu.py) in the main menu.
+    Purpose: Conducts comprehensive network scans.
+    Features:
+        Automatically parses network gateways and hosts.
+        Uses custom presets (defined in its config.yaml) to tailor scan parameters.
+        Offers an interactive submenu for target selection and scan execution.
 
-Customize as Needed:
-- With your tool registered and its submenu implemented, you can further customize the functionality by creating your own command-line options and utilize them in config.yaml (example: autobpf in hcxtool, and its helper in tools/helpers.py), logging, and IPC message formats. The modular design ensures that your tool integrates smoothly with the existing UI and process management features.
+### pyfyconnect
 
-- Define your tools path in config/constants.py:
-```bash
-TOOL_PATHS = {
-    "hcxtool": TOOLS_DIR / "hcxtool",
-    "pyfyconnect": TOOLS_DIR / "pyfyconnect",
-    "nmap": TOOLS_DIR / "nmap",
-    "yourtool": TOOLS_DIR / "yourtool",
-}
-```
-- Import your tool in utils/ui/main_menu.py:
-```bash
-# import all tool modules so they load via decorators
-from utils.tool_registry import tool_registry
-from tools.hcxtool import hcxtool
-from tools.pyfyconnect import pyfyconnect
-from tools.nmap import nmap
-from tools.yourtool import yourtool 
-```
-- Example Class Template For yourtool:
+    Purpose: Manages network connections via wpa_supplicant.
+    Features:
+        Generates secure wpa_supplicant configurations.
+        Supports both manual and automatic connection workflows.
+        Cleanly disconnects and manages DHCP leases.
+
+# Configuration Files
+
+### config.yaml
+
+Each tool (hcxtool, nmap, pyfyconnect, etc.) includes its own config.yaml file containing tool-specific settings. These files typically define:
+
+    Interfaces: Lists of available network interfaces.
+    Presets: Predefined scan profiles with descriptive names and CLI options.
+    Additional Options: Extra settings that control the behavior of each tool.
+
+### defaults.yaml
+
+The defaults.yaml file provides baseline CLI argument values. Its primary role is to support the "create new scan profile" functionality within the submenus:
+
+    It acts as a fallback when a setting is not specified in config.yaml.
+    Defaults (such as booleans or empty strings) prompt the user to enter a value if needed.
+    Updating defaults.yaml reflects any changes in the underlying CLI options without modifying each tool’s configuration.
+
+# Extending Kalipyfi (Plugin Development)
+
+Kalipyfi is built on a modular architecture that makes it easy to implement your own tool plugins. New plugins gain access to a rich set of shared features, including:
+
+### Core Components
+
+Kalipyfi’s architecture is built on a solid foundation of interconnected components that simplify both the development and integration of new tool plugins. Below is an in-depth explanation of each core component and how they can be leveraged:
+
+- **Data Classes**
+  - **Purpose:**  
+    Defined in `common/models.py`, these classes (such as `ScanData`, `ProcessData`, `InterfaceData`, and `SessionData`) provide structured data models that encapsulate the state and metadata for scans, processes, and sessions.
+  - **Usage:**  
+    - **ScanData:**  
+      Stores uniform information for each scan, including the tool’s name, the command executed, the network interface used, timestamps, pane IDs, and any descriptive text. This allows the UI to consistently display scan status and details.  
+    - **ProcessData:**  
+      Holds essential process information (like PID and role) so that every background process (e.g., scan jobs, connection processes) can be tracked, monitored, and managed centrally.  
+    - **InterfaceData & SessionData:**  
+      Represent network interface details and tmux session information respectively, ensuring that plugins have a standardized way to access and display this information.
+  - **Benefit:**  
+    These classes ensure that every plugin handles its data in a consistent format. This standardization simplifies debugging, reporting, and even future extensions where data might be serialized or transmitted between components.
+
+- **User Interface (UI) Framework**
+  - **Purpose:**  
+    Kalipyfi leverages a curses-based UI launched via a tmuxp template (located in `utils/ui/tmuxp/main_tmuxp.yaml`) combined with tmux (using `libtmux`) to create a dynamic multi-pane, terminal-based interface.
+  - **Key Components:**
+    - **UIManager (ui_manager.py):**  
+      - **Session & Window Management:**  
+        It connects to the tmux server, retrieves or creates a tmux session, and manages multiple windows. Each tool can have its own background window (named using a convention like `bg_<tool_name>`) for long-running tasks.  
+      - **Active Scan Registration:**  
+        When a tool launches a process, UIManager creates a dedicated scan window (e.g., `scan_<tool_name>_<timestamp>`) and registers the process details in a `ScanData` instance for real-time tracking.  
+      - **Pane Operations:**  
+        Methods such as `create_pane()`, `rename_pane()`, and `swap_scan()` allow for easy management of tmux panes. For example, `swap_scan()` can be called from a tool’s submenu to bring a background scan pane into the main UI by swapping and resizing panes.
+    - **Base Submenus & Menu Helpers:**  
+      These are provided in modules like `tools/submenu.py` and include functions for drawing menus, handling pagination, and capturing user input. They abstract away the boilerplate code so that plugin developers can focus on specific tool functionalities.
+  - **Usage:**  
+    Plugin developers can extend the provided base submenu classes to build custom, interactive interfaces. The UIManager functions simplify background window handling and enable actions like foregrounding background scans with a simple call.
+  - **Benefit:**  
+    The UI framework hides low-level details of tmux and curses, allowing developers to concentrate on core tool logic. Background windows are managed seamlessly, and developers can easily invoke functions to swap, zoom, or update panes from within their submenus.
+
+- **Inter-Process Communication (IPC)**
+  - **Purpose:**  
+    The IPC system decouples the user interface from the execution of background tasks, allowing commands to be dispatched asynchronously. 
+  - **Key Components:**
+    - **IPC Server (utils/ipc.py):**  
+      Listens on a Unix socket and dispatches incoming messages (such as `SEND_SCAN`, `SWAP_SCAN`, `REGISTER_PROCESS`, `DEBUG_STATUS`, `KILL_UI`, etc.) to corresponding handler functions defined in `utils/ipc_protocol.py`.
+    - **IPC Client (utils/ipc_client.py):**  
+      Provides a simple API for tools and the main process to send commands to the IPC server, with built-in retries and error handling.
+    - **Callback Mechanism (utils/ipc_callback.py):**  
+      Supports the registration and execution of callbacks (e.g., notifying when a scan completes) using a dedicated Unix socket, ensuring that plugins receive asynchronous notifications about process completions.
+  - **Usage:**  
+    Plugins use the IPC client to run their commands in dedicated tmux panes. For example, when a scan command is built, it is wrapped into an IPC message, sent to the server, and then the UIManager allocates a pane for its execution. Callbacks notify the tool once the scan is complete.
+  - **Benefit:**  
+    This robust communication layer simplifies the execution of long-running tasks by abstracting away direct process management. It ensures that plugins remain responsive and can easily react to process status changes.
+
+- **Configuration Management**
+  - **Purpose:**  
+    Each tool loads its settings from a dedicated `config.yaml` file, while a centralized `defaults.yaml` file provides fallback CLI argument values.
+  - **Key Components:**
+    - **Configuration Loader:**  
+      Functions in `common/config_utils.py` load and validate YAML files, ensuring that every tool starts with a complete set of configuration parameters.
+    - **Dynamic Profile Creation:**  
+      When a user creates a new scan profile, default arg values are taken from `defaults.yaml` where blank values present the user with a prompt to select a boolean value for that arg and an empty strings presents the user with a prompt to enter a value. This enables the UI to present up-to-date CLI options even if the tool's underlying parameters change over time by simply replacing the tools default.yaml values..
+  - **Usage:**  
+    Plugin developers define tool-specific args and hardware interfaces in `config.yaml` and rely on `defaults.yaml` for a tools baseline values to simplify the creation of presets from the submenu. This makes it simple to update the available CLI arguments for any given tool in the event they were to ever change.
+  - **Benefit:**  
+    This system promotes consistency and flexibility, ensuring that all plugins have access to the most current configuration options and reducing the risk of misconfiguration.
+
+- **Process Management**
+  - **Purpose:**  
+    The `ProcessManager` (defined in `utils/process_manager.py`) is responsible for tracking and controlling all background processes initiated by Kalipyfi.
+  - **Usage:**  
+    - **Registration:**  
+      As each process starts, it is registered (using `ProcessData`) so that its PID, role, and start time are logged.
+    - **Monitoring & Shutdown:**  
+      The manager provides methods to kill process trees gracefully, generate status reports, and clean up processes that have terminated.
+  - **Benefit:**  
+    Centralized process management ensures that all background tasks can be monitored, controlled, and terminated cleanly. This is particularly useful when shutting down the UI or when a plugin needs to stop a running scan.
+
+- **Database Management**  
+  - **Purpose:**  
+    Kalipyfi centralizes its data persistence in a single SQLite database managed by `database/db_manager.py`. This module ensures that the main database file is stored outside the repository—in a hidden directory (e.g., `.kalipyfi`) located one level above Kalipyfi's base directory—keeping persistent data safe from repository changes and version control.
+  - **Key Components:**  
+    - **db_manager.py:**  
+      This module is responsible for creating and maintaining the main database connection. It creates the hidden directory (e.g., `.kalipyfi`) and the database file (e.g., `kalipyfi.sqlite3`) in that location, ensuring that data remains separate from the codebase.
+    - **Tool-specific db.py Files:**  
+      Each tool (like nmap or hcxtool) can define its own `db.py` to specify tool-specific database schemas and operations. When a tool is initialized via the tool registry, its corresponding `db.py` is invoked to ensure the required tables are created automatically.
+    - **SQL Utility Functions:**  
+      The module `tools/helpers/sql_utils.py` provides shared utility functions that facilitate interactions with the database. These utilities can be extended or customized by new tool modules to perform queries or interact with tables across different tools.
+  - **Usage:**  
+    When developing a new tool plugin, simply create a `db.py` file within your tool’s directory to define its schema and any specific database tasks. In your tools init provide a connection where `BASE_DIR` from config/constants.py is the set path (conn = get_db_connection(BASE_DIR)) and simply initialize your tools schema from `tools/yourtool/db.py` and `db_manager.py` will ensure that your tool’s tables are created and available. Additionally, you can leverage the SQL utilities in `tools/helpers/sql_utils.py` for cross-tool database interactions.
+  - **Benefit:**  
+    This design ensures that every tool’s data is stored consistently and securely, separate from the repository files. It minimizes boilerplate code for database setup and promotes ease of integration and interaction between different tools’ data.
+
+---
+
+By leveraging these components, Kalipyfi offers a unified, extensible platform where developers can quickly implement new plugins. With standardized data structures, a dynamic multi-pane UI, a robust IPC system, consistent configuration management, and centralized process control, plugin developers can focus on their tool’s core functionality while seamlessly integrating with Kalipyfi’s comprehensive features.
+
+
+
+### Step-by-Step Guide
+
+    Subclass the Tool Base Class:
+        Create your new tool by extending the Tool class (in tools/tools.py).
+        Override required methods (e.g., submenu(), build_command(), and run()) to define your custom functionality.
+
+    Implement a Custom Submenu:
+        Build an interactive submenu by subclassing or extending one of the provided base submenu classes.
+        Ensure your submenu is callable (typically via the __call__ method) so that it integrates smoothly with the main UI.
+
+    Leverage IPC Functionality:
+        Use the existing IPC handlers (located in ipc_protocol.py) to dispatch commands to a background pane and handle callbacks.
+        This allows your tool to execute processes and receive notifications without managing low-level IPC details.
+
+    Register Your Plugin:
+        Decorate your tool class with the @register_tool decorator from utils/tool_registry.py to automatically add it to the global tool registry.
+        Update TOOL_PATHS in config/constants.py and import your plugin in utils/ui/main_menu.py so that it appears in the main menu.
+
+    Define CLI Options:
+        Specify your tool’s CLI options in your tool’s config.yaml.
+        Use defaults.yaml to set the baseline values for creating new scan profiles, ensuring that users see the correct options even if the underlying CLI parameters change.
+
+## Example Templates
+
+### Example Tool Template
 ```bash
 from abc import ABC
 from tools.tools import Tool
@@ -131,64 +232,42 @@ class YourTool(Tool, ABC):
         self.submenu = YourToolSubmenu(self)
 
     def submenu(self, stdscr) -> None:
-      """
-      Launches your custom submenu (interactive UI) using curses.
-      """
-      self.submenu_instance(stdscr)
+        self.submenu_instance(stdscr)
         
     def build_command(self) -> list:
-      """
-      Write custom command building logic for your cli tool here.     
-      """
-      return cmd
+        # Implement your command building logic here
+        return ["yourtool", "--option", "value"]
 
     def run(self) -> None:
-        """
-        Override this method with custom behavior and a call to run_to_ipc() (from tools/tools.py)
-        """
-        # process your build_command
-        self.logger.debug("Building scan command.")
+        self.logger.debug("Building command.")
         try:
             cmd_list = self.build_command()
             if not cmd_list:
                 self.logger.critical("Error: build_command() returned an empty command.")
                 return
-                
-            # convert command to dict before sending to IPC    
             cmd_dict = self.cmd_to_dict(cmd_list)
-        
-            # send built and processed command to the IPC server
             response = self.run_to_ipc(cmd_dict)
+            if not (response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK")):
+                self.logger.error("Scan failed to send. Response: %s", response)
+                return
+        except Exception as e:
+            self.logger.critical(f"Error launching tool: {e}")
 ```
-- Example Submenu Template For yourtool:
-```bash
-# Import the base submenu class
+
+### Example Submenu Template
+``` bash
 from tools.submenu import BaseSubmenu
 import curses
+import logging
 
 class YourToolSubmenu(BaseSubmenu):
     def __init__(self, tool_instance):
-        # Call the base constructor passing in the tool instance.
         super().__init__(tool_instance)
         self.logger = logging.getLogger("YourToolSubmenu")
         self.logger.debug("YourToolSubmenu initialized.")
 
     def pre_launch_hook(self, parent_win) -> bool:
-        """
-        Optional hook executed before launching a scan.
-        For example, prompt the user to select a target or set custom options.
-        
-        Parameters
-        ----------
-        parent_win : curses window
-            The window where the prompt is displayed.
-        
-        Returns
-        -------
-        bool
-            True if the user successfully selects an option, False otherwise.
-        """
-        # Retrieve available options from the tool (e.g. networks, interfaces)
+        # Optional: Prompt user to select options before launching a scan.
         options = self.tool.get_available_options()
         if not options:
             parent_win.clear()
@@ -196,168 +275,45 @@ class YourToolSubmenu(BaseSubmenu):
             parent_win.refresh()
             parent_win.getch()
             return False
-
-        # Build a menu list using the retrieved options.
-        menu_items = [f"{key}: {value}" for key, value in options.items()]
-        selection = self.draw_paginated_menu(parent_win, "Select an Option", menu_items)
+        selection = self.draw_paginated_menu(parent_win, "Select an Option", [f"{k}: {v}" for k, v in options.items()])
         if selection == "back":
             return False
-        try:
-            # Parse the selection and update the tool's state.
-            key, value = selection.split(":", 1)
-            self.tool.selected_option = value.strip()
-            self.logger.debug("Selected option: %s", self.tool.selected_option)
-            return True
-        except Exception as e:
-            self.logger.error("Error parsing selection: %s", e)
-            return False
+        key, value = selection.split(":", 1)
+        self.tool.selected_option = value.strip()
+        return True
 
     def __call__(self, stdscr) -> None:
-        """
-        The entry point for the submenu interface.
-        This method is automatically called when your tool's submenu is invoked.
-        It initializes the curses screen, resets any state variables,
-        and displays the main menu options.
-
-        Parameters
-        ----------
-        stdscr : curses window
-            The primary curses window provided by curses.wrapper.
-        """
-        # Hide the cursor and clear the screen.
         curses.curs_set(0)
         stdscr.clear()
-
-        # Reset or initialize any tool-specific state.
         self.tool.reset_state()
         self.tool.reload_config()
         self.tool.update_available_options()
-
-        # (Optional) Create a debug window or reserve a section for logging.
-        max_y, max_x = stdscr.getmaxyx()
-        menu_height = max_y - 4  # Reserve bottom 4 lines for debugging
-        submenu_win = stdscr.derwin(menu_height, max_x, 0, 0)
-        submenu_win.keypad(True)
-        submenu_win.clear()
-        submenu_win.refresh()
-
-        # Define the main menu options for your tool.
         menu_items = ["Launch Scan", "View Scans", "Settings", "Back"]
         numbered_menu = [f"[{i + 1}] {item}" for i, item in enumerate(menu_items[:-1])]
         numbered_menu.append("[0] Back")
-
-        # Main loop: draw the menu and process user input.
         while True:
-            menu_win = self.draw_menu(submenu_win, f"{self.tool.name}", numbered_menu)
+            menu_win = self.draw_menu(stdscr, f"{self.tool.name}", numbered_menu)
             key = menu_win.getch()
             try:
                 ch = chr(key)
             except Exception:
                 continue
-
             if ch == "1":
-                # Launch a scan after running the pre-launch hook if needed.
-                if self.pre_launch_hook(submenu_win):
-                    self.launch_scan(submenu_win)
+                if self.pre_launch_hook(stdscr):
+                    self.launch_scan(stdscr)
             elif ch == "2":
-                self.view_scans(submenu_win)
+                self.view_scans(stdscr)
             elif ch == "3":
-                self.settings_menu(submenu_win)
+                self.settings_menu(stdscr)
             elif ch == "0" or key == 27:
                 break
-
-            submenu_win.clear()
-            submenu_win.refresh()
+            stdscr.clear()
+            stdscr.refresh()
 ```
-- Define new IPC keys or actions in config/constants.py:
-```bash
-IPC_CONSTANTS = {
-    "keys": {
-        "ACTION_KEY": "action",
-        "TOOL_KEY": "tool",
-        "SCAN_PROFILE_KEY": "scan_profile",
-        "COMMAND_KEY": "command",
-        "TIMESTAMP_KEY": "timestamp",
-        "STATUS_KEY": "status",
-        "RESULT_KEY": "result",
-        "ERROR_KEY": "error",
-        "EXAMPLE_ONE": "EXAMPLE_ONE", # like this
-    },
-    "actions": {
-        "PING": "PING",
-        "GET_STATE": "GET_STATE",
-        "REGISTER_PROCESS": "REGISTER_PROCESS",
-        "UI_READY": "UI_READY",
-        "GET_SCANS": "GET_SCANS",
-        "SEND_SCAN": "SEND_SCAN",
-        "SWAP_SCAN": "SWAP_SCAN",
-        "STOP_SCAN": "STOP_SCAN",
-        "CONNECT_NETWORK": "CONNECT_NETWORK",
-        "UPDATE_LOCK": "UPDATE_LOCK",
-        "REMOVE_LOCK": "REMOVE_LOCK",
-        "KILL_UI": "KILL_UI",
-        "DETACH_UI": "DETACH_UI",
-        "DEBUG_STATUS": "DEBUG_STATUS",
-        "EXAMPLE_TWO": "EXAMPLE_TWO", # like this
-    }
-```
-- Create Custom Handler in common/ipc_protocol.py
-```bash 
-def handle_example_one(ui_instance, request: dict) -> dict:
-    """
-     Handles the EXAMPLE_TWO command by calling examplefunction.
 
-    Expected Format:
-        {
-            "action": "EXAMPLE_TWO",
-            "timestamp": time.time()",
-            "tool": <tool_name>,
-            "example_one": # whatever you want
-        }
-    """
-    try:
-        ui_instance.examplefunction(params)
-        logger.debug("handle_example_two: Example returned successfully")
-        return {"status": "EXAMPLE_TWO_OK"}
-    except Exception as e:
-        logger.exception("handle_stop_scan: Exception occurred")
-        return {ERROR_KEY: f"EXAMPLE_TWO error: {e}"}
-```
-- Add Your Custom Handler in utils/ipc.py:
-```bash
-# add your new action to the unpacked constants
-from config.constants import IPC_CONSTANTS
-PING = IPC_CONSTANTS["actions"]["PING"]
-GET_STATE = IPC_CONSTANTS["actions"]["GET_STATE"]
-UI_READY = IPC_CONSTANTS["actions"]["UI_READY"]
-...
-...
-EXAMPLE_TWO = IPC_CONSTANTS["actions"]["EXAMPLE_TWO"]
+### [LICENSE](LICENSE)
 
-# add your action to _handle_connections()
-      elif action == EXAMPLE_TWO:
-        response = handle_example_two(self.ui_instance, request)
-```
-- Use Your Action in yourtool:
-```bash
-def yourtool_function() -> Optional[Dict]:
-    # import client
-    client = IPCClient()
-    
-    # custom function logic here
-    ...
-    ...
-        # define message dict 
-        ipc_message = {
-            # ensure EXAMPLE_TWO handler expects values in ipc_message dict
-            "action": "EXAMPLE_TWO", # optional
-            "timestamp": time.time() # optional
-            "tool": self.name # optional
-            "example_one": # optional key in handler
-        }
-        self.logger.debug("Sending IPC scan command: %s", ipc_message)
-
-        # response will always be json
-        response = client.send(ipc_message)
-        return response # optional
+## Contributing
+```angular2html
+Contributions are welcome! Please refer to our contributing guidelines for details on our code of conduct and the process for submitting pull requests.
 ```
