@@ -42,7 +42,7 @@ sudo kalipyfi
 
 # Usage
 
-Kalipyfi integrates several tools into a single, cohesive interface:
+Kalipyfi integrates access to all tools into a single two-pane tmux window. Access tool specific submenus from the main menu by selecting `[1] Tools` and then from any given tools 'View' menu option you may selectively swap background panes into view within the main user-interface.
 
 ### hcxtool
 
