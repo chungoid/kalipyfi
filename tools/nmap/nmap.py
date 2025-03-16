@@ -108,7 +108,7 @@ class Nmap(Tool, ABC):
         self.logger.debug("Built command: " + " ".join(cmd))
         return cmd
 
-    def run_from_selected_network(self) -> None:
+    def run_db_networks(self) -> None:
         if not self.selected_network:
             self.logger.error("No target network selected; cannot build command.")
             return
@@ -137,10 +137,9 @@ class Nmap(Tool, ABC):
         else:
             self.logger.error("Error initiating network scan via IPC: %s", response)
 
-    def run_target_from_results(self) -> None:
+    def run_db_hosts(self) -> None:
         """
         Executes an nmap scan using the selected target host (self.selected_target_host).
-        The overridden run_to_ipc automatically adds the shared callback socket.
         """
         if not self.selected_target_host:
             self.logger.error("No target host selected for rescan from results.")
@@ -179,18 +178,18 @@ class Nmap(Tool, ABC):
         """
         if self.scan_mode == "target":
             self.logger.debug("Running host-specific scan (target mode).")
-            self.run_target_from_results()
+            self.run_db_hosts()
         elif self.scan_mode == "cidr":
             self.logger.debug("Running network scan (cidr mode).")
-            self.run_from_selected_network()
+            self.run_db_networks()
         else:
             # Fallback: if a target host is set, prefer host scan; otherwise use network scan.
             if self.selected_target_host:
                 self.logger.debug("Fallback: target host detected, running host-specific scan.")
-                self.run_target_from_results()
+                self.run_db_hosts()
             elif self.selected_network:
                 self.logger.debug("Fallback: network selection detected, running network scan.")
-                self.run_from_selected_network()
+                self.run_db_networks()
             else:
                 self.logger.error("No target selected for scan (neither target host nor network).")
 

@@ -171,7 +171,7 @@ class NmapSubmenu(BaseSubmenu):
 
         try:
             self.tool.scan_mode = "target"
-            self.tool.run_target_from_results()
+            self.tool.run_db_hosts()
         except Exception as e:
             parent_win.clear()
             parent_win.addstr(0, 0, f"Error launching host scan: {e}")
