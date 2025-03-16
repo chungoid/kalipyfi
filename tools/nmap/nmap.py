@@ -1,5 +1,7 @@
+import json
 import logging
 from abc import ABC
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -11,7 +13,7 @@ from utils.tool_registry import register_tool
 from tools.helpers.tool_utils import get_gateways
 from database.db_manager import get_db_connection
 from tools.nmap.db import init_nmap_network_schema, init_nmap_host_schema
-from tools.nmap._parser import parse_network_results
+
 
 @register_tool("nmap")
 class Nmap(Tool, ABC):
@@ -37,12 +39,13 @@ class Nmap(Tool, ABC):
         self.selected_network = None
         self.current_working_dir = None
 
-        # For host-specific scans parsed from .gnmap results
+        # For host-specific scans from hosts in database
         self.parent_dir = None
         self.selected_target_host = None
         self.selected_preset = None
         self.gateways = get_gateways()  # dict mapping interface -> gateway
         self.target_networks = self.get_target_networks()  # Compute CIDR for each interface
+        self.target_ip = None
 
         # tools/nmap/submenu.py
         from tools.nmap.submenu import NmapSubmenu
@@ -50,7 +53,7 @@ class Nmap(Tool, ABC):
 
         # override tools.py and set callback socket
         self.callback_socket = get_shared_callback_socket()
-        shared_callback_listener.register_callback(self.name, self.on_network_scan_complete)
+        shared_callback_listener.register_callback(self.name, self._on_scan_complete)
 
         # nmap-specific database schema (tools/nmap/db.py)
         conn = get_db_connection(BASE_DIR)
@@ -108,7 +111,52 @@ class Nmap(Tool, ABC):
         self.logger.debug("Built command: " + " ".join(cmd))
         return cmd
 
+    def run(self) -> None:
+        """
+        Executes an nmap scan based on the scan_mode flag.
+        If scan_mode is "target", runs a host-specific scan.
+        If scan_mode is "cidr", runs a network scan.
+        If not set, attempts to decide based on available selections.
+        """
+        if self.scan_mode == "target":
+            if not self.selected_target_host:
+                self.logger.error("No target host specified for host scan.")
+            else:
+                self.logger.debug("Running host-specific scan (target mode) for %s.", self.selected_target_host)
+                self.run_db_hosts(self.selected_target_host)
+        elif self.scan_mode == "cidr":
+            self.logger.debug("Running network scan (cidr mode).")
+            self.run_db_networks()
+        else:
+            # Fallback: if a target host is set, prefer host scan; otherwise use network scan.
+            if self.selected_target_host:
+                self.logger.debug("Fallback: target host detected (%s), running host-specific scan.",
+                                  self.selected_target_host)
+                self.run_db_hosts(self.selected_target_host)
+            elif self.selected_network:
+                self.logger.debug("Fallback: network selection detected, running network scan.")
+                self.run_db_networks()
+            else:
+                self.logger.error("No target selected for scan (neither target host nor network).")
+
+    ####################################
+    ##### DB_NETWORKS SCAN METHODS #####
+    ####################################
     def run_db_networks(self) -> None:
+        """
+        Uses config.yaml's db_networks scan (-sn, ping scan) to populate available hosts
+        and on completion automatically imports hosts to database (nmap_network table) by
+        parsing with _on_db_networks_complete and its helper in _parser.py parse_network_results.
+        :return:
+        """
+        self.selected_preset = {
+            "description": "db_network",
+            "options": {
+                "-sn": True,
+                "-T4": True
+            }
+        }
+
         if not self.selected_network:
             self.logger.error("No target network selected; cannot build command.")
             return
@@ -126,9 +174,6 @@ class Nmap(Tool, ABC):
 
         # set the preset description from config
         self.preset_description = self.selected_preset["description"]
-        # ensure selected_interface is set
-        #if not self.selected_interface:
-            #self.selected_interface = self.selected_network
 
         # send to ipc
         response = self.run_to_ipc(cmd_dict)
@@ -137,110 +182,51 @@ class Nmap(Tool, ABC):
         else:
             self.logger.error("Error initiating network scan via IPC: %s", response)
 
-    def run_db_hosts(self) -> None:
+    def _on_scan_complete(self, message: dict):
         """
-        Executes an nmap scan using the selected target host (self.selected_target_host).
-        """
-        if not self.selected_target_host:
-            self.logger.error("No target host selected for rescan from results.")
-            return
-        if not self.selected_preset:
-            self.logger.error("No preset selected for target rescan.")
-            return
+        Callback function invoked when an nmap scan completes.
 
-        # build cmd for target host
-        cmd_list = self.build_nmap_command(self.selected_target_host)
-        self.logger.debug("Target scan command list: %s", cmd_list)
+        This method is registered with the shared callback listener and is triggered when an
+        IPC message with the action "SCAN_COMPLETE" is received. It inspects the 'scan_type'
+        field in the message to determine whether the completed scan is a network scan or a host scan,
+        and then calls the corresponding processing method:
 
-        # convert cmd list to dict for ipc compatibility
-        cmd_dict = self.cmd_to_dict(cmd_list)
-        self.logger.debug("Target scan command dict: %s", cmd_dict)
+        If the GNMAP file cannot be found or if the 'scan_type' is unrecognized, an error is logged.
 
-        # set the preset description from config
-        self.preset_description = self.selected_preset.get("description", "nmap_scan")
-        # ensure selected interface
-        if not self.selected_interface:
-            self.selected_interface = self.selected_network
+        Parameters:
+            message (dict): The IPC message received upon scan completion. This dictionary should include
+                            a key "scan_type" with a value of either "db_network" or "db_host".
 
-        # send to ipc
-        response = self.run_to_ipc(cmd_dict)
-        if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
-            self.logger.info("Target scan initiated successfully: %s", response)
-        else:
-            self.logger.error("Error initiating target scan via IPC: %s", response)
-
-    def run(self) -> None:
-        """
-        Executes an nmap scan based on the scan_mode flag.
-        If scan_mode is "target", runs a host-specific scan.
-        If scan_mode is "cidr", runs a network scan.
-        If not set, attempts to decide based on available selections.
-        """
-        if self.scan_mode == "target":
-            self.logger.debug("Running host-specific scan (target mode).")
-            self.run_db_hosts()
-        elif self.scan_mode == "cidr":
-            self.logger.debug("Running network scan (cidr mode).")
-            self.run_db_networks()
-        else:
-            # Fallback: if a target host is set, prefer host scan; otherwise use network scan.
-            if self.selected_target_host:
-                self.logger.debug("Fallback: target host detected, running host-specific scan.")
-                self.run_db_hosts()
-            elif self.selected_network:
-                self.logger.debug("Fallback: network selection detected, running network scan.")
-                self.run_db_networks()
-            else:
-                self.logger.error("No target selected for scan (neither target host nor network).")
-
-    def _determine_gnmap_file_path(self) -> Optional[Path]:
-        """
-        Searches the current working directory for a .gnmap file.
-
-        :return: Optional[Path]:
-            the first .gnmap file found (or None if no file exists).
-        """
-        self.logger.debug(f"Checking for .gnmap files in: {self.current_working_dir}")
-        if not hasattr(self, "current_working_dir"):
-            self.logger.error("current_working_dir is not set.")
-            return None
-
-        gnmap_files = list(Path(self.current_working_dir).glob("*.gnmap"))
-        self.logger.debug(f"All files in {self.current_working_dir}: {list(Path(self.current_working_dir).iterdir())}")
-
-        if gnmap_files:
-            self.logger.debug(f".gnmap files found: {[str(f) for f in gnmap_files]}")
-            return gnmap_files[0]
-        else:
-            self.logger.error("No .gnmap files found in %s", self.current_working_dir)
-            return None
-
-    def on_network_scan_complete(self, message: dict):
-        """
-        Called when a network scan completes & checks for newly created network scans
-        by looking for self.current_working_dir.
-
-        :param message: ipc callback message
-        :return: None
+        Returns:
+            None
         """
         self.logger.info("SCAN_COMPLETE callback received: %s", message)
         gnmap_path = self._determine_gnmap_file_path()
         if gnmap_path is None or not gnmap_path.exists():
             self.logger.error("GNMAP file not found.")
             return
-        self.process_network_results(gnmap_path)
 
-    def process_network_results(self, gnmap_path: Path):
+        preset = message.get("preset_description", "")
+        if preset == "db_network":
+            self._process_db_network_results(gnmap_path)
+        elif preset == "db_host":
+            self._process_db_host_results(gnmap_path)
+        else:
+            self.logger.error("Unknown preset_description in callback: %s", preset)
+
+    def _process_db_network_results(self, gnmap_path: Path):
         """
         Processes the network scan results from a .gnmap file.
         It parses the file to extract network-level data and host entries,
         then inserts the data into the nmap_network table.
 
+        Uses _parser.py helper
+        parse_network_results.
+
         :param gnmap_path: Path to the .gnmap file.
         """
         from tools.nmap.db import insert_nmap_network_result
-        from database.db_manager import get_db_connection
-        from config.constants import BASE_DIR
+        from tools.nmap._parser import parse_network_results
 
         self.logger.info("Processing scan results from %s", gnmap_path)
         network_data, hosts = parse_network_results(gnmap_path)
@@ -271,12 +257,119 @@ class Nmap(Tool, ABC):
                 network_data.get("router_hostname", ""),
                 hosts
             )
+            # set network id to prepare for continued host scanning
+            self.current_network_id = network_id
             self.logger.info("Inserted network scan with ID: %s", network_id)
             conn.commit()
         except Exception as e:
             self.logger.error("Error inserting scan results into DB: %s", e)
         finally:
             conn.close()
+
+    #################################
+    ##### DB_HOSTS SCAN METHODS #####
+    #################################
+    def run_db_hosts(self, host_ip: str) -> None:
+        """
+        Executes an nmap host scan (-A) for a single host specified by host_ip.
+        Builds the command for the host scan, sends it via IPC, and lets the
+        scan complete callback process the results.
+        """
+        self.selected_preset = {
+            "description": "db_host",
+            "options": {
+                "-A": True,
+                "--top-ports": 1000,
+                "-T4": True
+            }
+        }
+        if not host_ip:
+            self.logger.error("No host IP provided for host scan.")
+            return
+
+        # build the command for the specified host
+        cmd_list = self.build_nmap_command(host_ip)
+        self.logger.debug("Single host scan command list: %s", cmd_list)
+
+        # convert the command list to a dict for IPC compatibility
+        cmd_dict = self.cmd_to_dict(cmd_list)
+        self.logger.debug("Single host scan command dict: %s", cmd_dict)
+
+        # set the preset description from configuration
+        self.preset_description = self.selected_preset.get("description", "nmap_host_scan")
+
+        # send the command via IPC
+        response = self.run_to_ipc(cmd_dict)
+        if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
+            self.logger.info("Host scan for %s initiated successfully: %s", host_ip, response)
+        else:
+            self.logger.error("Error initiating host scan for %s via IPC: %s", host_ip, response)
+
+    def _process_db_host_results(self, gnmap_path: Path):
+        """
+        Processes the host scan results from a .gnmap file.
+        Uses the helper function parse_host_results from _parser.py to parse the file,
+        then inserts each host's data into the nmap_host table using insert_nmap_host_result.
+        Assumes self.current_network_id has been set from the network scan.
+        """
+        from tools.nmap._parser import parse_host_results
+        from tools.nmap.db import insert_nmap_host_result
+
+        self.logger.info("Processing host scan results from %s", gnmap_path)
+        hosts_json = parse_host_results(gnmap_path)
+        try:
+            host_list = json.loads(hosts_json)
+        except Exception as e:
+            self.logger.error("Error decoding host scan JSON: %s", e)
+            return
+
+        if not hasattr(self, "current_network_id") or self.current_network_id is None:
+            self.logger.error("No current network ID available; cannot insert host scan results.")
+            return
+
+        network_id = self.current_network_id
+        now = datetime.now()
+        scan_date = now.strftime("%Y-%m-%d")
+        scan_time = now.strftime("%H:%M:%S")
+
+        conn = get_db_connection(BASE_DIR)
+        for host in host_list:
+            host_ip = host.get("ip", "")
+            # store the ports information as JSON
+            open_ports = json.dumps(host.get("ports", []))
+            # use OS info as the services field, or empty string if not available
+            services = host.get("os", "")
+            try:
+                insert_nmap_host_result(conn, network_id, host_ip, open_ports, services, scan_date, scan_time)
+                self.logger.info("Inserted host scan result for host: %s", host_ip)
+            except Exception as e:
+                self.logger.error("Error inserting host scan result for %s: %s", host_ip, e)
+        conn.commit()
+        conn.close()
+
+    def _determine_gnmap_file_path(self) -> Optional[Path]:
+        """
+        Searches the current working directory for a .gnmap file.
+
+        :return: Optional[Path]:
+            the first .gnmap file found (or None if no file exists).
+        """
+        self.logger.debug(f"Checking for .gnmap files in: {self.current_working_dir}")
+        if not hasattr(self, "current_working_dir"):
+            self.logger.error("current_working_dir is not set.")
+            return None
+
+        gnmap_files = list(Path(self.current_working_dir).glob("*.gnmap"))
+        self.logger.debug(f"All files in {self.current_working_dir}: {list(Path(self.current_working_dir).iterdir())}")
+
+        if gnmap_files:
+            self.logger.debug(f".gnmap files found: {[str(f) for f in gnmap_files]}")
+            return gnmap_files[0]
+        else:
+            self.logger.error("No .gnmap files found in %s", self.current_working_dir)
+            return None
+
+
 
 
 
