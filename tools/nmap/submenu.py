@@ -111,57 +111,126 @@ class NmapSubmenu(BaseSubmenu):
 
     def rescan_host_menu(self, parent_win) -> None:
         """
-        Allows the user to choose a .gnmap file from the results directory,
-        then parses that file to extract hosts, prompts for a preset,
-        and finally launches a host-specific scan.
+        Presents a menu that lets the user select a network scan from the database,
+        then displays the hosts stored in the selected network's JSON blob. The user
+        can then choose a host for a detailed (-A) scan.
+
+        Workflow:
+          1. Query the nmap_network table for available network scan records.
+          2. Display a paginated menu of networks (showing ID, CIDR, and router info).
+          3. When a network is selected, retrieve its hosts JSON blob and decode it.
+          4. Display a paginated menu of hosts (showing IP and hostname).
+          5. When a host is selected, set the tool's selected_target_host and current_network_id,
+             then (optionally after preset selection) launch the host scan.
+
+        Parameters:
+            parent_win (curses window): The parent window used for drawing the menus.
+
+        Returns:
+            None
         """
-        gnmap_file = self.choose_gnmap_file(parent_win)
-        if not gnmap_file:
-            return
+        import json
+        from database.db_manager import get_db_connection
+        from tools.nmap.db import fetch_all_nmap_network_results
+        from config.constants import BASE_DIR
 
-        hosts = []
-        try:
-            with gnmap_file.open("r") as f:
-                lines = f.readlines()
-            for line in lines:
-                if line.startswith("Host:"):
-                    parts = line.split()
-                    if len(parts) >= 2:
-                        ip = parts[1]
-                        hostname = ""
-                        if len(parts) >= 3 and parts[2].startswith("(") and parts[2].endswith(")"):
-                            hostname = parts[2][1:-1]
-                        entry = f"{ip} ({hostname})" if hostname else ip
-                        if entry not in hosts:
-                            hosts.append(entry)
-        except Exception as e:
+        # query the database for network scan records
+        conn = get_db_connection(BASE_DIR)
+        networks = fetch_all_nmap_network_results(conn)
+        conn.close()
+
+        if not networks:
             parent_win.clear()
-            parent_win.addstr(0, 0, f"Error parsing {gnmap_file.name}: {e}")
+            parent_win.addstr(0, 0, "No network scans found in the database!")
             parent_win.refresh()
             parent_win.getch()
             return
 
-        if not hosts:
-            parent_win.clear()
-            parent_win.addstr(0, 0, "No hosts found in the selected .gnmap file!")
-            parent_win.refresh()
-            parent_win.getch()
-            return
+        # Build a menu of networks. Each record tuple is structured as:
+        # (id, bssid, station_mac, cidr, router_ip, router_hostname, hosts, created_at)
+        network_menu = []
+        for net in networks:
+            net_id = net[0]
+            cidr = net[3]
+            router_ip = net[4] if net[4] else "Unknown"
+            router_hostname = net[5] if net[5] else ""
+            menu_str = f"ID:{net_id} | {cidr} | Router: {router_ip} ({router_hostname})"
+            network_menu.append(menu_str)
 
-        selection = self.draw_paginated_menu(parent_win, "Select Host for Rescan", hosts)
-        if selection == "back":
+        selected_network_str = self.draw_paginated_menu(parent_win, "Select Network Scan", network_menu)
+        if selected_network_str == "back":
             return
 
         try:
-            selected_ip = selection.split()[0]
-            self.tool.selected_target_host = selected_ip
+            # parse the selected network's ID from the menu string
+            selected_id = int(selected_network_str.split("|")[0].split(":")[1].strip())
         except Exception as e:
             parent_win.clear()
-            parent_win.addstr(0, 0, f"Error processing selection: {e}")
+            parent_win.addstr(0, 0, f"Error parsing network selection: {e}")
             parent_win.refresh()
             parent_win.getch()
             return
 
+        # retrieve the selected network record
+        selected_network = None
+        for net in networks:
+            if net[0] == selected_id:
+                selected_network = net
+                break
+        if not selected_network:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "Selected network record not found!")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # save the chosen network ID for associating host scans
+        self.tool.current_network_id = selected_network[0]
+
+        # extract the hosts JSON blob from the selected network record
+        hosts_json = selected_network[6]
+        try:
+            hosts_list = json.loads(hosts_json)
+        except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error parsing hosts JSON: {e}")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        if not hosts_list:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No hosts found in the selected network scan!")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # build a menu list of hosts
+        host_menu = []
+        for host in hosts_list:
+            ip = host.get("ip", "")
+            hostname = host.get("hostname", "")
+            entry = f"{ip} ({hostname})" if hostname else ip
+            host_menu.append(entry)
+
+        selected_host = self.draw_paginated_menu(parent_win, "Select Host for Detailed Scan", host_menu)
+        if selected_host == "back":
+            return
+
+        try:
+            # parse the IP address from the selection
+            selected_ip = selected_host.split()[0]
+        except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error processing host selection: {e}")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # Set the selected host for a detailed scan.
+        self.tool.selected_target_host = selected_ip
+
+        # Optionally let the user select a preset for host scans.
         selected_preset = self.select_preset(parent_win)
         if selected_preset == "back" or not selected_preset:
             return
@@ -171,7 +240,8 @@ class NmapSubmenu(BaseSubmenu):
 
         try:
             self.tool.scan_mode = "target"
-            self.tool.run_db_hosts()
+            # Launch the host scan for the selected host.
+            self.tool.run_db_hosts(self.tool.selected_target_host)
         except Exception as e:
             parent_win.clear()
             parent_win.addstr(0, 0, f"Error launching host scan: {e}")
