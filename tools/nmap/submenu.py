@@ -271,9 +271,7 @@ class NmapSubmenu(BaseSubmenu):
             return
 
         # build a menu list of hosts
-        host_menu = []
-        # add the "ALL" option at the beginning
-        host_menu.append("ALL")
+        host_menu = ["ALL"]
         for host in hosts_list:
             ip = host.get("ip", "")
             hostname = host.get("hostname", "")
@@ -299,23 +297,28 @@ class NmapSubmenu(BaseSubmenu):
 
         # check if "ALL" was selected
         if selected_host.upper() == "ALL":
-            # iterate over every host and launch a scan
-            for host in hosts_list:
-                ip = host.get("ip", "")
-                if ip:
-                    self.tool.selected_target_host = ip
-                    try:
-                        self.tool.run_db_hosts(ip)
-                        self.logger.info("Scan sent for host: %s", ip)
-                    except Exception as e:
-                        self.logger.error("Error launching host scan for %s: %s", ip, e)
-            parent_win.clear()
-            parent_win.addstr(0, 0, "Scans sent for all hosts.\nSelect 'View Scans' from menu to swap scans into view.")
-            parent_win.refresh()
-            curses.napms(2500)
+            # combine all host IPs into a single target string
+            all_ips = [host.get("ip", "") for host in hosts_list if host.get("ip", "")]
+            # Join targets with a space
+            combined_ips = " ".join(all_ips)
+            self.tool.selected_target_host = combined_ips
+
+            try:
+                self.tool.scan_mode = "target"
+                # launch a single host scan for all targets
+                self.tool.run_db_hosts(combined_ips)
+                parent_win.clear()
+                parent_win.addstr(0, 0,
+                                  "Scan sent for all hosts.\nSelect 'View Scans' from menu to swap scan into view.")
+                parent_win.refresh()
+                curses.napms(2500)
+            except Exception as e:
+                parent_win.clear()
+                parent_win.addstr(0, 0, f"Error launching host scan: {e}")
+                parent_win.refresh()
+                parent_win.getch()
         else:
             try:
-                # process a single host selection
                 selected_ip = selected_host.split()[0]
             except Exception as e:
                 parent_win.clear()
@@ -324,9 +327,9 @@ class NmapSubmenu(BaseSubmenu):
                 parent_win.getch()
                 return
 
-            # set the target host and launch the scan
             self.tool.selected_target_host = selected_ip
             try:
+                self.tool.scan_mode = "target"
                 self.tool.run_db_hosts(selected_ip)
                 parent_win.clear()
                 parent_win.addstr(0, 0,
