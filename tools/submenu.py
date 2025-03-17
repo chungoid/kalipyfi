@@ -101,6 +101,10 @@ class BaseSubmenu:
                 if 1 <= selection <= len(page_items):
                     return page_items[selection - 1]
 
+
+    ################################
+    ##### MAIN SUBMENU OPTIONS #####
+    ################################
     def select_interface(self, parent_win) -> Union[str, None]:
         """
         Presents a paginated menu of available interfaces from self.tool.interfaces["wlan"].
@@ -123,6 +127,9 @@ class BaseSubmenu:
         """
         Generic preset selection: displays presets from self.tool.presets and returns
         the selected preset dictionary.
+
+        :return:
+            dict entry for the selected present containing tools command-line args
         """
         presets = self.tool.presets
         if not presets:
@@ -147,10 +154,187 @@ class BaseSubmenu:
                 return preset
         return BACK_OPTION
 
+    def pre_launch_hook(self, parent_win) -> bool:
+        """
+        Hook for performing any tool-specific actions before launching a scan.
+        Default implementation does nothing and returns True.
+
+        :return: bool
+        """
+        return True
+
+    def launch_scan(self, parent_win) -> None:
+        """
+        Generic launch scan: executes pre-launch steps (via pre_launch_hook),
+        then selects a preset and launches the scan by calling self.tool.run().
+
+        :return: None
+        """
+        if not self.pre_launch_hook(parent_win):
+            self.logger.debug("pre_launch_hook signaled to abort scan launch.")
+            return
+
+        self.tool.selected_preset = None
+        self.tool.preset_description = None
+
+        selected_preset = self.select_preset(parent_win)
+        if selected_preset == BACK_OPTION:
+            self.logger.debug("launch_scan: No preset selected; aborting scan launch.")
+            return
+
+        self.tool.selected_preset = selected_preset
+        self.tool.preset_description = selected_preset.get("description", "")
+
+        parent_win.clear()
+        confirm_msg = f"Launching scan with preset: {self.tool.preset_description}"
+        parent_win.addstr(0, 0, confirm_msg)
+        parent_win.refresh()
+        curses.napms(1500)
+
+        try:
+            self.tool.run()
+        except Exception as e:
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Error launching scan: {e}")
+            parent_win.refresh()
+            parent_win.getch()
+
+    def view_scans(self, parent_win) -> None:
+        """
+        Generic view_scans method for displaying active scans and allowing the user to take actions.
+
+        :return: None
+        """
+        client = IPCClient()
+        tool_name = getattr(self.tool, 'name', 'tool')
+        message = {"action": "GET_SCANS", "tool": tool_name}
+        self.logger.debug("view_scans: Sending GET_SCANS for tool '%s'", tool_name)
+        response = client.send(message)
+        scans = response.get("scans", [])
+
+        parent_win.clear()
+        if not scans:
+            parent_win.addstr(0, 0, "No active scans found!")
+            parent_win.refresh()
+            curses.napms(1500)
+            return
+
+        # format each scan for display
+        menu_items = [format_scan_display(scan) for scan in scans]
+        selection = self.draw_paginated_menu(parent_win, "Active Scans", menu_items)
+        if selection == "back":
+            return
+
+        try:
+            selected_index = menu_items.index(selection)
+        except ValueError:
+            self.logger.error("view_scans: Selected scan not found in list.")
+            return
+
+        selected_scan = scans[selected_index]
+
+        # secondary menu for actions
+        parent_win.clear()
+        secondary_menu = ["Swap", "Stop", "Cancel"]
+        sec_menu_items = [f"[{i + 1}] {item}" for i, item in enumerate(secondary_menu)]
+        sec_menu_win = self.draw_menu(parent_win, "Selected Scan Options", sec_menu_items)
+        key = sec_menu_win.getch()
+        try:
+            ch = chr(key)
+        except Exception:
+            ch = ""
+        parent_win.clear()
+        if ch == "1":
+            # swap scan
+            new_title = f"{self.tool.selected_interface}_{self.tool.selected_preset.get('description', '')}"
+            swap_message = {
+                "action": "SWAP_SCAN",
+                "tool": tool_name,
+                "pane_id": selected_scan.get("pane_id"),
+                "new_title": new_title
+            }
+            swap_response = client.send(swap_message)
+            if swap_response.get("status", "").startswith("SWAP_SCAN_OK"):
+                parent_win.addstr(0, 0, "Scan swapped successfully!")
+            else:
+                error_text = swap_response.get("error", "Unknown error")
+                parent_win.addstr(0, 0, f"Error swapping scan: {error_text}")
+        elif ch == "2":
+            # stop scan
+            stop_message = {
+                "action": "STOP_SCAN",
+                "tool": tool_name,
+                "pane_id": selected_scan.get("pane_id")
+            }
+            stop_response = client.send(stop_message)
+            if stop_response.get("status", "").startswith("STOP_SCAN_OK"):
+                parent_win.addstr(0, 0, "Scan stopped successfully!")
+            else:
+                error_text = stop_response.get("error", "Unknown error")
+                parent_win.addstr(0, 0, f"Error stopping scan: {error_text}")
+        else:
+            # cancel
+            return
+        parent_win.refresh()
+        curses.napms(1500)
+
+    #################################
+    ##### UTILS SUBMENU METHODS #####
+    #################################
+    def get_utils_menu_options(self) -> list:
+        """
+        Returns a list of default utility menu options.
+
+        These options will be used in the utilities menu and can be extended or overridden
+        by subclasses.
+
+        :return: A list of strings representing the menu options.
+        """
+        return ["Setup Configs", "Open Results Webserver", "Kill Window"]
+
+    def utils_menu(self, parent_win) -> None:
+        """
+        Presents a generic utilities menu.
+
+        Options include:
+          - Setup Configs: Opens a submenu for configuration setup.
+          - Open Results Webserver: Launches the webserver to display results.
+          - Kill Window: Opens a submenu to kill one or all background windows.
+
+        Subclasses can override get_utils_menu_options() to add or change options.
+
+        :param parent_win: The curses window used for displaying the menu.
+        :return: None
+        """
+        menu_options = self.get_utils_menu_options()
+        while True:
+            selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
+            if selection.lower() == BACK_OPTION:
+                break
+            elif selection == "Setup Configs":
+                # display a secondary menu for configuration setup
+                config_options = ["Create Scan Profile", "Edit Scan Profile", "Edit Interfaces"]
+                sub_selection = self.draw_paginated_menu(parent_win, "Setup Configs", config_options)
+                if sub_selection.lower() != BACK_OPTION:
+                    if sub_selection == "Create Scan Profile":
+                        self.create_preset_profile_menu(parent_win)
+                    elif sub_selection == "Edit Scan Profile":
+                        self.edit_preset_profile_menu(parent_win)
+                    elif sub_selection == "Edit Interfaces":
+                        self.edit_interfaces_menu(parent_win)
+            elif selection == "Open Results Webserver":
+                self.open_results_webserver(parent_win)
+            elif selection == "Kill Window":
+                self.kill_background_window_menu(parent_win)
+            parent_win.clear()
+            parent_win.refresh()
+
     def create_preset_profile_menu(self, parent_win) -> None:
         """
         Prompts the user to build a new scan profile based on defaults in defaults.yaml,
         then adds it to the tool's configuration.
+
+        :return: None
         """
         defaults_path = Path(self.tool.base_dir) / "configs" / "defaults.yaml"
         try:
@@ -249,179 +433,11 @@ class BaseSubmenu:
         parent_win.refresh()
         parent_win.getch()
 
-
-    def pre_launch_hook(self, parent_win) -> bool:
-        """
-        Hook for performing any tool-specific actions before launching a scan.
-        Default implementation does nothing and returns True.
-        """
-        return True
-
-    def launch_scan(self, parent_win) -> None:
-        """
-        Generic launch scan: executes pre-launch steps (via pre_launch_hook),
-        then selects a preset and launches the scan by calling self.tool.run().
-        """
-        if not self.pre_launch_hook(parent_win):
-            self.logger.debug("pre_launch_hook signaled to abort scan launch.")
-            return
-
-        self.tool.selected_preset = None
-        self.tool.preset_description = None
-
-        selected_preset = self.select_preset(parent_win)
-        if selected_preset == BACK_OPTION:
-            self.logger.debug("launch_scan: No preset selected; aborting scan launch.")
-            return
-
-        self.tool.selected_preset = selected_preset
-        self.tool.preset_description = selected_preset.get("description", "")
-
-        parent_win.clear()
-        confirm_msg = f"Launching scan with preset: {self.tool.preset_description}"
-        parent_win.addstr(0, 0, confirm_msg)
-        parent_win.refresh()
-        curses.napms(1500)
-
-        try:
-            self.tool.run()
-        except Exception as e:
-            parent_win.clear()
-            parent_win.addstr(0, 0, f"Error launching scan: {e}")
-            parent_win.refresh()
-            parent_win.getch()
-
-    def view_scans(self, parent_win) -> None:
-        """
-        Generic view_scans method for displaying active scans and allowing the user to take actions.
-        """
-        client = IPCClient()
-        tool_name = getattr(self.tool, 'name', 'tool')
-        message = {"action": "GET_SCANS", "tool": tool_name}
-        self.logger.debug("view_scans: Sending GET_SCANS for tool '%s'", tool_name)
-        response = client.send(message)
-        scans = response.get("scans", [])
-
-        parent_win.clear()
-        if not scans:
-            parent_win.addstr(0, 0, "No active scans found!")
-            parent_win.refresh()
-            curses.napms(1500)  # pause (1.5 seconds)
-            return
-
-        # format each scan for display
-        menu_items = [format_scan_display(scan) for scan in scans]
-        selection = self.draw_paginated_menu(parent_win, "Active Scans", menu_items)
-        if selection == "back":
-            return
-
-        try:
-            selected_index = menu_items.index(selection)
-        except ValueError:
-            self.logger.error("view_scans: Selected scan not found in list.")
-            return
-
-        selected_scan = scans[selected_index]
-
-        # secondary menu for actions
-        parent_win.clear()
-        secondary_menu = ["Swap", "Stop", "Cancel"]
-        sec_menu_items = [f"[{i + 1}] {item}" for i, item in enumerate(secondary_menu)]
-        sec_menu_win = self.draw_menu(parent_win, "Selected Scan Options", sec_menu_items)
-        key = sec_menu_win.getch()
-        try:
-            ch = chr(key)
-        except Exception:
-            ch = ""
-        parent_win.clear()
-        if ch == "1":
-            # Swap: change pane title.
-            new_title = f"{self.tool.selected_interface}_{self.tool.selected_preset.get('description', '')}"
-            swap_message = {
-                "action": "SWAP_SCAN",
-                "tool": tool_name,
-                "pane_id": selected_scan.get("pane_id"),
-                "new_title": new_title
-            }
-            swap_response = client.send(swap_message)
-            if swap_response.get("status", "").startswith("SWAP_SCAN_OK"):
-                parent_win.addstr(0, 0, "Scan swapped successfully!")
-            else:
-                error_text = swap_response.get("error", "Unknown error")
-                parent_win.addstr(0, 0, f"Error swapping scan: {error_text}")
-        elif ch == "2":
-            # stop scan
-            stop_message = {
-                "action": "STOP_SCAN",
-                "tool": tool_name,
-                "pane_id": selected_scan.get("pane_id")
-            }
-            stop_response = client.send(stop_message)
-            if stop_response.get("status", "").startswith("STOP_SCAN_OK"):
-                parent_win.addstr(0, 0, "Scan stopped successfully!")
-            else:
-                error_text = stop_response.get("error", "Unknown error")
-                parent_win.addstr(0, 0, f"Error stopping scan: {error_text}")
-        else:
-            # Cancel – simply return.
-            return
-        parent_win.refresh()
-        curses.napms(1500)  # 1.5s pause then return
-
-    #################################
-    ##### UTILS SUBMENU METHODS #####
-    #################################
-    def get_utils_menu_options(self) -> list:
-        """
-        Returns a list of default utility menu options.
-
-        These options will be used in the utilities menu and can be extended or overridden
-        by subclasses.
-
-        :return: A list of strings representing the menu options.
-        """
-        return ["Setup Configs", "Open Results Webserver", "Kill Window"]
-
-    def utils_menu(self, parent_win) -> None:
-        """
-        Presents a generic utilities menu.
-
-        Options include:
-          - Setup Configs: Opens a submenu for configuration setup.
-          - Open Results Webserver: Launches the webserver to display results.
-          - Kill Window: Opens a submenu to kill one or all background windows.
-
-        Subclasses can override get_utils_menu_options() to add or change options.
-
-        :param parent_win: The curses window used for displaying the menu.
-        :return: None
-        """
-        menu_options = self.get_utils_menu_options()
-        while True:
-            selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
-            if selection.lower() == BACK_OPTION:
-                break
-            elif selection == "Setup Configs":
-                # display a secondary menu for configuration setup
-                config_options = ["Create Scan Profile", "Edit Scan Profile", "Edit Interfaces"]
-                sub_selection = self.draw_paginated_menu(parent_win, "Setup Configs", config_options)
-                if sub_selection.lower() != BACK_OPTION:
-                    if sub_selection == "Create Scan Profile":
-                        self.create_preset_profile_menu(parent_win)
-                    elif sub_selection == "Edit Scan Profile":
-                        self.edit_preset_profile_menu(parent_win)
-                    elif sub_selection == "Edit Interfaces":
-                        self.edit_interfaces_menu(parent_win)
-            elif selection == "Open Results Webserver":
-                self.open_results_webserver(parent_win)
-            elif selection == "Kill Window":
-                self.kill_background_window_menu(parent_win)
-            parent_win.clear()
-            parent_win.refresh()
-
     def edit_preset_profile_menu(self, parent_win) -> None:
         """
         Prompts the user to select an existing scan profile to edit, then allows editing of its options.
+
+        :return: None
         """
         presets_dict = self.tool.presets
         if not presets_dict:
@@ -537,10 +553,8 @@ class BaseSubmenu:
         Starts a webserver serving the tool's results directory.
         The server will host the directory at http://<device-ip>:<port>/<toolname>.
 
-        :param: parent_win
-        :param: port:
-            port of the webserver
-
+        :param parent_win: The curses window used for displaying the menu.
+        :param port: Port the webserver will run on.
         :return: None
         """
         from tools.helpers.webserver import start_webserver
@@ -570,7 +584,8 @@ class BaseSubmenu:
           - Options 2 and onward list individual background windows (formatted via format_scan_display)
             for which the user can select to kill that specific window.
 
-        :param parent_win: The curses window used for displaying the menu.
+        :param parent_win:
+            The curses window used for displaying the menu.
         :return: None
         """
         client = IPCClient()
@@ -587,7 +602,7 @@ class BaseSubmenu:
             curses.napms(1500)
             return
 
-        # option 1 is kill all background, 2+ are individual windows
+        # option 1 for killing all background windows for the selected tool, 2+ are individual windows for the tool
         menu_items = ["Kill All"]
         menu_items.extend([format_scan_display(scan) for scan in scans])
         selection = self.draw_paginated_menu(parent_win, "Kill Background Windows", menu_items)
@@ -633,10 +648,10 @@ class BaseSubmenu:
         it iterates over its attributes (such as name, description, locked), prompts the user to change
         each value (or leave it unchanged), and saves the updated configuration using update_yaml_value().
 
-        :param parent_win: The curses window used for displaying the menu.
+        :param parent_win:
+            The curses window used for displaying the menu.
         :return: None
         """
-        import yaml
         from tools.helpers.tool_utils import update_yaml_value
 
         config_file = self.tool.config_file
