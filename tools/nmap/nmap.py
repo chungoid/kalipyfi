@@ -100,7 +100,7 @@ class Nmap(Tool, ABC):
         self.current_working_dir = output_dir
         self.logger.debug(f"Using output directory: {output_dir}")
 
-        # Set file prefix. For multiple hosts, you might use a fixed name.
+        # set file prefix
         if self.scan_mode == "target" and " " in target:
             file_prefix = output_dir / "combined"
         else:
