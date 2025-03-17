@@ -238,6 +238,9 @@ class NmapSubmenu(BaseSubmenu):
             self.tool.scan_mode = "target"
             # Launch the host scan for the selected host.
             self.tool.run_db_hosts(self.tool.selected_target_host)
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"scan sent for: {self.tool.selected_target_host}")
+            parent_win.refresh()
         except Exception as e:
             parent_win.clear()
             parent_win.addstr(0, 0, f"Error launching host scan: {e}")
