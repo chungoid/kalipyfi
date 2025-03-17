@@ -486,15 +486,26 @@ class UIManager:
 
     def detach_ui(self) -> None:
         """
-        Detaches the UI session by invoking the tmuxp detach-client command.
-        This leaves the session running in the background.
-        After detaching, exit the process.
+        Detaches the UI session by launching a new process that executes the
+        'tmux detach' command.
 
         :return: None
         """
         session_name = self.session_data.session_name
+        cmd = "tmux detach"
         self.logger.info(f"Detaching UI session: {session_name}")
-        os.system(f"tmuxp detach-client -s {session_name}")
+
+        try:
+            subprocess.Popen(
+                [cmd],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                close_fds=True
+            )
+        except Exception as e:
+            self.logger.error(f"Error detaching UI session: {e}")
+        self.logger.debug(f"Detached UI session: {session_name}")
 
     def kill_ui(self) -> None:
         """

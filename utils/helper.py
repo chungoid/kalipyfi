@@ -31,7 +31,6 @@ def ipc_ping(socket_path: str = None) -> bool:
     except Exception:
         return False
 
-
 def get_unique_socket_path(base=DEFAULT_BASE_SOCKET, suffix=SOCKET_SUFFIX):
     """Generate a unique socket path using the process ID and a timestamp."""
     timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -99,6 +98,28 @@ def wait_for_tmux_session(session_name: str, timeout: int = 30, poll_interval: f
         time.sleep(poll_interval)
     raise TimeoutError(f"Timeout waiting for tmux session '{session_name}' to be fully ready.")
 
+def attach_existing_kalipyfi_session(session_name: str = "kalipyfi") -> bool:
+    """
+    Checks if a tmux session with the given session_name exists.
+    If it does, attaches to that session and returns True.
+    If it does not exist, returns False.
+
+    :param session_name: The name of the tmux session to check for.
+    :return: True if the session exists and is attached to, otherwise False.
+    """
+    try:
+        subprocess.check_output(["tmux", "has-session", "-t", session_name])
+        subprocess.call(["tmux", "attach-session", "-t", session_name])
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+if attach_existing_kalipyfi_session():
+    sys.exit(0)
+else:
+    # Continue with normal main() function if no session exists.
+    from kalipyfi import main  # Adjust import as needed.
+    main()
 
 def log_ui_state_phase(logger, ui_instance, phase: str, extra_msg: str = "") -> None:
     """

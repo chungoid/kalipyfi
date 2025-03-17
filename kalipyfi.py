@@ -10,7 +10,7 @@ from pathlib import Path
 from common.process_manager import process_manager
 from config.constants import MAIN_UI_YAML_PATH, TMUXP_DIR, BASE_DIR, CURRENT_SOCKET_FILE
 from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
-from utils.helper import setup_signal_handlers, ipc_ping, get_published_socket_path
+from utils.helper import setup_signal_handlers, ipc_ping, get_published_socket_path, attach_existing_kalipyfi_session
 from utils.ipc_client import IPCClient
 
 
@@ -22,7 +22,6 @@ def setup_log_queue():
     listener.start()
     worker_configurer(log_queue)
     logging.getLogger("kalipyfi_main()").debug("Main process logging configured using QueueHandler")
-
 
 def register_processes_via_ipc(socket_path, tmuxp_pid):
     client = IPCClient(socket_path)
@@ -44,6 +43,10 @@ def register_processes_via_ipc(socket_path, tmuxp_pid):
     }
     tmuxp_response = client.send(tmuxp_registration)
     logging.info(f"tmuxp process registration response: {tmuxp_response}")
+
+# attach to existing session if it exists
+if attach_existing_kalipyfi_session():
+    sys.exit(0)
 
 
 def main():
