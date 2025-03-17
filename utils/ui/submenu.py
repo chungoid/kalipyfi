@@ -1,6 +1,7 @@
 # submenu.py
 import curses
 import logging
+import time
 
 from utils.ipc_client import IPCClient
 from config.constants import TOOL_PATHS
@@ -161,24 +162,31 @@ def utils_menu(stdscr):
     stdscr.clear()
     stdscr.refresh()
 
+
 def debug_status_menu(stdscr):
-    """Fetches and displays process status via IPC."""
+    """Fetches and displays process status via IPC with automatic updates."""
     curses.curs_set(0)
-    stdscr.clear()
-    stdscr.refresh()
-    title = "Status Report"
-    # Send a status request via IPC.
-    message = {"action": "DEBUG_STATUS"}
-    response = client.send(message)
-    stdscr.clear()
-    if response.get("status") == "DEBUG_STATUS_OK":
-        report = response.get("report", "No report available.")
-        stdscr.addstr(0, 0, "Process Status Report:", curses.A_BOLD)
-        stdscr.addstr(1, 0, report)
-    else:
-        stdscr.addstr(0, 0, f"Error: {response.get('error', 'Unknown error')}", curses.A_BOLD)
-    stdscr.addstr(curses.LINES - 1, 0, "Press any key to return...")
-    stdscr.refresh()
-    stdscr.getch()
-    stdscr.clear()
-    stdscr.refresh()
+    stdscr.nodelay(True)
+    title = "Process Status Report (press any key to exit)"
+
+    while True:
+        stdscr.clear()
+        stdscr.addstr(0, 0, title, curses.A_BOLD)
+        # send a status request via IPC
+        message = {"action": "DEBUG_STATUS"}
+        response = client.send(message)
+        if response.get("status") == "DEBUG_STATUS_OK":
+            report = response.get("report", "No report available.")
+            for idx, line in enumerate(report.splitlines(), start=1):
+                stdscr.addstr(idx, 0, line)
+        else:
+            stdscr.addstr(1, 0, f"Error: {response.get('error', 'Unknown error')}", curses.A_BOLD)
+
+        stdscr.addstr(curses.LINES - 1, 0, "Press any key to return...")
+        stdscr.refresh()
+
+        key = stdscr.getch()
+        if key != -1:
+            break
+
+        time.sleep(1)  # polling interval for updates

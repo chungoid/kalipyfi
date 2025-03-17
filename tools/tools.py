@@ -1,20 +1,18 @@
-import logging
 import os
-import shlex
-import subprocess
 import time
-from datetime import datetime
-from threading import Thread
-from typing import Dict, Any, List, Optional
-from pathlib import Path
-from abc import abstractmethod
-
+import shlex
 import psutil
+import logging
+import subprocess
+from pathlib import Path
+from threading import Thread
+from datetime import datetime
+from abc import abstractmethod
+from typing import Dict, Any, List, Optional
 
 # local
 from config.constants import BASE_DIR
-from common.logging_setup import get_log_queue, worker_configurer
-from common.config_utils import load_yaml_config
+from config.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
 from tools.helpers.tool_utils import get_network_from_interface
 from utils.ipc_client import IPCClient
@@ -29,7 +27,7 @@ class Tool:
         self.base_dir = Path(base_dir).resolve()
 
         if not logging.getLogger().handlers:
-            worker_configurer(get_log_queue())
+            self.logger = logging.getLogger(self.__class__.__name__)
 
         # Define essential directories based on base_dir
         self.config_dir = self.base_dir / "configs"

@@ -4,54 +4,30 @@ import time
 import jinja2
 import logging
 import subprocess
+import logging.handlers
 from pathlib import Path
 
 # local
 from common.process_manager import process_manager
+from config.config_utils import wait_for_logging_server, register_processes_via_ipc
 from config.constants import MAIN_UI_YAML_PATH, TMUXP_DIR, BASE_DIR, CURRENT_SOCKET_FILE
-from common.logging_setup import get_log_queue, worker_configurer, configure_listener_handlers
 from utils.helper import setup_signal_handlers, ipc_ping, get_published_socket_path, attach_existing_kalipyfi_session
-from utils.ipc_client import IPCClient
 
 
-# attach to existing session if it exists
-if attach_existing_kalipyfi_session():
-    sys.exit(0)
-
-def setup_log_queue():
-    log_queue = get_log_queue()
-    from logging.handlers import QueueListener
-    listener_handlers = configure_listener_handlers()
-    listener = QueueListener(log_queue, *listener_handlers)
-    listener.start()
-    worker_configurer(log_queue)
-
-def register_processes_via_ipc(socket_path, tmuxp_pid):
-    client = IPCClient(socket_path)
-
-    # register the main process
-    main_registration = {
-        "action": "REGISTER_PROCESS",
-        "role": "main",
-        "pid": os.getpid()
-    }
-    main_response = client.send(main_registration)
-    logging.info(f"Main process registration response: {main_response}")
-
-    # register the tmuxp process
-    tmuxp_registration = {
-        "action": "REGISTER_PROCESS",
-        "role": "tmuxp",
-        "pid": tmuxp_pid
-    }
-    tmuxp_response = client.send(tmuxp_registration)
-    logging.info(f"tmuxp process registration response: {tmuxp_response}")
-
+def start_logging_server():
+    project_base = Path(__file__).resolve().parent
+    logging_server_path = project_base / "common" / "logging_server.py"
+    proc = subprocess.Popen(
+        [sys.executable, str(logging_server_path)],
+        cwd=str(project_base),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    return proc
 
 def main():
-    setup_log_queue()
     # process tracking / signal handler
-    process_manager.register_process("main", os.getpid())
+    process_manager.register_process(__name__, os.getpid())
     setup_signal_handlers()
 
     # load tmuxp template
@@ -99,6 +75,16 @@ def main():
     tmuxp_proc.wait()
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    if attach_existing_kalipyfi_session():
+        # reattach to old
+        sys.exit(0)
+    else:
+        # create fresh session
+        log_proc = start_logging_server()
+        if wait_for_logging_server():
+            logging.info("Logging server is up!")
+        else:
+            logging.error("Logging server did not start within the timeout period.")
+        main()
 

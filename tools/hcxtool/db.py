@@ -1,6 +1,5 @@
 # tools/hcxtool/db.py
 import sqlite3
-from pathlib import Path
 from database.db_manager import execute_query, fetch_all
 
 def init_hcxtool_schema(conn: sqlite3.Connection) -> None:

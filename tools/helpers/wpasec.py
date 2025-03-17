@@ -1,8 +1,7 @@
-import logging
 import os
-
 import requests
 from pathlib import Path
+
 
 def upload_to_wpasec(tool, pcap_path: Path, api_key: str) -> bool:
     """
@@ -27,7 +26,6 @@ def upload_to_wpasec(tool, pcap_path: Path, api_key: str) -> bool:
     except requests.RequestException as e:
         tool.logger.error(f"Error uploading PCAP file: {e}")
         return False
-
 
 def download_from_wpasec(tool, api_key: str, results_dir: str) -> str | None:
     """
@@ -74,7 +72,6 @@ def get_wpasec_api_key(tool) -> str:
     if not api_key:
         raise ValueError("WPA-sec API key not found in configuration.")
     return api_key
-
 
 def list_pcapng_files(tool, results_dir: Path) -> list:
     """

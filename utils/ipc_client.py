@@ -1,10 +1,11 @@
-import os
-import socket
-import threading
 import time
+import socket
 import logging
-from common.ipc_protocol import pack_message, unpack_message
+
+# local
 from utils.helper import get_published_socket_path
+from common.ipc_protocol import pack_message, unpack_message
+
 
 class IPCClient:
     def __init__(self, socket_path: str = None):

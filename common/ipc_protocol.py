@@ -1,10 +1,7 @@
 import json
-import logging
-import os
 import time
-from threading import Thread
-
 import psutil
+import logging
 
 # local
 from common.process_manager import process_manager

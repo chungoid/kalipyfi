@@ -38,6 +38,7 @@ class UIManager:
 
 
 
+
     def _register_scan(self, window_name: str, pane_id: str, internal_name: str, tool_name: str,
                         preset_description: str, command: str, interface: str,
                         lock_status: bool, timestamp: float, pane_pid: int) -> None:
@@ -673,7 +674,6 @@ class UIManager:
 
         self.logger.error(f"Timeout waiting for window '{tool_name}' to be ready.")
         raise TimeoutError(f"Timeout waiting for window '{tool_name}' with {expected_panes} panes.")
-
 
     def debug_list_windows(self) -> None:
         """

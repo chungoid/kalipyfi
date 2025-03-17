@@ -6,11 +6,10 @@ from pathlib import Path
 from typing import Optional
 
 # locals
-from tools.submenu import BaseSubmenu, BACK_OPTION
+from tools.submenu import BaseSubmenu
 from tools.helpers.tool_utils import get_network_from_interface
 from database.db_manager import get_db_connection
 from config.constants import BASE_DIR
-
 
 
 class NmapSubmenu(BaseSubmenu):

@@ -2,35 +2,32 @@
 import os
 import sys
 import time
-import logging
 import curses
-from pathlib import Path
-from logging.handlers import QueueListener
 import libtmux
-
+import logging
+import logging.handlers
+from pathlib import Path
 
 project_base = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_base))
 
 # locals
+from utils.ipc import IPCServer
+from utils.ui.ui_manager import UIManager
+from common.process_manager import process_manager
+from config.config_utils import configure_socket_logging
+from utils.ipc_callback import get_shared_callback_socket
 from utils.helper import setup_signal_handlers, publish_socket_path, get_unique_socket_path, \
     wait_for_tmux_session, shutdown_flag
-from common.logging_setup import get_log_queue, configure_listener_handlers, worker_configurer
-from common.process_manager import process_manager
-from utils.ui.ui_manager import UIManager
-from utils.ipc import IPCServer
-from utils.ipc_callback import get_shared_callback_socket
-
 
 #####################
 ##### IMPORTANT #####
 #####################
 # import all tool modules so they load via decorators
-from utils.tool_registry import tool_registry
+from utils.tool_registry import ToolRegistry
 from tools.hcxtool import hcxtool
-from tools.pyfyconnect import pyfyconnect
 from tools.nmap import nmap
-
+from tools.pyfyconnect import pyfyconnect
 
 def draw_menu(stdscr, title, menu_items):
     stdscr.clear()
@@ -247,15 +244,12 @@ class MainMenu:
 
 
 def main():
-    process_manager.register_process("main_menu.py", os.getpid())
+    process_manager.register_process("curses_menu", os.getpid())
     setup_signal_handlers()
 
-    log_queue = get_log_queue()
-    listener_handlers = configure_listener_handlers()
-    listener = QueueListener(log_queue, *listener_handlers)
-    listener.start()
-    worker_configurer(log_queue)
-    logging.getLogger("main_menu").debug("Main process logging configured using QueueHandler")
+    # connect to logging server
+    configure_socket_logging()
+    logging.getLogger("libtmux").setLevel(logging.INFO)
 
     # wait for tmuxp to load
     wait_for_tmux_session("kalipyfi", timeout=30, poll_interval=0.5)
@@ -265,22 +259,22 @@ def main():
     socket_path = publish_socket_path(new_socket_path)
     logging.debug(f"main: Using socket path: {socket_path}")
 
-    # Set callback socket path
+    # set callback socket path
     callback_socket = get_shared_callback_socket()
     logging.debug(f"Main: Shared callback socket: {callback_socket}")
 
-    # Instantiate ui & ipc server instances
+    # instantiate ui & ipc server instances
     ui_instance = UIManager("kalipyfi")
     ipc_server = IPCServer(ui_instance, socket_path)
     ipc_server.start()
 
-    # Start IPC server with the specific socket path
+    # start IPC server with the specific socket path
     time.sleep(2)
 
-    # Run the main menu
+    # run the main menu
     curses.wrapper(lambda stdscr: MainMenu(stdscr, ui_instance).run())
 
-    # Once user hits exit in main menu # testing this
+    # once user hits exit in main menu # testing this
     logging.info("Main menu UI exited. Initiating shutdown.")
     process_manager.shutdown_all()
     logging.info("Shutdown complete. Exiting main_menu.py")
