@@ -14,6 +14,10 @@ from utils.helper import setup_signal_handlers, ipc_ping, get_published_socket_p
 from utils.ipc_client import IPCClient
 
 
+# attach to existing session if it exists
+if attach_existing_kalipyfi_session():
+    sys.exit(0)
+
 def setup_log_queue():
     log_queue = get_log_queue()
     from logging.handlers import QueueListener
@@ -21,12 +25,11 @@ def setup_log_queue():
     listener = QueueListener(log_queue, *listener_handlers)
     listener.start()
     worker_configurer(log_queue)
-    logging.getLogger("kalipyfi_main()").debug("Main process logging configured using QueueHandler")
 
 def register_processes_via_ipc(socket_path, tmuxp_pid):
     client = IPCClient(socket_path)
 
-    # Register the main process
+    # register the main process
     main_registration = {
         "action": "REGISTER_PROCESS",
         "role": "main",
@@ -35,7 +38,7 @@ def register_processes_via_ipc(socket_path, tmuxp_pid):
     main_response = client.send(main_registration)
     logging.info(f"Main process registration response: {main_response}")
 
-    # Register the tmuxp process
+    # register the tmuxp process
     tmuxp_registration = {
         "action": "REGISTER_PROCESS",
         "role": "tmuxp",
@@ -43,10 +46,6 @@ def register_processes_via_ipc(socket_path, tmuxp_pid):
     }
     tmuxp_response = client.send(tmuxp_registration)
     logging.info(f"tmuxp process registration response: {tmuxp_response}")
-
-# attach to existing session if it exists
-if attach_existing_kalipyfi_session():
-    sys.exit(0)
 
 
 def main():

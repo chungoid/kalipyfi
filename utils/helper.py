@@ -1,19 +1,21 @@
 # utils/helper.py
 import os
 import subprocess
-import sys
 import time
 import pprint
-import socket
 import signal
 import inspect
 import logging
 import libtmux
 
-from common.process_manager import process_manager
 # local
 from config.constants import DEFAULT_BASE_SOCKET, SOCKET_SUFFIX, CURRENT_SOCKET_FILE
+from common.process_manager import process_manager
 
+logger = logging.getLogger(__name__)
+
+# global shutdown flag
+# ipc server distributes to change to true on event kill_ui -> kalipyfi.py main()
 shutdown_flag = False
 
 def ipc_ping(socket_path: str = None) -> bool:
@@ -98,28 +100,34 @@ def wait_for_tmux_session(session_name: str, timeout: int = 30, poll_interval: f
         time.sleep(poll_interval)
     raise TimeoutError(f"Timeout waiting for tmux session '{session_name}' to be fully ready.")
 
+
 def attach_existing_kalipyfi_session(session_name: str = "kalipyfi") -> bool:
     """
     Checks if a tmux session with the given session_name exists.
     If it does, attaches to that session and returns True.
-    If it does not exist, returns False.
+    If it does not exist, returns False without trying to attach.
 
     :param session_name: The name of the tmux session to check for.
-    :return: True if the session exists and is attached to, otherwise False.
+    :return: True if the session exists and the attach command was run successfully, otherwise False.
     """
     try:
+        # First, check if the session exists.
         subprocess.check_output(["tmux", "has-session", "-t", session_name])
-        subprocess.call(["tmux", "attach-session", "-t", session_name])
-        return True
     except subprocess.CalledProcessError:
+        logging.info(f"Creating new {session_name} session...")
         return False
 
-if attach_existing_kalipyfi_session():
-    sys.exit(0)
-else:
-    # Continue with normal main() function if no session exists.
-    from kalipyfi import main  # Adjust import as needed.
-    main()
+    try:
+        # The session exists; now attach to it.
+        ret = subprocess.call(["tmux", "attach-session", "-t", session_name])
+        if ret != 0:
+            print(f"Failed to attach to session '{session_name}'.")
+            return False
+        return True
+    except Exception as e:
+        print(f"Error while attaching to session '{session_name}': {e}")
+        return False
+
 
 def log_ui_state_phase(logger, ui_instance, phase: str, extra_msg: str = "") -> None:
     """

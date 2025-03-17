@@ -486,21 +486,22 @@ class UIManager:
 
     def detach_ui(self) -> None:
         """
-        Detaches the UI session by launching a new process that executes the
-        'tmux detach' command.
+        Detaches the UI session by launching a new shell process that executes
+        the 'tmux detach' command. This process is started in its own session (process group)
+        so that it is independent of the current process.
 
         :return: None
         """
         session_name = self.session_data.session_name
-        cmd = "tmux detach"
         self.logger.info(f"Detaching UI session: {session_name}")
-
         try:
             subprocess.Popen(
-                [cmd],
+                "tmux detach",
+                shell=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
+                preexec_fn=os.setsid,  # start in new session (new process group)
                 close_fds=True
             )
         except Exception as e:

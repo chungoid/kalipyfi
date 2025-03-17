@@ -247,7 +247,6 @@ class MainMenu:
 
 
 def main():
-    logging.debug("Starting main_menu.py: main()")
     process_manager.register_process("main_menu.py", os.getpid())
     setup_signal_handlers()
 
