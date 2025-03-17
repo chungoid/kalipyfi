@@ -53,7 +53,7 @@ class Nmap(Tool, ABC):
 
         # override tools.py and set callback socket
         self.callback_socket = get_shared_callback_socket()
-        shared_callback_listener.register_callback(self.preset_description, self._on_scan_complete)
+        shared_callback_listener.register_callback(self.name, self._on_scan_complete)
 
         # nmap-specific database schema (tools/nmap/db.py)
         conn = get_db_connection(BASE_DIR)
@@ -206,13 +206,12 @@ class Nmap(Tool, ABC):
             self.logger.error("GNMAP file not found.")
             return
 
-        preset = message.get("preset_description", "")
-        if preset == "db_network":
+        if self.scan_mode == "cidr":
             self._process_db_network_results(gnmap_path)
-        elif preset == "db_host":
+        elif self.scan_mode == "target":
             self._process_db_host_results(gnmap_path)
         else:
-            self.logger.error("Unknown preset_description in callback: %s", preset)
+            self.logger.error("Unknown scan mode: %s", self.scan_mode)
 
     def _process_db_network_results(self, gnmap_path: Path):
         """
