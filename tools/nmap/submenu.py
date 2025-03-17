@@ -359,7 +359,7 @@ class NmapSubmenu(BaseSubmenu):
         base_options = super().get_utils_menu_options()
 
         # will uncomment and use in future if more options added
-        #return ["Edit Nmap Options"] + base_options
+        # return ["Edit Nmap Options"] + base_options
         return base_options
 
     def edit_nmap_options_menu(self, parent_win) -> None:

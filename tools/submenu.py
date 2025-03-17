@@ -402,7 +402,7 @@ class BaseSubmenu:
             if selection.lower() == BACK_OPTION:
                 break
             elif selection == "Setup Configs":
-                # Display a secondary menu for configuration setup.
+                # display a secondary menu for configuration setup
                 config_options = ["Create Scan Profile", "Edit Scan Profile", "Edit Interfaces"]
                 sub_selection = self.draw_paginated_menu(parent_win, "Setup Configs", config_options)
                 if sub_selection.lower() != BACK_OPTION:
@@ -536,6 +536,12 @@ class BaseSubmenu:
         """
         Starts a webserver serving the tool's results directory.
         The server will host the directory at http://<device-ip>:<port>/<toolname>.
+
+        :param: parent_win
+        :param: port:
+            port of the webserver
+
+        :return: None
         """
         from tools.helpers.webserver import start_webserver
         start_webserver(self.tool.results_dir, port=port)
@@ -621,20 +627,18 @@ class BaseSubmenu:
 
     def edit_interfaces_menu(self, parent_win) -> None:
         """
-        Presents a menu for editing interface configuration options.
-
         This method retrieves the 'interfaces' section from the tool's configuration file,
-        displays the available interface keys (e.g., wlan, bluetooth), and allows the user to
-        select one. For the selected interface, it then iterates over its attributes (such as
-        name, description, locked), prompts the user to change each value (or leave it unchanged),
-        and saves the updated configuration using update_yaml_value().
+        displays the available interface keys (e.g., wlan, bluetooth) or, if the key maps to a list,
+        displays the individual interface entries (by their 'name'). For the selected interface entry,
+        it iterates over its attributes (such as name, description, locked), prompts the user to change
+        each value (or leave it unchanged), and saves the updated configuration using update_yaml_value().
 
         :param parent_win: The curses window used for displaying the menu.
         :return: None
         """
+        import yaml
         from tools.helpers.tool_utils import update_yaml_value
 
-        # load the configuration from the tool's config file
         config_file = self.tool.config_file
         try:
             with config_file.open("r") as f:
@@ -651,19 +655,42 @@ class BaseSubmenu:
             parent_win.getch()
             return
 
-        # display a menu of interface keys.
+        # build a menu of interface keys from the interfaces dictionary
         interface_keys = list(interfaces.keys())
-        selection = self.draw_paginated_menu(parent_win, "Select Interface", interface_keys)
+        selection = self.draw_paginated_menu(parent_win, "Select Interface Category", interface_keys)
         if selection.lower() == "back":
             return
 
-        selected_interface = selection.strip()
-        interface_config = interfaces.get(selected_interface, {})
-
-        # iterate over each attribute in the selected interface configuration
-        for attr, current_value in interface_config.items():
+        selected_key = selection.strip()
+        interface_config = interfaces.get(selected_key)
+        # determine list or dict (future-proof for new interface keys besides wlan)
+        if isinstance(interface_config, list):
+            # build list by interface names
+            list_menu = [iface.get("name", f"Interface {i}") for i, iface in enumerate(interface_config)]
+            selection2 = self.draw_paginated_menu(parent_win, f"Select Entry for '{selected_key}'", list_menu)
+            if selection2.lower() == "back":
+                return
+            try:
+                selected_index = list_menu.index(selection2)
+            except Exception as e:
+                self.logger.error("Error processing selection: %s", e)
+                return
+            chosen_interface = interface_config[selected_index]
+            key_path_prefix = ["interfaces", selected_key, str(selected_index)]
+        elif isinstance(interface_config, dict):
+            chosen_interface = interface_config
+            key_path_prefix = ["interfaces", selected_key]
+        else:
             parent_win.clear()
-            prompt = f"Enter new value for {attr} (current: {current_value}) or leave blank to keep: "
+            parent_win.addstr(0, 0, "Interfaces format unrecognized.")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # iterate over interface attributes
+        for attr, current_value in chosen_interface.items():
+            parent_win.clear()
+            prompt = f"Enter new value for '{attr}' (current: {current_value}) or leave blank to keep: "
             parent_win.addstr(0, 0, prompt)
             parent_win.refresh()
             try:
@@ -673,11 +700,13 @@ class BaseSubmenu:
             new_val = new_val_bytes.decode("utf-8").strip() if new_val_bytes else ""
             if new_val != "":
                 try:
-                    # update the configuration file
-                    update_yaml_value(config_file, ["interfaces", selected_interface, attr], new_val)
-                    self.logger.info(f"Updated {selected_interface}.{attr} to {new_val}")
+                    # update config file
+                    update_yaml_value(config_file, key_path_prefix + [attr], new_val)
+                    self.logger.info(f"Updated {selected_key}[{attr}] to {new_val}")
+                    # update the in-memory config (so edits following can see it)
+                    chosen_interface[attr] = new_val
                 except Exception as e:
-                    self.logger.error(f"Error updating {selected_interface}.{attr}: {e}")
+                    self.logger.error(f"Error updating {selected_key}[{attr}]: {e}")
         parent_win.clear()
         parent_win.addstr(0, 0, "Interface configuration updated. Press any key to continue.")
         parent_win.refresh()
