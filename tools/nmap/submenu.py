@@ -26,7 +26,7 @@ class NmapSubmenu(BaseSubmenu):
         The user is presented with a menu of items formatted as "iface: network". The interface
         is extracted from the left-hand side and the network (CIDR) from the right-hand side.
 
-        :param parent_win: The parent window (curses window) used for drawing the menu.
+        :param parent_win: (curses window): The window used for displaying the menu.
         :return: True if a valid network and interface are selected, False otherwise.
         """
         networks = self.tool.get_target_networks()  # returns dict: interface -> network
@@ -58,6 +58,9 @@ class NmapSubmenu(BaseSubmenu):
         """
         Presents a paginated menu for the user to choose a subdirectory (from self.tool.results_dir)
         that contains .gnmap files, then automatically selects the .gnmap file from that subdirectory.
+
+        :param parent_win: (curses window): The window used for displaying the menu.
+        :return: Path to the .gnmap file, or None if no file was selected.
         """
         # list subdirectories that contain .gnmap files
         subdirs = [d for d in self.tool.results_dir.iterdir() if d.is_dir() and list(d.glob("*.gnmap"))]
@@ -127,8 +130,7 @@ class NmapSubmenu(BaseSubmenu):
           5. Build the nmap command and run it via IPC.
           6. Show a brief message (2.5 sec) before returning to the menu.
 
-        Parameters:
-            parent_win (curses window): The window used for displaying the menu.
+        :param parent_win: (curses window): The window used for displaying the menu.
 
         Returns:
             None
