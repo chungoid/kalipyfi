@@ -75,32 +75,40 @@ class Nmap(Tool, ABC):
         """
         cmd = ["nmap", target]
 
-        # determine the output directory based on the scan mode
+        # determine the output directory based on scan mode and target
         if self.scan_mode == "cidr":
             if self.parent_dir is None:
                 self.parent_dir = self.results_dir / ("cidr_" + self.generate_default_prefix())
                 self.parent_dir.mkdir(parents=True, exist_ok=True)
             output_dir = self.parent_dir
         elif self.scan_mode == "target":
-            if self.parent_dir is not None:
-                # create a subdirectory for the target host under the existing parent_dir
-                output_dir = self.parent_dir / target
+            # if multiple hosts are being scanned, use a fixed directory
+            if " " in target:
+                output_dir = self.results_dir / "all_hosts"
                 output_dir.mkdir(parents=True, exist_ok=True)
             else:
-                # fallback to default results if no parent_dir exists
-                output_dir = self.results_dir / ("target_" + self.generate_default_prefix())
-                output_dir.mkdir(parents=True, exist_ok=True)
+                if self.parent_dir is not None:
+                    output_dir = self.parent_dir / target
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                else:
+                    output_dir = self.results_dir / ("target_" + self.generate_default_prefix())
+                    output_dir.mkdir(parents=True, exist_ok=True)
         else:
             output_dir = self.results_dir
 
-        # working directory we can reference
+        # set the working directory for later use
         self.current_working_dir = output_dir
 
         self.logger.debug(f"Scan mode: {self.scan_mode} Creating output directory: {output_dir}")
-        file_prefix = output_dir / self.generate_default_prefix()
+
+        if " " in target:
+            file_prefix = output_dir / "combined"
+        else:
+            file_prefix = output_dir / self.generate_default_prefix()
+
         cmd.extend(["-oA", str(file_prefix)])
 
-        # append additional options from the preset
+        # append options from the preset
         options = self.selected_preset.get("options", {})
         for flag, val in options.items():
             if isinstance(val, bool):
@@ -108,7 +116,6 @@ class Nmap(Tool, ABC):
                     cmd.append(flag)
             elif val:
                 cmd.extend([flag, str(val)])
-
         self.logger.debug("Built command: " + " ".join(cmd))
         return cmd
 
@@ -209,28 +216,17 @@ class Nmap(Tool, ABC):
         else:
             self.logger.error("Error initiating network scan via IPC: %s", response)
 
-
     def _process_db_network_results(self, gnmap_path: Path):
-        """
-        Processes the network scan results from a .gnmap file.
-        It parses the file to extract network-level data and host entries,
-        then inserts the data into the nmap_network table.
-
-        Uses _parser.py helper
-        parse_network_results.
-
-        :param gnmap_path: Path to the .gnmap file.
-        """
         from tools.nmap.db import insert_nmap_network_result
         from tools.nmap._parser import parse_network_results
 
         self.logger.info("Processing scan results from %s", gnmap_path)
         network_data, hosts = parse_network_results(gnmap_path)
 
-        # set cidr value from chosen network
+        # set CIDR value from chosen network
         network_data["cidr"] = self.selected_network
 
-        # arp query router IP if bssid is empty
+        # ARP query router IP if bssid is empty
         if not network_data.get("bssid") and network_data.get("router_ip"):
             arp_output = self.run_shell(f"arp -a {network_data['router_ip']}")
             import re
@@ -240,10 +236,24 @@ class Nmap(Tool, ABC):
                 self.logger.debug("Extracted BSSID via ARP: %s", network_data["bssid"])
             else:
                 network_data["bssid"] = ""
-        # open database connection
+
+        # rename the current working directory using the router's MAC address
+        router_mac = network_data.get("bssid", None)
+        if router_mac:
+            new_dir = self.results_dir / router_mac
+            try:
+                # only rename if the directory doesn't already have that name
+                if self.current_working_dir != new_dir:
+                    import os
+                    os.rename(self.current_working_dir, new_dir)
+                    self.current_working_dir = new_dir
+                    self.logger.debug("Renamed output directory to: %s", new_dir)
+            except Exception as e:
+                self.logger.error("Error renaming directory: %s", e)
+
+        # insert results into the database
         conn = get_db_connection(BASE_DIR)
         try:
-            # insert scan data to nmap_network table
             network_id = insert_nmap_network_result(
                 conn,
                 network_data.get("bssid", ""),
@@ -253,7 +263,6 @@ class Nmap(Tool, ABC):
                 network_data.get("router_hostname", ""),
                 hosts
             )
-            # set network id to prepare for continued host scanning
             self.current_network_id = network_id
             self.logger.info("Inserted network scan with ID: %s", network_id)
             conn.commit()
@@ -313,7 +322,6 @@ class Nmap(Tool, ABC):
             self.logger.error("Error decoding host scan JSON: %s", e)
             return
 
-        # insert each host's scan results into the database
         if not hasattr(self, "current_network_id") or self.current_network_id is None:
             self.logger.error("No current network ID available; cannot insert host scan results.")
             return
@@ -335,8 +343,17 @@ class Nmap(Tool, ABC):
         conn.commit()
         conn.close()
 
-        # run searchsploit on the gnmap file and output results to a text file.
-        self.run_searchsploit(gnmap_path)
+        # Run searchsploit for each host if in 'all' mode,
+        # or run normally if scanning a single host.
+        if " " in self.selected_target_host:
+            # Multiple targets: run searchsploit per host
+            for host in host_list:
+                ip = host.get("ip", "")
+                if ip:
+                    self.run_searchsploit_per_host(gnmap_path, ip)
+        else:
+            # Single host: run searchsploit normally (or use run_searchsploit)
+            self.run_searchsploit(gnmap_path)
 
     #####################
     ##### UTILITIES #####
@@ -382,6 +399,27 @@ class Nmap(Tool, ABC):
             self.logger.info(f"Searchsploit results saved to: {output_file}")
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Searchsploit command failed: {e}")
+
+
+    def run_searchsploit_per_host(self, nmap_file: Path, host_ip: str) -> None:
+        """
+        Runs searchsploit on the provided nmap file for a single host and writes the results to a file
+        named after the host's IP in the current working directory.
+
+        :param nmap_file: Path to the GNMAP file generated by the scan.
+        :param host_ip: The IP address of the host for which to run searchsploit.
+        """
+        output_file = self.current_working_dir / f"{host_ip}.txt"
+        cmd = ["searchsploit", "--nmap", str(nmap_file)]
+        self.logger.info(f"Running searchsploit for {host_ip}: {' '.join(cmd)}")
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            with open(output_file, "w") as f:
+                f.write(result.stdout)
+            self.logger.info(f"Searchsploit results for {host_ip} saved to: {output_file}")
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Searchsploit command for {host_ip} failed: {e}")
 
 
 
