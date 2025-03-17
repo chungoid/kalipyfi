@@ -109,7 +109,7 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.refresh()
             return None
 
-    def rescan_host_menu(self, parent_win) -> None:
+    def db_host_scan_menu(self, parent_win) -> None:
         """
         Presents a menu that lets the user select a network scan from the database,
         then displays the hosts stored in the selected network's JSON blob. The user
@@ -117,11 +117,12 @@ class NmapSubmenu(BaseSubmenu):
 
         Workflow:
           1. Query the nmap_network table for available network scan records.
-          2. Display a paginated menu of networks (showing ID, CIDR, and router info).
-          3. When a network is selected, retrieve its hosts JSON blob and decode it.
-          4. Display a paginated menu of hosts (showing IP and hostname).
-          5. When a host is selected, set the tool's selected_target_host and current_network_id,
-             then (optionally after preset selection) launch the host scan.
+          2. Sort the records by the created_at timestamp (most recent first).
+          3. Display a paginated menu of networks showing: "Router: <ip> (<hostname>) - <timestamp>".
+          4. When a network is selected, retrieve its hosts JSON blob and decode it.
+          5. Display a paginated menu of hosts.
+          6. When a host is selected, set the tool's selected_target_host and current_network_id,
+             then launch the host scan.
 
         Parameters:
             parent_win (curses window): The parent window used for drawing the menus.
@@ -134,7 +135,7 @@ class NmapSubmenu(BaseSubmenu):
         from tools.nmap.db import fetch_all_nmap_network_results
         from config.constants import BASE_DIR
 
-        # query the database for network scan records
+        # Query the database for network scan records.
         conn = get_db_connection(BASE_DIR)
         networks = fetch_all_nmap_network_results(conn)
         conn.close()
@@ -146,49 +147,42 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return
 
-        # Build a menu of networks. Each record tuple is structured as:
-        # (id, bssid, station_mac, cidr, router_ip, router_hostname, hosts, created_at)
+        # Sort networks by created_at (most recent first)
+        # Assuming the created_at field is at index 7.
+        networks_sorted = sorted(networks, key=lambda x: x[7], reverse=True)
+
+        # Build a menu of networks without showing the ID.
         network_menu = []
-        for net in networks:
-            net_id = net[0]
-            cidr = net[3]
+        for net in networks_sorted:
             router_ip = net[4] if net[4] else "Unknown"
             router_hostname = net[5] if net[5] else ""
-            menu_str = f"ID:{net_id} | {cidr} | Router: {router_ip} ({router_hostname})"
+            created_at = net[7]
+            # Format the timestamp (if needed, you could parse and reformat it)
+            menu_str = f"Router: {router_ip} ({router_hostname}) - {created_at}"
             network_menu.append(menu_str)
 
-        selected_network_str = self.draw_paginated_menu(parent_win, "Select Network Scan", network_menu)
+        # Let the user choose a network.
+        selected_network_str = self.draw_paginated_menu(parent_win, "Select Network", network_menu)
         if selected_network_str == "back":
             return
 
         try:
-            # parse the selected network's ID from the menu string
-            selected_id = int(selected_network_str.split("|")[0].split(":")[1].strip())
+            # Find the index of the selected option.
+            idx = network_menu.index(selected_network_str)
         except Exception as e:
             parent_win.clear()
-            parent_win.addstr(0, 0, f"Error parsing network selection: {e}")
+            parent_win.addstr(0, 0, f"Error processing network selection: {e}")
             parent_win.refresh()
             parent_win.getch()
             return
 
-        # retrieve the selected network record
-        selected_network = None
-        for net in networks:
-            if net[0] == selected_id:
-                selected_network = net
-                break
-        if not selected_network:
-            parent_win.clear()
-            parent_win.addstr(0, 0, "Selected network record not found!")
-            parent_win.refresh()
-            parent_win.getch()
-            return
+        # Retrieve the corresponding network record.
+        selected_network_record = networks_sorted[idx]
+        # Save the chosen network ID for later use.
+        self.tool.current_network_id = selected_network_record[0]
 
-        # save the chosen network ID for associating host scans
-        self.tool.current_network_id = selected_network[0]
-
-        # extract the hosts JSON blob from the selected network record
-        hosts_json = selected_network[6]
+        # Extract the hosts JSON blob from the selected network record.
+        hosts_json = selected_network_record[6]  # Assuming hosts is stored in column index 6.
         try:
             hosts_list = json.loads(hosts_json)
         except Exception as e:
@@ -205,7 +199,7 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return
 
-        # build a menu list of hosts
+        # Build a menu list of hosts.
         host_menu = []
         for host in hosts_list:
             ip = host.get("ip", "")
@@ -213,12 +207,12 @@ class NmapSubmenu(BaseSubmenu):
             entry = f"{ip} ({hostname})" if hostname else ip
             host_menu.append(entry)
 
-        selected_host = self.draw_paginated_menu(parent_win, "Select Host for Detailed Scan", host_menu)
+        selected_host = self.draw_paginated_menu(parent_win, "Select Host for Port & Service Scan", host_menu)
         if selected_host == "back":
             return
 
         try:
-            # parse the IP address from the selection
+            # Assume the host's IP is the first token in the selected entry.
             selected_ip = selected_host.split()[0]
         except Exception as e:
             parent_win.clear()
@@ -227,7 +221,7 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return
 
-        # Set the selected host for a detailed scan.
+        # Set the target host for a detailed scan.
         self.tool.selected_target_host = selected_ip
 
         # Optionally let the user select a preset for host scans.
@@ -304,7 +298,7 @@ class NmapSubmenu(BaseSubmenu):
             if ch == "1":
                 self.launch_scan(submenu_win)
             elif ch == "2":
-                self.rescan_host_menu(submenu_win)
+                self.db_host_scan_menu(submenu_win)
             elif ch == "3":
                 self.view_scans(submenu_win)
             elif ch == "4":
