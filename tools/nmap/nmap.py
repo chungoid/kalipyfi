@@ -53,7 +53,7 @@ class Nmap(Tool, ABC):
 
         # override tools.py and set callback socket
         self.callback_socket = get_shared_callback_socket()
-        shared_callback_listener.register_callback(self.name, self._on_scan_complete)
+        shared_callback_listener.register_callback(self.preset_description, self._on_scan_complete)
 
         # nmap-specific database schema (tools/nmap/db.py)
         conn = get_db_connection(BASE_DIR)
