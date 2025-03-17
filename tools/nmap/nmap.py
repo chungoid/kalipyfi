@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import subprocess
 from abc import ABC
 from datetime import datetime
@@ -219,11 +220,8 @@ class Nmap(Tool, ABC):
 
         self.logger.info("Processing scan results from %s", gnmap_path)
         network_data, hosts = parse_network_results(gnmap_path)
-
-        # set CIDR value from chosen network
         network_data["cidr"] = self.selected_network
 
-        # ARP query router IP if bssid is empty
         if not network_data.get("bssid") and network_data.get("router_ip"):
             arp_output = self.run_shell(f"arp -a {network_data['router_ip']}")
             import re
@@ -234,17 +232,15 @@ class Nmap(Tool, ABC):
             else:
                 network_data["bssid"] = ""
 
-        # rename the current working directory using the router's MAC address
         router_mac = network_data.get("bssid", None)
         if router_mac:
             new_dir = self.results_dir / router_mac
             try:
-                # only rename if the directory doesn't already have that name
-                if self.current_working_dir != new_dir:
-                    import os
-                    os.rename(self.current_working_dir, new_dir)
-                    self.current_working_dir = new_dir
-                    self.logger.debug("Renamed output directory to: %s", new_dir)
+                # Rename current_working_dir (which was initially created during the network scan)
+                os.rename(self.current_working_dir, new_dir)
+                self.current_network_dir = new_dir  # Save for later target scans.
+                self.current_working_dir = new_dir
+                self.logger.debug("Renamed output directory to: %s", new_dir)
             except Exception as e:
                 self.logger.error("Error renaming directory: %s", e)
 
