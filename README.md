@@ -60,9 +60,9 @@ Kalipyfi integrates access to all tools into a single two-pane tmux window. Acce
     Features:
         Offers an interactive submenu for target selection and scan execution.
         Automatically parses network gateways from all available interfaces & allows users to choose a network.
-        Chosen network gateways are set to cidr format & an initial ping scan populates a new nmap_networks table entry is populated with all known hosts.
-        Further service & port scans can be run on either individually selected or all network hosts & the results are imported to the nmap_hosts table.
-        You can easily extend this to fit your use case and parse any scan type by creating a new parser format in `tools/nmap/_parser.py` & altaring the tables schema where/if desired.
+        Chosen network gateways are set to cidr format & an initial ping scan populates a new nmap_networks table entry with all known hosts.
+        Further selection of host scan allows for individual host scans or ALL where hosts ports, services, and nse results are inserted into the nmap_host table.
+        Upon completion of host scans each hosts services are examined by searchsploit.
 
 ### pyfyconnect
 
@@ -72,7 +72,8 @@ Kalipyfi integrates access to all tools into a single two-pane tmux window. Acce
         Supports both manual and automatic connection workflows.
         Automatic connections are handled by presenting a list of available networks from the database.
         Manual connections prompt the user to select an available network & enter the passphrase manually.
-        Cleanly disconnects and manages DHCP leases without saving any networks to networkmanager. 
+        Cleanly disconnects and manages DHCP leases without saving any networks to networkmanager.
+
 
 # Configuration Files
 
