@@ -223,18 +223,13 @@ class NmapSubmenu(BaseSubmenu):
         # set the target host
         self.tool.selected_target_host = selected_ip
 
-        # Optionally let the user select a preset for host scans.
-        selected_preset = self.select_preset(parent_win)
-        if selected_preset == "back" or not selected_preset:
-            return
-
         selected_preset = {
-            "description": "db_network",
+            "description": "db_host",
             "options": {
-                "-sn": True,
+                "-A": True,
+                "--top-ports": 1000,
                 "-T4": True
             } }
-
 
         self.tool.selected_preset = selected_preset
         self.tool.preset_description = selected_preset.get("description", "")
