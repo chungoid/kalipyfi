@@ -289,6 +289,33 @@ def handle_stop_scan(ui_instance, request: dict) -> dict:
         return {ERROR_KEY: f"STOP_SCAN error: {e}"}
 
 
+def handle_kill_window(ui_instance, request: dict) -> dict:
+    """
+    Handles the KILL_WINDOW action via IPC.
+
+    Expected request format:
+        {
+            "action": "KILL_WINDOW",
+            "pane_id": <pane_id>
+        }
+    where <pane_id> is a string representing the tmux pane ID for the background window to kill.
+
+    :param ui_instance: The UIManager instance controlling the current session.
+    :param request: A dictionary containing the IPC request. It must include the key 'pane_id'.
+    :return: A dictionary with either:
+             {"status": "KILL_WINDOW_OK"} if the window was successfully killed, or
+             {<ERROR_KEY>: "Error message"} if an error occurred.
+    """
+    pane_id = request.get("pane_id")
+    if not pane_id:
+        return {IPC_CONSTANTS["keys"]["ERROR_KEY"]: "Missing pane_id"}
+    try:
+        ui_instance.kill_window(pane_id)
+        return {"status": "KILL_WINDOW_OK"}
+    except Exception as e:
+        return {IPC_CONSTANTS["keys"]["ERROR_KEY"]: str(e)}
+
+
 def handle_connect_network(ui_instance, request: dict) -> dict:
     """
     Handles the CONNECT_NETWORK command by launching the nmcli connection command.
@@ -325,7 +352,7 @@ def handle_connect_network(ui_instance, request: dict) -> dict:
         return {ERROR_KEY: "Missing parameters for CONNECT_NETWORK"}
 
     try:
-        # Reuse the UI manager method to allocate a new window/pane.
+        # reuse the UI manager method to allocate a new window/pane
         pane_id = ui_instance.allocate_scan_window(tool_name, network, cmd_dict, interface, timestamp)
         if pane_id:
             logger.debug("handle_connect_network: Successfully allocated pane: %s", pane_id)

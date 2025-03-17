@@ -62,6 +62,7 @@ IPC_CONSTANTS = {
         "REMOVE_LOCK": "REMOVE_LOCK",
         "KILL_UI": "KILL_UI",
         "DETACH_UI": "DETACH_UI",
+        "KILL_WINDOW": "KILL_WINDOW",
         "DEBUG_STATUS": "DEBUG_STATUS",
         "SCAN_COMPLETE": "SCAN_COMPLETE",
     }

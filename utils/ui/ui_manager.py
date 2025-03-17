@@ -451,6 +451,38 @@ class UIManager:
                     self.logger.info(f"Stopped scan in pane {pane_id} (window: {scan_data.window_name}).")
             del self.active_scans[pane_id]
 
+    def kill_window(self, pane_id: str) -> None:
+        """
+        Kills the window associated with the given pane_id, provided it is not the main UI window.
+        After killing the window, removes the corresponding scan data from active_scans.
+        """
+        scan_data = self.active_scans.get(pane_id)
+        if not scan_data:
+            self.logger.error("No scan data found for pane %s", pane_id)
+            return
+
+        # prevent killing the main UI window
+        if scan_data.window_name == self.session.get("session_name"):
+            self.logger.error("Attempted to kill the main UI window (%s). Operation aborted.", scan_data.window_name)
+            return
+
+        # locate the window using the window name from scan_data
+        window = self.session.find_where({"window_name": scan_data.window_name})
+        if window:
+            try:
+                import subprocess
+                subprocess.run(["tmux", "kill-window", "-t", window.get("window_id")], check=True)
+                self.logger.info("Killed window: %s", scan_data.window_name)
+            except Exception as e:
+                self.logger.error("Error killing window %s: %s", scan_data.window_name, e)
+                return
+        else:
+            self.logger.error("Window %s not found", scan_data.window_name)
+            return
+
+        # remove the scan data from active scans
+        if pane_id in self.active_scans:
+            del self.active_scans[pane_id]
 
     def detach_ui(self) -> None:
         """

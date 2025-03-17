@@ -6,10 +6,12 @@ from pathlib import Path
 from typing import Optional
 
 # locals
-from tools.submenu import BaseSubmenu
+from tools.submenu import BaseSubmenu, BACK_OPTION
 from tools.helpers.tool_utils import get_network_from_interface
 from database.db_manager import get_db_connection
 from config.constants import BASE_DIR
+
+
 
 class NmapSubmenu(BaseSubmenu):
     def __init__(self, tool_instance):
@@ -342,22 +344,48 @@ class NmapSubmenu(BaseSubmenu):
                 parent_win.refresh()
                 parent_win.getch()
 
+
+    #################################
+    ##### UTILS SUBMENU METHODS #####
+    #################################
+    def get_utils_menu_options(self) -> list:
+        """
+        Returns a list of utility menu options for Nmap.
+
+        Extends the base utilities options by adding an Nmap-specific option.
+
+        :return: A list of strings representing the menu options.
+        """
+        base_options = super().get_utils_menu_options()
+
+        # will uncomment and use in future if more options added
+        #return ["Edit Nmap Options"] + base_options
+        return base_options
+
+    def edit_nmap_options_menu(self, parent_win) -> None:
+        """
+        Presents a menu for editing Nmap-specific configuration options.
+
+        (Implement prompts as needed; here it is a placeholder.)
+
+        :param parent_win: The curses window used for displaying the menu.
+        :return: None
+        """
+        parent_win.clear()
+        parent_win.addstr(0, 0, "Editing Nmap Options not yet implemented.")
+        parent_win.addstr(1, 0, "Press any key to continue...")
+        parent_win.refresh()
+        parent_win.getch()
+
     def utils_menu(self, parent_win) -> None:
-        menu_options = ["Open Results Webserver", "Create Scan Profile", "Edit Scan Profile"]
-        while True:
-            selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
-            if selection.lower() == "back":
-                break
-            elif selection == "Open Results Webserver":
-                self.open_results_webserver(parent_win)
-            elif selection == "Create Scan Profile":
-                self.create_preset_profile_menu(parent_win)
-            elif selection == "Edit Scan Profile":
-                self.edit_preset_profile_menu(parent_win)
-            else:
-                parent_win.clear()
-                parent_win.refresh()
-                return
+        """
+        Presents menu options by overriding get_utils_menu_options() from the
+        base class & adding nmap specific options in nmap submenu's override method.
+
+        :param parent_win: The curses window used for displaying the menu.
+        :return: None
+        """
+        super().utils_menu(parent_win)
 
     def __call__(self, stdscr) -> None:
         """
