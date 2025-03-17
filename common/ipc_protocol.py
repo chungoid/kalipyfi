@@ -7,6 +7,8 @@ import logging
 from common.process_manager import process_manager
 from config.constants import IPC_CONSTANTS
 
+logger = logging.getLogger(__name__)
+
 
 ERROR_KEY = IPC_CONSTANTS["keys"]["ERROR_KEY"]
 
@@ -18,7 +20,6 @@ def pack_message(message: dict) -> str:
     :return: A JSON string representation of the message.
     :raises Exception: If the message cannot be serialized to JSON.
     """
-    logger = logging.getLogger("ipc_proto:pack_message")
     logger.debug(f"pack_message: Packing message: {message}")
     try:
         json_str = json.dumps(message)
@@ -35,7 +36,6 @@ def unpack_message(message_str: str) -> dict:
     :param message_str: The JSON string to unpack.
     :return: A dictionary representation of the message, or an error dictionary if unpacking fails.
     """
-    logger = logging.getLogger("ipc_proto:unpack_message")
     logger.debug(f"unpack_message: Unpacking message string: {message_str}")
     try:
         message = json.loads(message_str)
@@ -76,7 +76,6 @@ def handle_ui_ready(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "UI_READY_OK" if ready,
              or "status": "UI_NOT_READY" if not.
     """
-    logger = logging.getLogger("ipc_proto:handle_ui_ready")
     if getattr(ui_instance, "ready", False):
         logger.debug("UI is ready.")
         return {"status": "UI_READY_OK"}
@@ -93,7 +92,6 @@ def handle_get_state(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "OK" and the UI state under "state",
              or an error dictionary if an exception occurs.
     """
-    logger = logging.getLogger("ipc_proto:handle_get_state")
     logger.debug("handle_get_state: Called")
     try:
         state = {"active_scans": ui_instance.active_scans}
@@ -105,7 +103,6 @@ def handle_get_state(ui_instance, request: dict) -> dict:
         return {ERROR_KEY: str(e)}
 
 def handle_send_scan(ui_instance, request):
-    logger = logging.getLogger("ipc_proto")
     tool_name = request.get("tool")
     cmd_dict = request.get("command")
     interface = request.get("interface", "unknown")
@@ -176,7 +173,6 @@ def handle_send_scan(ui_instance, request):
         "pane_pid": pane_pid
     }
 
-
 def handle_get_scans(ui_instance, request: dict) -> dict:
     """
     Retrieves a list of active scans for a specified tool.
@@ -192,7 +188,6 @@ def handle_get_scans(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "OK" and "scans": <list of scans> if successful,
              or an error dictionary if parameters are missing or an exception occurs.
     """
-    logger = logging.getLogger("ipc_proto:handle_get_scans")
     logger.debug(f"handle_get_scans: Received request: {request}")
     tool_name = request.get("tool")
     if not tool_name:
@@ -220,7 +215,6 @@ def handle_get_scans(ui_instance, request: dict) -> dict:
     logger.debug(f"handle_get_scans: Total matching scans: {len(matching_scans)}")
     return {"status": "OK", "scans": matching_scans}
 
-
 def handle_swap_scan(ui_instance, request: dict) -> dict:
     """
     Handles the SWAP_SCAN command by swapping a dedicated scan pane with the main scan pane.
@@ -237,7 +231,6 @@ def handle_swap_scan(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "SWAP_SCAN_OK" if successful,
              or an error dictionary if parameters are missing or an exception occurs.
     """
-    logger = logging.getLogger("ipc_proto:handle_swap_scan")
     logger.debug(f"handle_swap_scan: Received request: {request}")
     tool_name = request.get("tool")
     pane_id = request.get("pane_id")
@@ -252,7 +245,6 @@ def handle_swap_scan(ui_instance, request: dict) -> dict:
     except Exception as e:
         logger.exception("handle_swap_scan: Exception occurred")
         return {ERROR_KEY: f"SWAP_SCAN error: {e}"}
-
 
 def handle_stop_scan(ui_instance, request: dict) -> dict:
     """
@@ -270,7 +262,6 @@ def handle_stop_scan(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "STOP_SCAN_OK" if the scan is stopped successfully,
              or an error dictionary if parameters are missing or an exception occurs.
     """
-    logger = logging.getLogger("ipc_proto:handle_stop_scan")
     logger.debug(f"handle_stop_scan: Received request: {request}")
     tool_name = request.get("tool")
     pane_id = request.get("pane_id")
@@ -284,7 +275,6 @@ def handle_stop_scan(ui_instance, request: dict) -> dict:
     except Exception as e:
         logger.exception("handle_stop_scan: Exception occurred")
         return {ERROR_KEY: f"STOP_SCAN error: {e}"}
-
 
 def handle_kill_window(ui_instance, request: dict) -> dict:
     """
@@ -312,7 +302,6 @@ def handle_kill_window(ui_instance, request: dict) -> dict:
     except Exception as e:
         return {IPC_CONSTANTS["keys"]["ERROR_KEY"]: str(e)}
 
-
 def handle_connect_network(ui_instance, request: dict) -> dict:
     """
     Handles the CONNECT_NETWORK command by launching the nmcli connection command.
@@ -335,7 +324,6 @@ def handle_connect_network(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "CONNECT_NETWORK_OK" and "pane_id": <pane_id> if successful,
              or an error dictionary if parameters are missing or an exception occurs.
     """
-    logger = logging.getLogger("ipc_proto:handle_connect_network")
     logger.debug("handle_connect_network: Received request: %s", request)
 
     tool_name = request.get("tool")
@@ -361,7 +349,6 @@ def handle_connect_network(ui_instance, request: dict) -> dict:
         logger.exception("handle_connect_network: Exception occurred")
         return {ERROR_KEY: str(e)}
 
-
 def handle_update_lock(ui_instance, request: dict) -> dict:
     """
     Handles the UPDATE_LOCK command by setting the lock status of a specified interface.
@@ -378,7 +365,6 @@ def handle_update_lock(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "UPDATE_LOCK_OK" if the interface is locked successfully,
              or an error dictionary if parameters are missing or an exception occurs.
     """
-    logger = logging.getLogger("ipc_proto:handle_update_lock")
     logger.debug(f"handle_update_lock: Received request: {request}")
     iface = request.get("iface")
     tool_name = request.get("tool")
@@ -392,7 +378,6 @@ def handle_update_lock(ui_instance, request: dict) -> dict:
     except Exception as e:
         logger.exception("handle_update_lock: Exception occurred")
         return {ERROR_KEY: f"UPDATE_LOCK error: {e}"}
-
 
 def handle_remove_lock(ui_instance, request: dict) -> dict:
     """
@@ -409,7 +394,6 @@ def handle_remove_lock(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "REMOVE_LOCK_OK" if successful,
              or an error dictionary if the interface parameter is missing or an exception occurs.
     """
-    logger = logging.getLogger("ipc_proto:handle_remove_lock")
     logger.debug(f"handle_remove_lock: Received request: {request}")
     iface = request.get("iface")
     if not iface:
@@ -422,7 +406,6 @@ def handle_remove_lock(ui_instance, request: dict) -> dict:
     except Exception as e:
         logger.exception("handle_remove_lock: Exception occurred")
         return {ERROR_KEY: f"REMOVE_LOCK error: {e}"}
-
 
 def handle_kill_ui(ui_instance, request: dict) -> dict:
     """
@@ -438,7 +421,6 @@ def handle_kill_ui(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "KILL_UI_OK" if the UI session is terminated successfully,
              or an error dictionary if an exception occurs.
     """
-    logger = logging.getLogger("ipc_proto:handle_kill_ui")
     logger.debug(f"handle_kill_ui: Received request: {request}")
     try:
         session_name = ui_instance.session_data.session_name
@@ -465,7 +447,6 @@ def handle_detach_ui(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "DETACH_UI_OK" if the UI session is detached successfully,
              or an error dictionary if an exception occurs.
     """
-    logger = logging.getLogger("ipc_proto:handle_detach_ui")
     logger.debug(f"handle_detach_ui: Received request: {request}")
     try:
         session_name = ui_instance.session_data.session_name
@@ -492,7 +473,6 @@ def handle_debug_status(ui_instance, request: dict) -> dict:
     :return: A dictionary with "status": "DEBUG_STATUS_OK" and "report": <status report string>,
              or an error dictionary if an exception occurs.
     """
-    logger = logging.getLogger("ipc_proto:handle_debug_status")
     logger.debug("handle_debug_status: Called")
     from common.process_manager import process_manager
     report = process_manager.get_status_report()
@@ -512,6 +492,5 @@ def handle_ping(ui_instance, request: dict) -> dict:
     :param request: The request dictionary for the PING command.
     :return: A dictionary with "status": "PING_OK".
     """
-    logger = logging.getLogger("ipc_proto:handle_ping")
     logger.debug("handle_ping: Received ping request")
     return {"status": "PING_OK"}

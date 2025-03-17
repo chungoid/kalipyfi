@@ -111,15 +111,18 @@ def attach_existing_kalipyfi_session(session_name: str = "kalipyfi") -> bool:
     :return: True if the session exists and the attach command was run successfully, otherwise False.
     """
     try:
-        # First, check if the session exists.
-        subprocess.check_output(["tmux", "has-session", "-t", session_name])
+        subprocess.check_output(["tmux", "has-session", "-t", session_name], stderr=subprocess.DEVNULL)
+        print(f"checking for old sessions...")
     except subprocess.CalledProcessError:
+        print(f"Creating new {session_name} session..."
+              f"\nInitializing IPC & Logging servers, please wait...")
         logging.info(f"Creating new {session_name} session...")
         return False
 
     try:
-        # The session exists; now attach to it.
-        ret = subprocess.call(["tmux", "attach-session", "-t", session_name])
+        # attach to the existing session
+        ret = subprocess.call(["tmux", "attach-session", "-t", session_name], stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL)
         if ret != 0:
             print(f"Failed to attach to session '{session_name}'.")
             return False
