@@ -139,6 +139,30 @@ class Nmap(Tool, ABC):
             else:
                 self.logger.error("No target selected for scan (neither target host nor network).")
 
+    def _on_scan_complete(self, message: dict):
+        """
+        Callback function invoked when an nmap scan completes.
+
+        This method is registered with the shared callback listener and is triggered when an
+        IPC message with the action "SCAN_COMPLETE" is received. It inspects the current
+        self.scan_mode and calls appropriate file-finding, parsing, and database insertion routine.
+
+        Returns:
+            None
+        """
+        self.logger.info("SCAN_COMPLETE callback received: %s", message)
+        gnmap_path = self._determine_gnmap_file_path()
+        if gnmap_path is None or not gnmap_path.exists():
+            self.logger.error("GNMAP file not found.")
+            return
+
+        if self.scan_mode == "cidr":
+            self._process_db_network_results(gnmap_path)
+        elif self.scan_mode == "target":
+            self._process_db_host_results(gnmap_path)
+        else:
+            self.logger.error("Unknown scan mode: %s", self.scan_mode)
+
     ####################################
     ##### DB_NETWORKS SCAN METHODS #####
     ####################################
@@ -182,36 +206,6 @@ class Nmap(Tool, ABC):
         else:
             self.logger.error("Error initiating network scan via IPC: %s", response)
 
-    def _on_scan_complete(self, message: dict):
-        """
-        Callback function invoked when an nmap scan completes.
-
-        This method is registered with the shared callback listener and is triggered when an
-        IPC message with the action "SCAN_COMPLETE" is received. It inspects the 'scan_type'
-        field in the message to determine whether the completed scan is a network scan or a host scan,
-        and then calls the corresponding processing method:
-
-        If the GNMAP file cannot be found or if the 'scan_type' is unrecognized, an error is logged.
-
-        Parameters:
-            message (dict): The IPC message received upon scan completion. This dictionary should include
-                            a key "scan_type" with a value of either "db_network" or "db_host".
-
-        Returns:
-            None
-        """
-        self.logger.info("SCAN_COMPLETE callback received: %s", message)
-        gnmap_path = self._determine_gnmap_file_path()
-        if gnmap_path is None or not gnmap_path.exists():
-            self.logger.error("GNMAP file not found.")
-            return
-
-        if self.scan_mode == "cidr":
-            self._process_db_network_results(gnmap_path)
-        elif self.scan_mode == "target":
-            self._process_db_host_results(gnmap_path)
-        else:
-            self.logger.error("Unknown scan mode: %s", self.scan_mode)
 
     def _process_db_network_results(self, gnmap_path: Path):
         """
@@ -346,6 +340,9 @@ class Nmap(Tool, ABC):
         conn.commit()
         conn.close()
 
+    #####################
+    ##### UTILITIES #####
+    #####################
     def _determine_gnmap_file_path(self) -> Optional[Path]:
         """
         Searches the current working directory for a .gnmap file.
