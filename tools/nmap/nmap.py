@@ -361,12 +361,11 @@ class Nmap(Tool, ABC):
             self.logger.error("No XML file available for searchsploit.")
             return
 
-        # determine output filename
+        # determine the output filename
         if " " in self.selected_target_host:
-            # use combined.txt for 'all' host scans
+            # multiple targets case: use "combined.txt"
             output_file = self.current_working_dir / "combined.txt"
         else:
-            # use ip for single-host
             host_ip = self.selected_target_host.strip()
             output_file = self.current_working_dir / f"{host_ip}.txt"
 
@@ -374,8 +373,15 @@ class Nmap(Tool, ABC):
         self.logger.info(f"Running searchsploit command: {' '.join(cmd)}")
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            output = result.stdout
+
+            # repend a header listing the target IPs before output if multiple hosts
+            if " " in self.selected_target_host:
+                header = "Target IPs: " + self.selected_target_host.strip() + "\n\n"
+                output = header + output
+
             with open(output_file, "w") as f:
-                f.write(result.stdout)
+                f.write(output)
             self.logger.info(f"Searchsploit results saved to: {output_file}")
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Searchsploit command failed: {e}")
