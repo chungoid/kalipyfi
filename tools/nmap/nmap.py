@@ -1,5 +1,6 @@
 import json
 import logging
+import subprocess
 from abc import ABC
 from datetime import datetime
 from pathlib import Path
@@ -147,7 +148,7 @@ class Nmap(Tool, ABC):
         IPC message with the action "SCAN_COMPLETE" is received. It inspects the current
         self.scan_mode and calls appropriate file-finding, parsing, and database insertion routine.
 
-        Returns:
+        :return:
             None
         """
         self.logger.info("SCAN_COMPLETE callback received: %s", message)
@@ -171,7 +172,9 @@ class Nmap(Tool, ABC):
         Uses config.yaml's db_networks scan (-sn, ping scan) to populate available hosts
         and on completion automatically imports hosts to database (nmap_network table) by
         parsing with _on_db_networks_complete and its helper in _parser.py parse_network_results.
+
         :return:
+            None
         """
         self.selected_preset = {
             "description": "db_network",
@@ -299,15 +302,9 @@ class Nmap(Tool, ABC):
             self.logger.error("Error initiating host scan for %s via IPC: %s", host_ip, response)
 
     def _process_db_host_results(self, gnmap_path: Path):
-        """
-        Processes the host scan results from a .gnmap file.
-        Uses the helper function parse_host_results from _parser.py to parse the file,
-        then inserts each host's data into the nmap_host table using insert_nmap_host_result.
-        Assumes self.current_network_id has been set from the network scan.
-        """
+        # existing processing of host results...
         from tools.nmap._parser import parse_host_results
         from tools.nmap.db import insert_nmap_host_result
-
         self.logger.info("Processing host scan results from %s", gnmap_path)
         hosts_json = parse_host_results(gnmap_path)
         try:
@@ -316,6 +313,7 @@ class Nmap(Tool, ABC):
             self.logger.error("Error decoding host scan JSON: %s", e)
             return
 
+        # insert each host's scan results into the database
         if not hasattr(self, "current_network_id") or self.current_network_id is None:
             self.logger.error("No current network ID available; cannot insert host scan results.")
             return
@@ -324,13 +322,10 @@ class Nmap(Tool, ABC):
         now = datetime.now()
         scan_date = now.strftime("%Y-%m-%d")
         scan_time = now.strftime("%H:%M:%S")
-
         conn = get_db_connection(BASE_DIR)
         for host in host_list:
             host_ip = host.get("ip", "")
-            # store the ports information as JSON
             open_ports = json.dumps(host.get("ports", []))
-            # use OS info as the services field, or empty string if not available
             services = host.get("os", "")
             try:
                 insert_nmap_host_result(conn, network_id, host_ip, open_ports, services, scan_date, scan_time)
@@ -339,6 +334,9 @@ class Nmap(Tool, ABC):
                 self.logger.error("Error inserting host scan result for %s: %s", host_ip, e)
         conn.commit()
         conn.close()
+
+        # run searchsploit on the gnmap file and output results to a text file.
+        self.run_searchsploit(gnmap_path)
 
     #####################
     ##### UTILITIES #####
@@ -364,6 +362,26 @@ class Nmap(Tool, ABC):
         else:
             self.logger.error("No .gnmap files found in %s", self.current_working_dir)
             return None
+
+    def run_searchsploit(self, nmap_file: Path) -> None:
+        """
+        Runs searchsploit on the provided nmap file and outputs the results to a text file
+        in the current working directory associated with the db_host scan.
+        Output is captured and not printed to the terminal.
+        """
+        # this sets output path to target hosts dir
+        output_file = self.current_working_dir / "searchsploit_results.txt"
+
+        cmd = ["searchsploit", "--nmap", str(nmap_file)]
+        self.logger.info(f"Running searchsploit command: {' '.join(cmd)}")
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            with open(output_file, "w") as f:
+                f.write(result.stdout)
+            self.logger.info(f"Searchsploit results saved to: {output_file}")
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Searchsploit command failed: {e}")
 
 
 
