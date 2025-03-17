@@ -75,42 +75,39 @@ class Nmap(Tool, ABC):
         """
         cmd = ["nmap", target]
 
-        # determine the output directory based on scan mode and target
         if self.scan_mode == "cidr":
             if self.parent_dir is None:
                 self.parent_dir = self.results_dir / ("cidr_" + self.generate_default_prefix())
                 self.parent_dir.mkdir(parents=True, exist_ok=True)
             output_dir = self.parent_dir
         elif self.scan_mode == "target":
-            # if multiple hosts are being scanned, use a fixed directory
-            if " " in target:
-                output_dir = self.results_dir / "all_hosts"
+            # use the network directory determined by the BSSID (set in _process_db_network_results)
+            if hasattr(self, "current_network_dir"):
+                if " " in target:
+                    # multiple hosts: create/use an 'all_hosts' subdirectory
+                    output_dir = self.current_network_dir / "all_hosts"
+                else:
+                    # single host: create a subdirectory named after the host's IP
+                    output_dir = self.current_network_dir / target
                 output_dir.mkdir(parents=True, exist_ok=True)
             else:
-                if self.parent_dir is not None:
-                    output_dir = self.parent_dir / target
-                    output_dir.mkdir(parents=True, exist_ok=True)
-                else:
-                    output_dir = self.results_dir / ("target_" + self.generate_default_prefix())
-                    output_dir.mkdir(parents=True, exist_ok=True)
+                # Fallback if current_network_dir is not set:
+                output_dir = self.results_dir / ("target_" + self.generate_default_prefix())
+                output_dir.mkdir(parents=True, exist_ok=True)
         else:
             output_dir = self.results_dir
 
-        # set the working directory for later use
         self.current_working_dir = output_dir
+        self.logger.debug(f"Using output directory: {output_dir}")
 
-        self.logger.debug(f"Scan mode: {self.scan_mode} Creating output directory: {output_dir}")
-
-        if " " in target:
+        # create a file prefix
+        if self.scan_mode == "target" and " " in target:
             file_prefix = output_dir / "combined"
         else:
             file_prefix = output_dir / self.generate_default_prefix()
 
         cmd.extend(["-oA", str(file_prefix)])
-
-        # append options from the preset
-        options = self.selected_preset.get("options", {})
-        for flag, val in options.items():
+        for flag, val in self.selected_preset.get("options", {}).items():
             if isinstance(val, bool):
                 if val:
                     cmd.append(flag)
