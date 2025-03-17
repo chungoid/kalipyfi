@@ -1,13 +1,15 @@
 # tools/nmap/submenu.py
 import curses
 import logging
+import json
 from pathlib import Path
 from typing import Optional
 
-from tools.helpers.tool_utils import get_network_from_interface
 # locals
 from tools.submenu import BaseSubmenu
-
+from tools.helpers.tool_utils import get_network_from_interface
+from database.db_manager import get_db_connection
+from config.constants import BASE_DIR
 
 class NmapSubmenu(BaseSubmenu):
     def __init__(self, tool_instance):
@@ -190,16 +192,15 @@ class NmapSubmenu(BaseSubmenu):
         """
         Presents a menu that lets the user select a network scan from the database,
         then displays the hosts stored in the selected network's JSON blob. The user
-        can then choose a host for a detailed (-A) scan.
+        can then choose a host for a detailed (-A) scan, or select "ALL" to scan every host.
 
         Workflow:
           1. Query the nmap_network table for available network scan records.
           2. Sort the records by the created_at timestamp (most recent first).
           3. Display a paginated menu of networks showing: "Router: <ip> (<hostname>) - <timestamp>".
           4. When a network is selected, retrieve its hosts JSON blob and decode it.
-          5. Display a paginated menu of hosts.
-          6. When a host is selected, set the tool's selected_target_host and current_network_id,
-             then launch the host scan.
+          5. Build a paginated menu of hosts with an extra "ALL" option.
+          6. If "ALL" is selected, scan every host. Otherwise, scan the selected host.
 
         Parameters:
             parent_win (curses window): The parent window used for drawing the menus.
@@ -207,10 +208,7 @@ class NmapSubmenu(BaseSubmenu):
         Returns:
             None
         """
-        import json
-        from database.db_manager import get_db_connection
         from tools.nmap.db import fetch_all_nmap_network_results
-        from config.constants import BASE_DIR
 
         # query the database for network scan records
         conn = get_db_connection(BASE_DIR)
@@ -233,7 +231,6 @@ class NmapSubmenu(BaseSubmenu):
             router_ip = net[4] if net[4] else "Unknown"
             router_hostname = net[5] if net[5] else ""
             created_at = net[7]
-            # Format the timestamp (if needed, you could parse and reformat it)
             menu_str = f"Router: {router_ip} ({router_hostname}) - {created_at}"
             network_menu.append(menu_str)
 
@@ -243,7 +240,6 @@ class NmapSubmenu(BaseSubmenu):
             return
 
         try:
-            # find the index of the selected option
             idx = network_menu.index(selected_network_str)
         except Exception as e:
             parent_win.clear()
@@ -253,7 +249,7 @@ class NmapSubmenu(BaseSubmenu):
             return
 
         selected_network_record = networks_sorted[idx]
-        # Save the chosen network ID for later use.
+        # save the chosen network ID for later use
         self.tool.current_network_id = selected_network_record[0]
 
         # extract the hosts JSON blob from the selected network record
@@ -276,6 +272,8 @@ class NmapSubmenu(BaseSubmenu):
 
         # build a menu list of hosts
         host_menu = []
+        # add the "ALL" option at the beginning
+        host_menu.append("ALL")
         for host in hosts_list:
             ip = host.get("ip", "")
             hostname = host.get("hostname", "")
@@ -286,44 +284,60 @@ class NmapSubmenu(BaseSubmenu):
         if selected_host == "back":
             return
 
-        try:
-            selected_ip = selected_host.split()[0]
-        except Exception as e:
-            parent_win.clear()
-            parent_win.addstr(0, 0, f"Error processing host selection: {e}")
-            parent_win.refresh()
-            parent_win.getch()
-            return
-
-        # set the target host
-        self.tool.selected_target_host = selected_ip
-
+        # set the preset common for host scans
         selected_preset = {
             "description": "db_host",
             "options": {
                 "-A": True,
                 "--top-ports": 1000,
                 "-T4": True
-            } }
-
+            }
+        }
         self.tool.selected_preset = selected_preset
         self.tool.preset_description = selected_preset.get("description", "")
+        self.tool.scan_mode = "target"
 
-        try:
-            self.tool.scan_mode = "target"
-            # launch the host scan
-            self.tool.run_db_hosts(self.tool.selected_target_host)
+        # check if "ALL" was selected
+        if selected_host.upper() == "ALL":
+            # iterate over every host and launch a scan
+            for host in hosts_list:
+                ip = host.get("ip", "")
+                if ip:
+                    self.tool.selected_target_host = ip
+                    try:
+                        self.tool.run_db_hosts(ip)
+                        self.logger.info("Scan sent for host: %s", ip)
+                    except Exception as e:
+                        self.logger.error("Error launching host scan for %s: %s", ip, e)
             parent_win.clear()
-            parent_win.addstr(0, 0, f"Scan sent for: {self.tool.selected_target_host} \n"
-                                    f"\nSelect View Scans from menu to swap scan into view.")
+            parent_win.addstr(0, 0, "Scans sent for all hosts.\nSelect 'View Scans' from menu to swap scans into view.")
             parent_win.refresh()
-            # pause for 2.5 seconds (2500 ms)
             curses.napms(2500)
-        except Exception as e:
-            parent_win.clear()
-            parent_win.addstr(0, 0, f"Error launching host scan: {e}")
-            parent_win.refresh()
-            parent_win.getch()
+        else:
+            try:
+                # process a single host selection
+                selected_ip = selected_host.split()[0]
+            except Exception as e:
+                parent_win.clear()
+                parent_win.addstr(0, 0, f"Error processing host selection: {e}")
+                parent_win.refresh()
+                parent_win.getch()
+                return
+
+            # set the target host and launch the scan
+            self.tool.selected_target_host = selected_ip
+            try:
+                self.tool.run_db_hosts(selected_ip)
+                parent_win.clear()
+                parent_win.addstr(0, 0,
+                                  f"Scan sent for: {selected_ip}\nSelect 'View Scans' from menu to swap scan into view.")
+                parent_win.refresh()
+                curses.napms(2500)
+            except Exception as e:
+                parent_win.clear()
+                parent_win.addstr(0, 0, f"Error launching host scan: {e}")
+                parent_win.refresh()
+                parent_win.getch()
 
     def utils_menu(self, parent_win) -> None:
         menu_options = ["Open Results Webserver", "Create Scan Profile", "Edit Scan Profile"]
