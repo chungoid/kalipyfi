@@ -109,6 +109,83 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.refresh()
             return None
 
+    def db_network_scan_menu(self, parent_win) -> None:
+        """
+        Allows the user to select a target network from available interfaces,
+        then initiates a network scan (-sn) to discover hosts and import the results
+        into the database.
+
+        Workflow:
+          1. Retrieve available networks from interfaces.
+          2. Present a menu of "interface: network" options.
+          3. Upon selection, set the selected interface and network.
+          4. Set a preset for a network scan (e.g. using -sn).
+          5. Build the nmap command and run it via IPC.
+          6. Show a brief message (2.5 sec) before returning to the menu.
+
+        Parameters:
+            parent_win (curses window): The window used for displaying the menu.
+
+        Returns:
+            None
+        """
+        # retrieve available networks
+        networks = self.tool.get_target_networks()  # dict: interface -> network (CIDR)
+        if not networks:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "No target networks available!")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # build a menu of available networks using interface and network
+        menu_items = [f"{iface}: {network}" for iface, network in networks.items()]
+        selection = self.draw_paginated_menu(parent_win, "Select Target Network", menu_items)
+        if selection == "back":
+            return
+
+        # parse the selection and set interface/network in the tool instance
+        try:
+            iface, network = selection.split(":", 1)
+            self.tool.selected_interface = iface.strip()
+            self.tool.selected_network = network.strip()
+            self.logger.debug("Selected target network: %s on interface: %s",
+                              self.tool.selected_network, self.tool.selected_interface)
+            self.tool.scan_mode = "cidr"
+        except Exception as e:
+            self.logger.error("Error parsing selected network: %s", e)
+            return
+
+        # set preset for a network scan
+        selected_preset = {
+            "description": "db_network",
+            "options": {
+                "-sn": True,
+                "-T4": True
+            }
+        }
+        self.tool.selected_preset = selected_preset
+        self.tool.preset_description = selected_preset.get("description", "")
+
+        # build the nmap command for the selected network and run via IPC
+        cmd_list = self.tool.build_nmap_command(self.tool.selected_network)
+        cmd_dict = self.tool.cmd_to_dict(cmd_list)
+
+        parent_win.clear()
+        parent_win.addstr(0, 0, f"Initiating network scan for: {self.tool.selected_network}")
+        parent_win.refresh()
+
+        response = self.tool.run_to_ipc(cmd_dict)
+        if response and isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
+            self.logger.info("Network scan initiated successfully: %s", response)
+            parent_win.addstr(1, 0, "Scan sent. Processing results...")
+        else:
+            self.logger.error("Error initiating network scan via IPC: %s", response)
+            parent_win.addstr(1, 0, f"Error initiating scan: {response}")
+        parent_win.refresh()
+
+        curses.napms(2500)
+
     def db_host_scan_menu(self, parent_win) -> None:
         """
         Presents a menu that lets the user select a network scan from the database,
@@ -238,7 +315,7 @@ class NmapSubmenu(BaseSubmenu):
             self.tool.run_db_hosts(self.tool.selected_target_host)
             parent_win.clear()
             parent_win.addstr(0, 0, f"Scan sent for: {self.tool.selected_target_host} \n"
-                                    f"\n Select View Scans from menu to swap scan into view.")
+                                    f"\nSelect View Scans from menu to swap scan into view.")
             parent_win.refresh()
             # pause for 2.5 seconds (2500 ms)
             curses.napms(2500)
@@ -301,7 +378,7 @@ class NmapSubmenu(BaseSubmenu):
             except Exception:
                 continue
             if ch == "1":
-                self.launch_scan(submenu_win)
+                self.db_network_scan_menu(submenu_win)
             elif ch == "2":
                 self.db_host_scan_menu(submenu_win)
             elif ch == "3":
