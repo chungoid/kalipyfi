@@ -77,13 +77,13 @@ class Nmap(Tool, ABC):
 
         if self.scan_mode == "cidr":
             if self.parent_dir is None:
-                # create a temporary directory for the network scan.
+                # create a temporary directory for the network scan
                 self.parent_dir = self.results_dir / ("cidr_" + self.generate_default_prefix())
                 self.parent_dir.mkdir(parents=True, exist_ok=True)
             output_dir = self.parent_dir
         elif self.scan_mode == "target":
             if hasattr(self, "current_network_dir"):
-                # If scanning multiple hosts (i.e. the ALL option), use "all_hosts" subdirectory.
+                # if scanning with the ALL option use "all_hosts" subdirectory
                 if " " in target:
                     output_dir = self.current_network_dir / "all_hosts"
                 else:
