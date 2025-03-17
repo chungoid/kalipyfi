@@ -237,8 +237,8 @@ class NmapSubmenu(BaseSubmenu):
             # launch the host scan
             self.tool.run_db_hosts(self.tool.selected_target_host)
             parent_win.clear()
-            parent_win.addstr(0, 0, f"Scan sent for: {self.tool.selected_target_host} /n"
-                                    f"/n Select View Scans from menu to swap scan into view.")
+            parent_win.addstr(0, 0, f"Scan sent for: {self.tool.selected_target_host} \n"
+                                    f"\n Select View Scans from menu to swap scan into view.")
             parent_win.refresh()
             # pause for 2.5 seconds (2500 ms)
             curses.napms(2500)
