@@ -77,21 +77,21 @@ class Nmap(Tool, ABC):
 
         if self.scan_mode == "cidr":
             if self.parent_dir is None:
+                # create a temporary directory for the network scan.
                 self.parent_dir = self.results_dir / ("cidr_" + self.generate_default_prefix())
                 self.parent_dir.mkdir(parents=True, exist_ok=True)
             output_dir = self.parent_dir
         elif self.scan_mode == "target":
-            # use the network directory determined by the BSSID (set in _process_db_network_results)
             if hasattr(self, "current_network_dir"):
+                # If scanning multiple hosts (i.e. the ALL option), use "all_hosts" subdirectory.
                 if " " in target:
-                    # multiple hosts: create/use an 'all_hosts' subdirectory
                     output_dir = self.current_network_dir / "all_hosts"
                 else:
-                    # single host: create a subdirectory named after the host's IP
+                    # single host: create a subdirectory named after the host IP
                     output_dir = self.current_network_dir / target
                 output_dir.mkdir(parents=True, exist_ok=True)
             else:
-                # Fallback if current_network_dir is not set:
+                # fallback if current_network_dir is not set
                 output_dir = self.results_dir / ("target_" + self.generate_default_prefix())
                 output_dir.mkdir(parents=True, exist_ok=True)
         else:
@@ -100,7 +100,7 @@ class Nmap(Tool, ABC):
         self.current_working_dir = output_dir
         self.logger.debug(f"Using output directory: {output_dir}")
 
-        # create a file prefix
+        # Set file prefix. For multiple hosts, you might use a fixed name.
         if self.scan_mode == "target" and " " in target:
             file_prefix = output_dir / "combined"
         else:
