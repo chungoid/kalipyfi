@@ -135,7 +135,7 @@ class NmapSubmenu(BaseSubmenu):
         from tools.nmap.db import fetch_all_nmap_network_results
         from config.constants import BASE_DIR
 
-        # Query the database for network scan records.
+        # query the database for network scan records
         conn = get_db_connection(BASE_DIR)
         networks = fetch_all_nmap_network_results(conn)
         conn.close()
@@ -147,11 +147,10 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return
 
-        # Sort networks by created_at (most recent first)
-        # Assuming the created_at field is at index 7.
+        # sort networks by created_at (most recent first)
         networks_sorted = sorted(networks, key=lambda x: x[7], reverse=True)
 
-        # Build a menu of networks without showing the ID.
+        # build a menu of networks
         network_menu = []
         for net in networks_sorted:
             router_ip = net[4] if net[4] else "Unknown"
@@ -161,13 +160,13 @@ class NmapSubmenu(BaseSubmenu):
             menu_str = f"Router: {router_ip} ({router_hostname}) - {created_at}"
             network_menu.append(menu_str)
 
-        # Let the user choose a network.
+        # let the user choose a network
         selected_network_str = self.draw_paginated_menu(parent_win, "Select Network", network_menu)
         if selected_network_str == "back":
             return
 
         try:
-            # Find the index of the selected option.
+            # find the index of the selected option
             idx = network_menu.index(selected_network_str)
         except Exception as e:
             parent_win.clear()
@@ -176,13 +175,12 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return
 
-        # Retrieve the corresponding network record.
         selected_network_record = networks_sorted[idx]
         # Save the chosen network ID for later use.
         self.tool.current_network_id = selected_network_record[0]
 
-        # Extract the hosts JSON blob from the selected network record.
-        hosts_json = selected_network_record[6]  # Assuming hosts is stored in column index 6.
+        # extract the hosts JSON blob from the selected network record
+        hosts_json = selected_network_record[6]
         try:
             hosts_list = json.loads(hosts_json)
         except Exception as e:
@@ -199,7 +197,7 @@ class NmapSubmenu(BaseSubmenu):
             parent_win.getch()
             return
 
-        # Build a menu list of hosts.
+        # build a menu list of hosts
         host_menu = []
         for host in hosts_list:
             ip = host.get("ip", "")
@@ -236,13 +234,13 @@ class NmapSubmenu(BaseSubmenu):
 
         try:
             self.tool.scan_mode = "target"
-            # Launch the host scan for the selected host.
+            # launch the host scan
             self.tool.run_db_hosts(self.tool.selected_target_host)
             parent_win.clear()
             parent_win.addstr(0, 0, f"Scan sent for: {self.tool.selected_target_host} /n"
                                     f"/n Select View Scans from menu to swap scan into view.")
             parent_win.refresh()
-            # Pause for 2.5 seconds (2500 ms)
+            # pause for 2.5 seconds (2500 ms)
             curses.napms(2500)
         except Exception as e:
             parent_win.clear()
@@ -274,7 +272,7 @@ class NmapSubmenu(BaseSubmenu):
         """
         curses.curs_set(0)
 
-        # Reset state variables and reload configuration if needed.
+        # reset state variables and reload configuration
         self.tool.selected_network = None
         self.tool.selected_target_host = None
         self.tool.selected_preset = None
@@ -283,20 +281,19 @@ class NmapSubmenu(BaseSubmenu):
         self.tool.reload_config()
         self.tool.target_networks = self.tool.get_target_networks()
 
-        # Create the main submenu window
+        # create the main submenu window
         h, w = stdscr.getmaxyx()
         submenu_win = curses.newwin(h, w, 0, 0)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()
 
-        # Define main menu options.
+        # main menu options
         menu_items = ["Network Scan", "Host Scan", "View Scans", "Utils", "Back"]
         numbered_menu = [f"[{i + 1}] {item}" for i, item in enumerate(menu_items[:-1])]
         numbered_menu.append("[0] Back")
 
         while True:
-            # Draw the main menu in the submenu window.
             menu_win = self.draw_menu(submenu_win, f"{self.tool.name}", numbered_menu)
             key = menu_win.getch()
             try:
