@@ -66,7 +66,7 @@ Kalipyfi integrates access to all tools into a single two-pane tmux window. Acce
 
 ### pyfyconnect
 
-    Purpose: Manages network connections via wpa_supplicant.
+    Purpose: Manages network connections via: wpa_supplicant, database operations, and active scanning.
     Features:
         Generates secure wpa_supplicant configurations.
         Scan alerts showing available networks in range that can be matched to a datbase entry.
