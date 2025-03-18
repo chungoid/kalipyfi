@@ -22,7 +22,6 @@ class Hcxtool(Tool, ABC):
                  interfaces: Optional[Any] = None,
                  presets: Optional[Dict[str, Any]] = None,
                  ui_instance: Optional[Any] = None) -> None:
-
         super().__init__(
             name="hcxtool",
             description="utilize hcxtool",

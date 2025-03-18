@@ -4,7 +4,7 @@ from typing import List, Tuple, Any
 
 from tools.submenu import BaseSubmenu
 from tools.helpers.sql_utils import get_founds_ssid_and_key
-from tools.helpers.tool_utils import get_connected_interfaces, get_wifi_networks
+from tools.helpers.tool_utils import get_all_connected_interfaces, get_wifi_networks
 
 class PyfyConnectSubmenu(BaseSubmenu):
     def __init__(self, tool_instance):
@@ -30,7 +30,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
         Presents a paginated menu of currently connected interfaces.
         """
         while True:
-            connected = get_connected_interfaces(self.logger)
+            connected = get_all_connected_interfaces(self.logger)
             if not connected:
                 parent_win.clear()
                 parent_win.addstr(0, 0, "No connected interfaces found!")
@@ -154,9 +154,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
         Uses a nested loop to allow retry on failure.
         """
         while True:
-            self.tool.selected_interface = None
-            self.tool.selected_network = None
-            self.tool.network_password = None
+            self.reset_connection_values()
 
             selected_iface = self.select_interface(parent_win)
             if not selected_iface:
@@ -271,21 +269,66 @@ class PyfyConnectSubmenu(BaseSubmenu):
     def launch_background_scan(self, parent_win) -> None:
         """
         Initiates the background scan process for matching networks from the database.
-        Loads the database networks, starts the background scanning thread,
-        and shows a confirmation message.
+        Forces the user to select an interface (resetting previous selections), loads the
+        database networks, and starts the background scan thread.
+        After execution, the user is prompted to either retry or return to the main menu.
         """
-        # load all database networks into memory
-        self.tool.load_db_networks()
-        # start the background scanning thread if not already running
-        if not self.tool.scanner_running:
-            self.tool.start_background_scan()
-            parent_win.clear()
-            parent_win.addstr(0, 0, "Background scan initiated. Alerts will display when a network is found.")
-        else:
-            parent_win.clear()
-            parent_win.addstr(0, 0, "Background scan is already running.")
-        parent_win.refresh()
-        curses.napms(2000)
+        while True:
+            # reset prior attribute selections to none
+            parent_win.erase()
+            parent_win.refresh()
+            self.reset_connection_values()
+
+            # prompt interface selection
+            selected_iface = self.select_interface(parent_win)
+            parent_win.erase()
+            parent_win.refresh()
+            if not selected_iface:
+                self.logger.debug("No interface selected; aborting background scan.")
+                break
+            self.tool.selected_interface = selected_iface
+
+            # load database networks (SSID, BSSID, key) into memory.
+            self.tool.load_db_networks()
+
+            # start the background scanning thread if not already running.
+            if not self.tool.scanner_running:
+                self.tool.start_background_scan()
+                parent_win.erase()
+                parent_win.refresh()
+                parent_win.addstr(
+                    0, 0,
+                    f"Background scan initiated on {self.tool.selected_interface}. Alerts will display when a network is found."
+                )
+            else:
+                parent_win.erase()
+                parent_win.refresh()
+                parent_win.addstr(0, 0, "Background scan is already running.")
+
+            parent_win.refresh()
+            curses.napms(2000)
+
+            # After showing the status, prompt the user for next action.
+            parent_win.erase()
+            parent_win.refresh()
+            parent_win.addstr(0, 0, "Press any key to return to the main menu, or 0 to retry background scan.")
+            parent_win.refresh()
+            key = parent_win.getch()
+            try:
+                if chr(key) == "0":
+                    continue  # Retry the background scan (loop again)
+                else:
+                    break  # Exit the loop to return to main menu.
+            except Exception:
+                break
+
+    def reset_connection_values(self):
+        """
+        Resets the connection-related selections to ensure a fresh start.
+        """
+        self.tool.selected_interface = None
+        self.tool.selected_network = None
+        self.tool.network_password = None
 
     def __call__(self, stdscr) -> None:
         """
@@ -308,7 +351,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
         submenu_win.clear()
         submenu_win.refresh()
 
-        base_menu = ["Start Scanning", "Manual Connect", "Auto-Connect", "Disconnect"]
+        base_menu = ["Start Scanning", "Manual Connect", "Auto-Connect", "Disconnect", "Utils"]
         while True:
             selection = self.show_main_menu(submenu_win, base_menu, "NetConnect")
             if selection.lower() == "back":
@@ -321,6 +364,8 @@ class PyfyConnectSubmenu(BaseSubmenu):
                 self.launch_connect(submenu_win)
             elif selection == "Disconnect":
                 self.launch_disconnect(submenu_win)
+            elif selection == "Utils":
+                self.utils_menu(submenu_win)
             submenu_win.clear()
             submenu_win.refresh()
 

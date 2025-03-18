@@ -15,6 +15,7 @@ from config.constants import BASE_DIR
 from config.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
 from tools.helpers.tool_utils import get_network_from_interface
+from utils.ipc_callback import get_shared_callback_socket
 from utils.ipc_client import IPCClient
 
 
@@ -60,14 +61,17 @@ class Tool:
         self.preset_description = None # set in submenu, this is the presets description key
         self.extra_macs = None # set in submenu (future addon)
 
-        # Override for tools that need ipc callback
-        self.callback_socket = None
+        # set socket path for callback listener
+        self.callback_socket = get_shared_callback_socket()
 
         # Optional Overrides
         if interfaces:
             self.interfaces.update(interfaces)
         if settings:
             self.defaults.update(settings)
+
+        # update config file with available interfaces
+        self.sync_connected_wireless_interfaces()
 
         # debug instancing
         self.logger.info(f"Initialized tool: {self.name} with ui instance: {self.ui_instance} (id: {id(self.ui_instance)})")
@@ -211,6 +215,64 @@ class Tool:
     ##### HELPER METHODS BY CATEGORY #####
     ######################################
 ### CONFIG ###
+    def sync_connected_wireless_interfaces(self) -> None:
+        """
+        Checks the 'interfaces' section (e.g., under "wlan") in the configuration file.
+        If no wireless interfaces defined in the config are currently connected,
+        updates the configuration by auto-adding connected wireless interfaces.
+        Uses get_connected_wireless_interfaces and update_yaml_value helpers.
+        """
+        from tools.helpers.tool_utils import get_connected_wireless_interfaces, update_yaml_value
+        import yaml
+
+        try:
+            with self.config_file.open("r") as f:
+                config = yaml.safe_load(f) or {}
+        except Exception as e:
+            self.logger.error(f"Error loading configuration from {self.config_file}: {e}")
+            return
+
+        # ensure 'interfaces' and 'wlan' exist as list in config file
+        if "interfaces" not in config:
+            config["interfaces"] = {}
+        if "wlan" not in config["interfaces"] or not isinstance(config["interfaces"]["wlan"], list):
+            config["interfaces"]["wlan"] = []
+
+        # Get currently connected wireless interfaces.
+        connected = get_connected_wireless_interfaces(self.logger)
+        self.logger.debug(f"Connected wireless interfaces: {connected}")
+        if not connected:
+            self.logger.info("No wireless interfaces are currently connected.")
+            return
+
+        # build a set of existing interface names from config
+        existing_names = {entry.get("name") for entry in config["interfaces"]["wlan"] if entry.get("name")}
+        self.logger.debug(f"Existing wireless interface names in config: {existing_names}")
+
+        # prepare new for each found
+        new_entries = []
+        for iface in connected:
+            if iface not in existing_names:
+                new_entry = {
+                    "description": f"Auto-added interface {iface}",
+                    "name": iface,
+                    "locked": False
+                }
+                config["interfaces"]["wlan"].append(new_entry)
+                new_entries.append(iface)
+                self.logger.info(f"Auto-adding interface '{iface}' to configuration.")
+
+        # if new interfaces are available, add them
+        if new_entries:
+            try:
+                update_yaml_value(self.config_file, ["interfaces", "wlan"], config["interfaces"]["wlan"])
+                self.logger.info(f"Auto-added wireless interfaces: {', '.join(new_entries)}")
+            except Exception as e:
+                self.logger.error(f"Error updating configuration file {self.config_file}: {e}")
+
+        # reload in-memory configs
+        self.reload_config()
+
     def reload_config(self) -> None:
         """
         Reloads the configuration from the YAML file and updates the
@@ -284,16 +346,9 @@ class Tool:
         This function is used to build a Berkeley Packet Filter (BPF) to protect the
         non-selected interfaces by including the MAC addresses of associated clients/APs.
 
-        Parameters
-        ----------
-        interfaces : List[str]
-            A list of interface identifiers. If the list contains the generic "wlan",
-            it will be replaced by the specific interface names defined under self.interfaces["wlan"].
-
-        Returns
-        -------
-        List[str]
-            A unique list of client MAC addresses found on interfaces other than the selected one.
+        :param: interfaces: List of interface identifiers. (e.g. wlan0, wlan1)
+        :return: List[str]: A unique list of client MAC addresses associated with all interfaces other than
+        the current self.selected_interface.
         """
         client_macs = set()
         selected_iface = self.selected_interface
@@ -436,15 +491,9 @@ class Tool:
         Updates the tool's configuration file with the new presets, filtering out any options
         that have blank values (either an empty string or None).
 
-        Parameters
-        ----------
-        presets : dict
-            A dictionary containing the updated presets.
-
-        Raises
-        ------
-        Exception
-            If there is an error reading from or writing to the configuration file.
+        :param presets: A dictionary containing updated presets.
+        :raises ValueError: If there is an error reading from or writing to the configuration file.
+        :return: None
         """
         import yaml
 

@@ -96,11 +96,16 @@ class BaseSubmenu:
     #############################
     def select_interface(self, parent_win) -> Union[str, None]:
         while True:
+            from tools.helpers.tool_utils import get_all_connected_interfaces
+            connected = get_all_connected_interfaces(self.logger)
+            # get config.yaml interfaces
             interfaces = self.tool.interfaces.get("wlan", [])
-            available = [iface.get("name") for iface in interfaces if iface.get("name")]
+            # filter found interfaces and display only connected
+            available = [iface.get("name") for iface in interfaces if iface.get("name") in connected]
             if not available:
                 parent_win.clear()
-                parent_win.addstr(0, 0, "No interfaces available!")
+                parent_win.addstr(0, 0, f"No interfaces from {self.tool.config_file} found. \n"
+                                        f"\n Tip: Use Utils submenu from any tool menu to edit tool-specific configs.")
                 parent_win.refresh()
                 parent_win.getch()
                 return None
@@ -108,6 +113,7 @@ class BaseSubmenu:
             if selection == BACK_OPTION:
                 return None
             return selection
+
 
     def select_preset(self, parent_win) -> Union[dict, str]:
         """
@@ -570,7 +576,7 @@ class BaseSubmenu:
             if chr(confirmation).lower() == 'y':
                 self.tool.presets[selected_key] = {"description": new_desc, "options": options}
                 try:
-                    self.tool.update_presets_in_config(self.tool.presets)
+                    self.tool.reload_config()
                     parent_win.clear()
                     parent_win.addstr(0, 0, "Profile updated and saved. Press any key to continue...")
                     self.tool.reload_config()
@@ -689,7 +695,8 @@ class BaseSubmenu:
         iterates over its attributes and prompts the user to change each value (or leave it unchanged),
         then saves the updated configuration.
         """
-        from tools.helpers.tool_utils import update_yaml_value
+        from tools.helpers.tool_utils import update_yaml_value, get_all_connected_interfaces
+        import yaml
         while True:
             config_file = self.tool.config_file
             try:
@@ -698,6 +705,7 @@ class BaseSubmenu:
             except Exception as e:
                 self.logger.error(f"Error loading configuration from {config_file}: {e}")
                 return
+
             interfaces = config.get("interfaces", {})
             if not interfaces:
                 parent_win.clear()
@@ -705,24 +713,58 @@ class BaseSubmenu:
                 parent_win.refresh()
                 parent_win.getch()
                 return
+
             interface_keys = list(interfaces.keys())
+            parent_win.erase()
+            parent_win.refresh()
             selection = self.draw_paginated_menu(parent_win, "Select Category", interface_keys)
             if selection.lower() == "back":
                 return
             selected_key = selection.strip()
             interface_config = interfaces.get(selected_key)
             if isinstance(interface_config, list):
-                list_menu = [iface.get("name", f"Interface {i}") for i, iface in enumerate(interface_config)]
+                # Get only the interface names that are currently connected.
+                connected = get_all_connected_interfaces(self.logger)
+                list_menu = [iface.get("name", f"Interface {i}")
+                             for i, iface in enumerate(interface_config)
+                             if iface.get("name") in connected]
+                # Append an option to allow adding a new interface.
+                add_option = "Add New Interface"
+                list_menu.append(add_option)
+                parent_win.erase()
+                parent_win.refresh()
                 selection2 = self.draw_paginated_menu(parent_win, f"Select Entry for '{selected_key}'", list_menu)
                 if selection2.lower() == "back":
+                    continue  # Return to category selection.
+                if selection2 == add_option:
+                    self.add_new_interface_for_category(parent_win, selected_key)
+                    # Reload configuration and loop back.
+                    try:
+                        with config_file.open("r") as f:
+                            config = yaml.safe_load(f) or {}
+                    except Exception as e:
+                        self.logger.error(f"Error reloading configuration: {e}")
+                        return
+                    interfaces = config.get("interfaces", {})
                     continue
+
                 try:
                     selected_index = list_menu.index(selection2)
                 except Exception as e:
                     self.logger.error("Error processing selection: %s", e)
                     continue
-                chosen_interface = interface_config[selected_index]
-                key_path_prefix = ["interfaces", selected_key, str(selected_index)]
+                # Map the selection back to the full interface_config list.
+                # Because list_menu is filtered, we need to find the matching entry.
+                chosen_interface = None
+                for iface in interface_config:
+                    name = iface.get("name")
+                    if name in connected and name == selection2:
+                        chosen_interface = iface
+                        break
+                if chosen_interface is None:
+                    self.logger.error("Selected interface not found in the configuration.")
+                    continue
+                key_path_prefix = ["interfaces", selected_key, str(interface_config.index(chosen_interface))]
             elif isinstance(interface_config, dict):
                 chosen_interface = interface_config
                 key_path_prefix = ["interfaces", selected_key]
@@ -732,13 +774,17 @@ class BaseSubmenu:
                 parent_win.refresh()
                 parent_win.getch()
                 return
+
+            # Loop over each attribute for editing.
             for attr, current_value in chosen_interface.items():
                 while True:
-                    parent_win.clear()
-                    prompt = f"Enter new value for '{attr}' (current: {current_value}) or leave blank to keep:"
+                    parent_win.erase()
+                    parent_win.refresh()
+                    prompt = (
+                        f"Enter new value for '{attr}' (current: {current_value})\n"
+                        "Press [Enter] to keep the current value, or type a new value to update."
+                    )
                     parent_win.addstr(0, 0, prompt)
-                    parent_win.addstr(2, 0, "Press [Enter] to keep current value or type new value.")
-                    parent_win.addstr(3, 0, "Press [0] to cancel and go back to interface selection.")
                     parent_win.refresh()
                     curses.echo()
                     try:
@@ -747,8 +793,6 @@ class BaseSubmenu:
                         input_bytes = b""
                     curses.noecho()
                     user_input = input_bytes.decode("utf-8").strip() if input_bytes else ""
-                    if user_input == "0":
-                        break
                     new_val = current_value if user_input == "" else user_input
                     try:
                         update_yaml_value(config_file, key_path_prefix + [attr], new_val)
@@ -756,12 +800,108 @@ class BaseSubmenu:
                         chosen_interface[attr] = new_val
                     except Exception as e:
                         self.logger.error(f"Error updating {selected_key}[{attr}]: {e}")
-                    break
-            parent_win.clear()
+                    break  # Proceed to next attribute.
+
+            parent_win.erase()
             parent_win.addstr(0, 0, "Interface configuration updated. Press any key to continue.")
             parent_win.refresh()
             parent_win.getch()
             return
+
+    def add_new_interface_for_category(self, parent_win, category: str) -> None:
+        """
+        Prompts the user to add a new interface value for the given category (e.g., 'wlan')
+        and updates the configuration file accordingly. Prompts for description, locked (true/false),
+        and name. When prompting for the interface name, it displays the currently connected interfaces.
+        """
+        from tools.helpers.tool_utils import update_yaml_value, get_connected_wireless_interfaces
+        config_file = self.tool.config_file
+
+        # load current config
+        try:
+            with config_file.open("r") as f:
+                config = yaml.safe_load(f) or {}
+        except Exception as e:
+            self.logger.error(f"Error loading configuration from {config_file}: {e}")
+            return
+
+        # ensure the category exists and is a list
+        if "interfaces" not in config:
+            config["interfaces"] = {}
+        if category not in config["interfaces"] or not isinstance(config["interfaces"][category], list):
+            config["interfaces"][category] = []
+
+        # prompt for description
+        parent_win.erase()
+        parent_win.addstr(0, 0, f"Enter interface description for '{category}':")
+        parent_win.refresh()
+        curses.echo()
+        try:
+            description = parent_win.getstr(1, 0).decode("utf-8").strip()
+        except Exception:
+            description = ""
+        curses.noecho()
+        if not description:
+            parent_win.erase()
+            parent_win.addstr(0, 0, "No description entered. Press any key to return.")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # get currently connected interfaces and display them in the prompt
+        connected = get_connected_wireless_interfaces(self.logger)
+        available_str = ", ".join(connected) if connected else "None"
+        parent_win.erase()
+        prompt = (f"Enter interface name for '{category}' (e.g., wlan4):\n"
+                  f"Currently Available to Device: {available_str}")
+        parent_win.addstr(0, 0, prompt)
+        parent_win.refresh()
+        curses.echo()
+        try:
+            name = parent_win.getstr(2, 0).decode("utf-8").strip()
+        except Exception:
+            name = ""
+        curses.noecho()
+        if not name:
+            parent_win.erase()
+            parent_win.addstr(0, 0, "No interface name entered. Press any key to return.")
+            parent_win.refresh()
+            parent_win.getch()
+            return
+
+        # prompt for locked status
+        parent_win.erase()
+        parent_win.addstr(0, 0, "Set Lock status: (true/false) [default false]:")
+        parent_win.refresh()
+        curses.echo()
+        try:
+            locked_str = parent_win.getstr(1, 0).decode("utf-8").strip().lower()
+        except Exception:
+            locked_str = ""
+        curses.noecho()
+        locked = True if locked_str == "true" else False
+
+        # build the new interface entry
+        new_entry = {"description": description, "name": name, "locked": locked}
+        current_list = config["interfaces"][category]
+        new_list = current_list + [new_entry]
+
+        # use the update_yaml_value helper to update the entire list
+        key_path = ["interfaces", category]
+        try:
+            update_yaml_value(config_file, key_path, new_list)
+            parent_win.erase()
+            parent_win.addstr(0, 0, f"Interface '{name}' added successfully. Press any key to continue.")
+            parent_win.refresh()
+            parent_win.getch()
+            self.logger.info(
+                f"Added new interface '{name}' under category '{category}' with description '{description}' and locked={locked}.")
+        except Exception as e:
+            parent_win.erase()
+            parent_win.addstr(0, 0, f"Error saving configuration: {e}")
+            parent_win.refresh()
+            parent_win.getch()
+            self.logger.error(f"Error updating configuration file {config_file}: {e}")
 
     def show_main_menu(self, submenu_win, base_menu_items: List[str], title: str) -> str:
         client = IPCClient()

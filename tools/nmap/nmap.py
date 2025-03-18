@@ -25,7 +25,6 @@ class Nmap(Tool, ABC):
                  interfaces: Optional[Any] = None,
                  presets: Optional[Dict[str, Any]] = None,
                  ui_instance: Optional[Any] = None) -> None:
-
         super().__init__(
             name="nmap",
             description="Network scanning using nmap",
@@ -51,15 +50,14 @@ class Nmap(Tool, ABC):
         self.selected_target_host = None
         self.selected_preset = None
         self.gateways = get_gateways()  # dict mapping interface -> gateway
-        self.target_networks = self.get_target_networks()  # Compute CIDR for each interface
+        self.target_networks = self.get_target_networks()  # Compute CIDR for interface associated gateways
         self.target_ip = None
 
         # tools/nmap/submenu.py
         from tools.nmap.submenu import NmapSubmenu
         self.submenu_instance = NmapSubmenu(self)
 
-        # override tools.py and set callback socket
-        self.callback_socket = get_shared_callback_socket()
+        # enable _on_scan_complete callback listener
         shared_callback_listener.register_callback(self.name, self._on_scan_complete)
 
         # nmap-specific database schema (tools/nmap/db.py)

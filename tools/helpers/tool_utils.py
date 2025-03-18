@@ -97,7 +97,7 @@ def format_scan_display(scan: dict) -> str:
 #######################################################
 ### OS/HARDWARE/NETWORK INFORMATION GATHERING UTILS ###
 #######################################################
-def get_connected_interfaces(logger: logging.Logger) -> List[str]:
+def get_all_connected_interfaces(logger: logging.Logger) -> List[str]:
     """
     Uses nmcli to retrieve a list of devices that are currently in the 'connected' state.
     Returns a list of interface names.
@@ -116,6 +116,28 @@ def get_connected_interfaces(logger: logging.Logger) -> List[str]:
             if state.lower() == "connected":
                 connected.append(device)
     logger.debug(f"Connected interfaces: {connected}")
+    return connected
+
+def get_connected_wireless_interfaces(logger: logging.Logger) -> List[str]:
+    """
+    Uses nmcli to retrieve a list of devices that are currently in the 'connected'
+    state and are wireless (TYPE == wifi).
+    Returns a list of wireless interface names.
+    """
+    cmd = ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "device"]
+    try:
+        output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True)
+    except Exception as e:
+        logger.error(f"Error retrieving connected interfaces: {e}")
+        return []
+    connected = []
+    for line in output.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 3:
+            device, dev_type, state = parts[0].strip(), parts[1].strip(), parts[2].strip()
+            if state.lower() == "connected" and dev_type.lower() == "wifi":
+                connected.append(device)
+    logger.debug(f"Connected wireless interfaces: {connected}")
     return connected
 
 def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str, str]]:

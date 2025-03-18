@@ -2,7 +2,7 @@ interfaces:
   wlan:
   - description: hotspot
     locked: true
-    name: wlx9cefd5f93a81
+    name: wlan0
   - description: monitor
     locked: false
     name: wlan1
@@ -12,3 +12,4 @@ interfaces:
   - description: client
     locked: true
     name: wlan3
+
