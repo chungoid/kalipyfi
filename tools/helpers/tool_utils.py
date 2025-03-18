@@ -145,7 +145,7 @@ def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str,
     Uses nmcli to scan for available networks on the specified interface.
     Returns a list of tuples in the form (SSID, SECURITY).
     """
-    cmd = ["sudo", "nmcli", "-t", "-f", "SSID,SECURITY", "device", "wifi", "list", "ifname", interface]
+    cmd = ["nmcli", "-t", "-f", "SSID,SECURITY", "device", "wifi", "list", "ifname", interface]
     try:
         output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
     except Exception as e:
