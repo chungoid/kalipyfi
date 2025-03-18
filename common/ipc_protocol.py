@@ -8,8 +8,6 @@ from common.process_manager import process_manager
 from config.constants import IPC_CONSTANTS
 
 logger = logging.getLogger(__name__)
-
-
 ERROR_KEY = IPC_CONSTANTS["keys"]["ERROR_KEY"]
 
 def pack_message(message: dict) -> str:
@@ -128,7 +126,7 @@ def handle_send_scan(ui_instance, request):
         logger.error("handle_send_scan: Failed to create scan pane.")
         return {"error": "FAILED_TO_CREATE_SCAN_PANE"}
 
-    # Retrieve the process id stored in our active scans.
+    # retrieve the process id stored in our active scans
     pane_pid = ui_instance.active_scans[pane_id].pane_pid
 
     def wait_and_notify():
@@ -147,7 +145,7 @@ def handle_send_scan(ui_instance, request):
         except Exception as e:
             logger.error(f"Error monitoring scan PID {pane_pid}: {e}")
 
-        # Notify the callback socket about scan completion.
+        # notify the callback socket about scan completion
         try:
             cb_socket = request.get("callback_socket")
             if cb_socket:
@@ -159,14 +157,14 @@ def handle_send_scan(ui_instance, request):
         except Exception as e:
             logger.error(f"Error during callback notification: {e}")
 
-    # Start the monitoring thread in a try/except block.
+    # start the monitoring thread in a try/except block
     try:
         from threading import Thread
         Thread(target=wait_and_notify, daemon=True).start()
     except Exception as e:
         logger.error(f"Error starting wait_and_notify thread: {e}")
 
-    # Return a response so that IPCServer can later retrieve pane_pid.
+    # return a response so that IPCServer can later retrieve pane_pid
     return {
         "status": "SEND_SCAN_OK",
         "pane_id": pane_id,
@@ -245,6 +243,49 @@ def handle_swap_scan(ui_instance, request: dict) -> dict:
     except Exception as e:
         logger.exception("handle_swap_scan: Exception occurred")
         return {ERROR_KEY: f"SWAP_SCAN error: {e}"}
+
+
+def handle_copy_mode(ui_instance, request: dict) -> dict:
+    """
+    Handles the COPY_MODE command by managing the copy-mode state for the main scan pane.
+    This command allows toggling the state of tmux copy-mode (to enable or disable scrolling)
+    and querying its current state.
+
+    Expected Request Format:
+        {
+            "action": "COPY_MODE",
+            "copy_mode_action": "toggle"   # or "get_copy_mode_state"
+        }
+
+    When "copy_mode_action" is "toggle", this function toggles the current state of copy-mode
+    for the main scan pane and returns the updated state.
+
+    When "copy_mode_action" is "get_copy_mode_state", it returns the current copy-mode state without modifying it.
+
+    :param ui_instance: The UIManager instance that manages tmux sessions and panes.
+    :param request: A dictionary containing the COPY_MODE command details.
+    :return: A dictionary containing:
+             - "status": "COPY_MODE_OK" and "copy_mode_enabled": <state> if toggling is successful,
+             - "status": "COPY_MODE_STATE" and "copy_mode_enabled": <state> if querying the state,
+             - or an error dictionary if parameters are missing, invalid, or an exception occurs.
+    """
+    logger.debug(f"handle_copy_mode: Received request: {request}")
+    action = request.get("copy_mode_action", "toggle")
+
+    try:
+        if action == "toggle":
+            ui_instance.toggle_copy_mode()
+            # return the updated state after toggling
+            return {"status": "COPY_MODE_OK", "copy_mode_enabled": ui_instance.copy_mode_enabled}
+        elif action == "get_copy_mode_state":
+            # return the current copy-mode state
+            return {"status": "COPY_MODE_STATE", "copy_mode_enabled": ui_instance.copy_mode_enabled}
+        else:
+            logger.error(f"Invalid copy_mode_action received: {action}")
+            return {"error": f"Invalid copy_mode_action: {action}"}
+    except Exception as e:
+        logger.exception("handle_copy_mode: Exception occurred")
+        return {"error": f"COPY_MODE error: {e}"}
 
 def handle_stop_scan(ui_instance, request: dict) -> dict:
     """

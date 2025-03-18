@@ -35,8 +35,8 @@ class UIManager:
         # Paths to TMUXP configs
         self.session_name = session_name
         self.tmuxp_dir = TMUXP_DIR
-
-
+        # Toggles
+        self.copy_mode_enabled = False # toggle tmux copy-mode to make main scan pane scrollable
 
 
     def _register_scan(self, window_name: str, pane_id: str, internal_name: str, tool_name: str,
@@ -70,7 +70,6 @@ class UIManager:
         self.active_scans[pane_id] = scan_data
         self.logger.debug(f"Registered scan: {scan_data}")
 
-
     def _launch_command_in_pane(self, pane: libtmux.Pane, cmd_dict: dict) -> str:
         """
         Converts the command dictionary into a command string and sends it to the pane.
@@ -85,7 +84,6 @@ class UIManager:
 
         return command
 
-
     def _find_pane_by_id(self, pane_id: str) -> Optional[libtmux.Pane]:
         """
         Locates a pane by its pane_id within the current session.
@@ -99,7 +97,6 @@ class UIManager:
                     return pane
         return None
 
-
     def get_session(self, session_name: str) -> Optional[libtmux.Session]:
         """
         Retrieves an existing tmuxp session by name.
@@ -108,7 +105,6 @@ class UIManager:
         :return: The libtmux.Session if found, otherwise None.
         """
         return self.server.find_where({"session_name": session_name})
-
 
     def create_session(self, session_name: str) -> libtmux.Session:
         """
@@ -119,7 +115,6 @@ class UIManager:
         """
         self.logger.info(f"Creating new session: {session_name}")
         return self.server.new_session(session_name=session_name, attach=False)
-
 
     def get_or_create_session(self, session_name: str) -> libtmux.Session:
         """
@@ -134,7 +129,6 @@ class UIManager:
             session = self.create_session(session_name)
             self.logger.info(f"get_or_create_session found no session so creating session: {session}")
         return session
-
 
     def get_tool_window(self, tool_name: str) -> Optional[libtmux.Window]:
         """
@@ -423,17 +417,35 @@ class UIManager:
             except subprocess.CalledProcessError as e:
                 self.logger.error(f"Error re-selecting main menu pane: {e}")
 
-
-    def get_lock_status(self, interface: str) -> bool:
+    def toggle_copy_mode(self) -> None:
         """
-        Retrieves the lock status for the given interface.
-
-        :param interface: The interface to check.
-        :return: True if the interface is locked, otherwise False.
+        Toggles copy-mode on the main scan pane. If copy-mode is enabled,
+        sends 'q' to exit copy-mode. If disabled, enters copy-mode.
         """
-        iface_data = self.interfaces.get(interface)
-        return iface_data.lock_status if iface_data else False
+        pane = self.get_main_scan_pane()
+        if not pane:
+            self.logger.error("Cannot toggle copy-mode: main scan pane not found.")
+            return
 
+        if self.copy_mode_enabled:
+            # toggle copy-mode (scrolling) off
+            try:
+                pane.send_keys("q")
+            except Exception as e:
+                self.logger.error(f"Error disabling copy-mode on pane {pane.get('pane_id')}: {e}")
+                return
+            self.copy_mode_enabled = False
+            self.logger.info("Copy mode disabled for main scan pane.")
+        else:
+            try:
+                subprocess.run(["tmux", "copy-mode", "-t", pane.get("pane_id")], check=True)
+            except Exception as e:
+                self.logger.error(f"Error enabling copy-mode on pane {pane.get('pane_id')}: {e}")
+                return
+            self.copy_mode_enabled = True
+            self.logger.info("Copy mode enabled for main scan pane.")
+
+        self.logger.info(f"Copy mode enabled for main scan pane: {pane.get('pane_id')}")
 
     def stop_scan(self, pane_id: str) -> None:
         """
@@ -443,14 +455,28 @@ class UIManager:
         :return: None
         """
         scan_data = self.active_scans.get(pane_id)
-        if scan_data:
-            window = self.session.find_where({"window_name": scan_data.window_name})
-            if window:
-                pane = self._find_pane_by_id(pane_id)
-                if pane:
-                    pane.send_keys("C-c")  # Send Ctrl+C to stop the command.
-                    self.logger.info(f"Stopped scan in pane {pane_id} (window: {scan_data.window_name}).")
-            del self.active_scans[pane_id]
+        if not scan_data:
+            self.logger.error(f"No active scan found for pane_id: {pane_id}")
+            return
+
+        window = self.session.find_where({"window_name": scan_data.window_name})
+        if not window:
+            self.logger.error("No active window found for window %s", scan_data.window_name)
+            return
+
+        pane = self._find_pane_by_id(pane_id)
+        if not pane:
+            self.logger.error("No active scan found for pane %s", pane_id)
+            return
+
+        try:
+            pane.send_keys("C-c")  # send Ctrl+C to the pane
+        except Exception as e:
+            self.logger.error(f"Error stopping scan pane {pane_id}: {e}")
+            return
+
+        self.logger.info(f"Stopped scan in pane {pane_id} (window: {scan_data.window_name}).")
+        del self.active_scans[pane_id]
 
     def kill_window(self, pane_id: str) -> None:
         """
@@ -518,13 +544,13 @@ class UIManager:
         session_name = self.session_data.session_name
         self.logger.info(f"Killing UI session: {session_name}")
 
-        # Log status before shutdown
+        # log status before shutdown
         self.logger.debug("UI Manager status before shutdown:\n" + process_manager.get_status_report())
 
-        # Shutdown all registered processes
+        # shutdown all registered processes
         process_manager.shutdown_all()
 
-        # Attempt to kill the tmux session via libtmux and subprocess
+        # attempt to kill the tmux session via libtmux and subprocess
         try:
             self.session.kill_session()
             self.logger.debug("tmux session killed via libtmux.")
@@ -547,6 +573,17 @@ class UIManager:
 
         self.logger.info("UI shutdown complete. Exiting now.")
         sys.exit(0)
+
+    def get_lock_status(self, interface: str) -> bool:
+        """
+        Retrieves the lock status for the given interface.
+
+        :param interface: The interface to check.
+        :return: True if the interface is locked, otherwise False.
+        """
+        iface_data = self.interfaces.get(interface)
+        return iface_data.lock_status if iface_data else False
+
 
     #############################
     ##### STATE & DEBUGGING #####
@@ -575,7 +612,6 @@ class UIManager:
         self.logger.error("Main scan pane with index '0' not found in main UI window.")
         return None
 
-
     def get_main_menu_pane(self) -> Optional[libtmux.Pane]:
         """
         Identifies the main menu pane in the main UI window.
@@ -597,7 +633,6 @@ class UIManager:
         self.logger.error("Main menu pane with index '1' not found in main UI window.")
         return None
 
-
     def get_log_pane(self) -> Optional[libtmux.Pane]:
         """
         Identifies the log pane in the main UI window.
@@ -618,7 +653,6 @@ class UIManager:
 
         self.logger.error("Log pane with index '2' not found in main UI window.")
         return None
-
 
     def wait_for_tool_window_ready(self, tool_name: str, bg_yaml_path: Path, tmuxp_dir: Path,
                                    expected_panes: int = 4, timeout: int = 30,

@@ -6,6 +6,9 @@ from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+from config.constants import BASE_DIR
+from database.db_manager import get_db_connection
+from tools.pyfyconnect.db import init_pyfyconnect_schema
 from tools.pyfyconnect.submenu import PyfyConnectSubmenu
 from tools.tools import Tool
 from utils.tool_registry import register_tool
@@ -24,11 +27,22 @@ class PyfyConnectTool(Tool, ABC):
             settings=settings
         )
         self.logger = logging.getLogger(self.name.upper())
-        self.submenu = PyfyConnectSubmenu(self)
+        self.submenu_instance = PyfyConnectSubmenu(self)
         # These are set via the submenu
         self.selected_interface = None  # "wlan0, wlan1, etc. from config.yaml"
         self.selected_network = None  # SSID of the network
         self.network_password = None  # Password (if needed)
+
+        # nmap-specific database schema (tools/nmap/db.py)
+        conn = get_db_connection(BASE_DIR)
+        init_pyfyconnect_schema(conn)
+        conn.close()
+
+    def submenu(self, stdscr) -> None:
+        """
+        Launches the nmap submenu (interactive UI) using curses.
+        """
+        self.submenu_instance(stdscr)
 
     def build_wpa_config(self) -> Optional[str]:
         """
@@ -138,5 +152,4 @@ class PyfyConnectTool(Tool, ABC):
             self.logger.info(f"Killed wpa_supplicant on {iface}.")
         except Exception as e:
             self.logger.error(f"Error killing wpa_supplicant on {iface}: {e}")
-
 

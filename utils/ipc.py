@@ -10,7 +10,7 @@ from common.ipc_protocol import (
     handle_ui_ready, handle_register_process, handle_get_scans,
     handle_send_scan, handle_swap_scan, handle_update_lock, handle_debug_status,
     handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui,
-    handle_connect_network, handle_kill_window
+    handle_connect_network, handle_kill_window, handle_copy_mode
 )
 from utils.helper import publish_socket_path, get_unique_socket_path
 
@@ -26,6 +26,7 @@ SWAP_SCAN = IPC_CONSTANTS["actions"]["SWAP_SCAN"]
 STOP_SCAN = IPC_CONSTANTS["actions"]["STOP_SCAN"]
 CONNECT_NETWORK = IPC_CONSTANTS["actions"]["CONNECT_NETWORK"]
 SCAN_COMPLETE = IPC_CONSTANTS["actions"]["SCAN_COMPLETE"]
+COPY_MODE = IPC_CONSTANTS["actions"]["COPY_MODE"]
 UPDATE_LOCK = IPC_CONSTANTS["actions"]["UPDATE_LOCK"]
 REMOVE_LOCK = IPC_CONSTANTS["actions"]["REMOVE_LOCK"]
 KILL_WINDOW = IPC_CONSTANTS["actions"]["KILL_WINDOW"]
@@ -161,6 +162,8 @@ class IPCServer:
                 response = handle_remove_lock(self.ui_instance, request)
             elif action == STOP_SCAN:
                 response = handle_stop_scan(self.ui_instance, request)
+            elif action == COPY_MODE:
+                response = handle_copy_mode(self.ui_instance, request)
             elif action == KILL_WINDOW:
                 response = handle_kill_window(self.ui_instance, request)
             elif action == KILL_UI:

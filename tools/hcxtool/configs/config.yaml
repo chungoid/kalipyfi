@@ -12,7 +12,6 @@ interfaces:
   - description: client
     locked: true
     name: wlan3
-
 presets:
   1:
     description: lead
@@ -57,4 +56,4 @@ presets:
       -F: true
       autobpf: true
 wpa-sec:
-  api_key:
+  api_key: ''
