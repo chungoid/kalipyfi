@@ -69,9 +69,10 @@ Kalipyfi integrates access to all tools into a single two-pane tmux window. Acce
     Purpose: Manages network connections via wpa_supplicant.
     Features:
         Generates secure wpa_supplicant configurations.
+        Scan alerts showing available networks in range that can be matched to a datbase entry.
         Supports both manual and automatic connection workflows.
-        Automatic connections are handled by presenting a list of available networks from the database.
-        Manual connections prompt the user to select an available network & enter the passphrase manually.
+          Auto: displays networks with appropriate credentials from database
+          Manual: displays available networks in range and requires user input for key
         Cleanly disconnects and manages DHCP leases without saving any networks to networkmanager.
 
 
@@ -225,14 +226,21 @@ from your_submenu_module import YourToolSubmenu
 
 @register_tool("yourtool")                    # utilize the decorator & import your tool in utils/ui/main_menu.py
 class YourTool(Tool, ABC):
-    def __init__(self, base_dir, config_file=None, interfaces=None, presets=None):
+    def __init__(self,
+                 base_dir: Path,  # your tool modules base, not project base (project base is BASE_DIR from config/constants.py)
+                 config_file: Optional[str] = None,
+                 interfaces: Optional[Any] = None,
+                 presets: Optional[Dict[str, Any]] = None,
+                 ui_instance: Optional[Any] = None) -> None:
+      
         super().__init__(
             name="yourtool",
             description="Your custom tool description",
             base_dir=base_dir,
             config_file=config_file,
             interfaces=interfaces,
-            settings=presets
+            settings=presets,
+            ui_instance=ui_instance
         )
         self.logger = logging.getLogger(self.name)
         
