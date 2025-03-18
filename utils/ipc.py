@@ -10,7 +10,8 @@ from common.ipc_protocol import (
     handle_ui_ready, handle_register_process, handle_get_scans,
     handle_send_scan, handle_swap_scan, handle_update_lock, handle_debug_status,
     handle_remove_lock, handle_stop_scan, handle_kill_ui, handle_detach_ui,
-    handle_connect_network, handle_kill_window, handle_copy_mode
+    handle_connect_network, handle_kill_window, handle_copy_mode,
+    handle_network_found
 )
 from utils.helper import publish_socket_path, get_unique_socket_path
 
@@ -24,6 +25,7 @@ GET_SCANS = IPC_CONSTANTS["actions"]["GET_SCANS"]
 SEND_SCAN = IPC_CONSTANTS["actions"]["SEND_SCAN"]
 SWAP_SCAN = IPC_CONSTANTS["actions"]["SWAP_SCAN"]
 STOP_SCAN = IPC_CONSTANTS["actions"]["STOP_SCAN"]
+NETWORK_FOUND = IPC_CONSTANTS["actions"]["NETWORK_FOUND"]
 CONNECT_NETWORK = IPC_CONSTANTS["actions"]["CONNECT_NETWORK"]
 SCAN_COMPLETE = IPC_CONSTANTS["actions"]["SCAN_COMPLETE"]
 COPY_MODE = IPC_CONSTANTS["actions"]["COPY_MODE"]
@@ -154,6 +156,8 @@ class IPCServer:
                 response = handle_get_scans(self.ui_instance, request)
             elif action == SWAP_SCAN:
                 response = handle_swap_scan(self.ui_instance, request)
+            elif action == NETWORK_FOUND:
+                response = handle_network_found(self.ui_instance, request)
             elif action == CONNECT_NETWORK:
                 response = handle_connect_network(self.ui_instance, request)
             elif action == UPDATE_LOCK:

@@ -244,7 +244,6 @@ def handle_swap_scan(ui_instance, request: dict) -> dict:
         logger.exception("handle_swap_scan: Exception occurred")
         return {ERROR_KEY: f"SWAP_SCAN error: {e}"}
 
-
 def handle_copy_mode(ui_instance, request: dict) -> dict:
     """
     Handles the COPY_MODE command by managing the copy-mode state for the main scan pane.
@@ -342,6 +341,27 @@ def handle_kill_window(ui_instance, request: dict) -> dict:
         return {"status": "KILL_WINDOW_OK"}
     except Exception as e:
         return {IPC_CONSTANTS["keys"]["ERROR_KEY"]: str(e)}
+
+
+def handle_network_found(ui_instance, request: dict) -> dict:
+    """
+    Handles the NETWORK_FOUND event from pyfyconnect.
+    This will trigger an alert in the UI indicating that a network
+    stored in the database is now in range.
+
+    Expected request format:
+    {
+        "action": "NETWORK_FOUND",
+        "tool": "pyfyconnect",
+        "ssid": <SSID>,
+        "bssid": <BSSID>,
+        "key": <key>
+    }
+    """
+    # Call a UI method to display the alert.
+    # (Assumes your UI instance implements a method 'display_network_found_alert')
+    ui_instance.display_network_found_alert(request)
+    return {"status": "NETWORK_FOUND_OK"}
 
 def handle_connect_network(ui_instance, request: dict) -> dict:
     """

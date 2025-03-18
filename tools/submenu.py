@@ -800,10 +800,38 @@ class BaseSubmenu:
             else:
                 return selection
 
+    ##########################################
+    ##### GLOBAL UI INSTANCE TOOL ALERTS #####
+    ##########################################
+    def display_alert(self, alert_data: dict):
+        """
+        Displays a generic alert message in a designated area of the curses window.
+        The alert_data dictionary can contain various keys (e.g., 'ssid', 'bssid', 'message').
+        This method builds the alert message accordingly.
+        """
+        if 'ssid' in alert_data and 'bssid' in alert_data:
+            alert_msg = f"ALERT: Found network '{alert_data.get('ssid')}' (BSSID: {alert_data.get('bssid')})."
+        elif 'message' in alert_data:
+            alert_msg = f"ALERT: {alert_data.get('message')}"
+        else:
+            alert_msg = "ALERT: Unspecified notification received."
+
+        # display alert in bottom of current window
+        h, w = self.tool.ui_instance.session.attached_pane.window.getmaxyx()
+        alert_win = curses.newwin(3, w, h - 3, 0)
+        alert_win.clear()
+        alert_win.box()
+        alert_win.addstr(1, 2, alert_msg[:w - 4])
+        alert_win.refresh()
+        curses.napms(3000)
+        alert_win.clear()
+        alert_win.refresh()
+
     def __call__(self, stdscr) -> None:
         curses.curs_set(0)
         self.tool.selected_preset = None
         self.tool.preset_description = None
+        self.tool.ui_instance.register_active_submenu(self)
         h, w = stdscr.getmaxyx()
         submenu_win = curses.newwin(h, w, 0, 0)
         submenu_win.keypad(True)
@@ -822,6 +850,8 @@ class BaseSubmenu:
                 self.utils_menu(submenu_win)
             submenu_win.clear()
             submenu_win.refresh()
+        # unregister on exit
+        self.tool.ui_instance.unregister_active_submenu()
 
 
 # Constant for "back" selection

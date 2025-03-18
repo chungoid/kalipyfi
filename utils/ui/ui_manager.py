@@ -28,6 +28,7 @@ class UIManager:
         self.server = libtmux.Server()
         self.session = self.get_or_create_session(session_name)
         self.session_data = SessionData(session_name=self.session.get("session_name"))
+        self.active_submenu = None
         # Active scans: map pane_id -> ScanData
         self.active_scans: Dict[str, ScanData] = {}
         # Tool Interfaces: map interface name -> InterfaceData
@@ -349,6 +350,26 @@ class UIManager:
     ############################
     ##### USER INTERACTION #####
     ############################
+
+    def register_active_submenu(self, submenu_instance):
+        """Call this when a submenu becomes active."""
+        self.active_submenu = submenu_instance
+        self.logger.debug("Active submenu registered.")
+
+    def unregister_active_submenu(self):
+        """Call this when the submenu is no longer active."""
+        self.active_submenu = None
+        self.logger.debug("Active submenu unregistered.")
+
+    def display_network_found_alert(self, alert_data: dict):
+        """
+        Forwards the network found alert to the active curses submenu if one is registered.
+        """
+        if self.active_submenu and hasattr(self.active_submenu, "display_alert"):
+            self.active_submenu.display_alert(alert_data)
+        else:
+            # fallback: log the alert or update dedicated alert area
+            self.logger.info(f"Network found: SSID {alert_data.get('ssid')} on BSSID {alert_data.get('bssid')}")
 
     def swap_scan(self, tool_name: str, dedicated_pane_id: str, new_title: str) -> None:
         """

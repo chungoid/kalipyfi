@@ -21,10 +21,16 @@ from utils.ipc_client import IPCClient
 class Tool:
     def __init__(self, name: str, description: str, base_dir: Path,
                  config_file: Optional[str] = None,
-                 interfaces: Optional[Any] = None, settings: Optional[Dict[str, Any]] = None) -> None:
+                 interfaces: Optional[Any] = None,
+                 settings: Optional[Dict[str, Any]] = None,
+                 ui_instance: Optional[Any] = None) -> None:
+
         self.name = name
         self.description = description
         self.base_dir = Path(base_dir).resolve()
+
+        # Set UI instance (via registry)
+        self.ui_instance = ui_instance
 
         if not logging.getLogger().handlers:
             self.logger = logging.getLogger(self.__class__.__name__)
@@ -38,11 +44,9 @@ class Tool:
 
         #Setup logger
         self.logger = logging.getLogger(self.name.upper())
-        self.logger.info(f"Initialized tool: {self.name}")
 
         # Determine the configuration file path using a helper function
         self.config_file = self._determine_config_path(config_file)
-        self.logger.debug(f"Using config file: {self.config_file}")
 
         # Load configuration
         self.config_data = load_yaml_config(self.config_file, self.logger)
@@ -64,6 +68,9 @@ class Tool:
             self.interfaces.update(interfaces)
         if settings:
             self.defaults.update(settings)
+
+        # debug instancing
+        self.logger.info(f"Initialized tool: {self.name} with ui instance: {self.ui_instance} (id: {id(self.ui_instance)})")
 
     ##############################################
     ##### SUBMENU AND CONFIG/INITIALIZATION ######

@@ -29,17 +29,19 @@ class PyfyConnectSubmenu(BaseSubmenu):
         """
         Presents a paginated menu of currently connected interfaces.
         """
-        connected = get_connected_interfaces(self.logger)
-        if not connected:
-            parent_win.clear()
-            parent_win.addstr(0, 0, "No connected interfaces found!")
-            parent_win.refresh()
-            parent_win.getch()
-            return None
-        selection = self.draw_paginated_menu(parent_win, "Select Connected Interface", connected)
-        if selection == "back":
-            return None
-        return selection
+        while True:
+            connected = get_connected_interfaces(self.logger)
+            if not connected:
+                parent_win.clear()
+                parent_win.addstr(0, 0, "No connected interfaces found!")
+                parent_win.refresh()
+                parent_win.getch()
+                return None
+            selection = self.draw_paginated_menu(parent_win, "Select Connected Interface", connected)
+            if selection == "back":
+                return None
+            else:
+                return selection
 
     def select_network(self, parent_win) -> Tuple[Any, Any]:
         """
@@ -94,41 +96,51 @@ class PyfyConnectSubmenu(BaseSubmenu):
           2. Scan for networks.
           3. Prompt for password if needed.
           4. Launch connection via self.tool.run().
+        Uses a nested loop so that if an error occurs, the user can retry.
         """
-        self.tool.selected_interface = None
-        self.tool.selected_network = None
-        self.tool.network_password = None
+        while True:
+            # reset previous selections
+            self.tool.selected_interface = None
+            self.tool.selected_network = None
+            self.tool.network_password = None
 
-        selected_iface = self.select_interface(parent_win)
-        if not selected_iface:
-            self.logger.debug("No interface selected; aborting connection.")
-            return
-        self.tool.selected_interface = selected_iface
+            selected_iface = self.select_interface(parent_win)
+            if not selected_iface:
+                self.logger.debug("No interface selected; aborting connection.")
+                return
+            self.tool.selected_interface = selected_iface
 
-        chosen_ssid, chosen_security = self.select_network(parent_win)
-        if not chosen_ssid:
-            self.logger.debug("No network selected; aborting connection.")
-            return
-        self.tool.selected_network = chosen_ssid
+            chosen_ssid, chosen_security = self.select_network(parent_win)
+            if not chosen_ssid:
+                self.logger.debug("No network selected; aborting connection.")
+                return
+            self.tool.selected_network = chosen_ssid
 
-        if chosen_security and chosen_security != "--":
-            pwd = self.prompt_for_password(parent_win, chosen_security)
-            self.tool.network_password = pwd
-        else:
-            self.tool.network_password = ""
+            if chosen_security and chosen_security != "--":
+                pwd = self.prompt_for_password(parent_win, chosen_security)
+                self.tool.network_password = pwd
+            else:
+                self.tool.network_password = ""
 
-        parent_win.clear()
-        confirm_msg = f"Connecting to '{chosen_ssid}' on {selected_iface}..."
-        parent_win.addstr(0, 0, confirm_msg)
-        parent_win.refresh()
-        curses.napms(1500)
-        try:
-            self.tool.run()
-        except Exception as e:
             parent_win.clear()
-            parent_win.addstr(0, 0, f"Error launching connection: {e}")
+            confirm_msg = f"Connecting to '{chosen_ssid}' on {selected_iface}..."
+            parent_win.addstr(0, 0, confirm_msg)
             parent_win.refresh()
-            parent_win.getch()
+            curses.napms(1500)
+            try:
+                self.tool.run()
+                break  # successful connection, exit loop
+            except Exception as e:
+                parent_win.clear()
+                parent_win.addstr(0, 0, f"Error launching connection: {e}")
+                parent_win.addstr(1, 0, "Press any key to retry or 0 to cancel.")
+                parent_win.refresh()
+                key = parent_win.getch()
+                try:
+                    if chr(key) == "0":
+                        return
+                except Exception:
+                    return
 
     def launch_connect_from_founds(self, parent_win) -> None:
         """
@@ -139,92 +151,101 @@ class PyfyConnectSubmenu(BaseSubmenu):
           4. Filter scan results to those found in the DB.
           5. Auto-fill SSID and password based on found records.
           6. Launch the connection.
+        Uses a nested loop to allow retry on failure.
         """
-        self.tool.selected_interface = None
-        self.tool.selected_network = None
-        self.tool.network_password = None
+        while True:
+            self.tool.selected_interface = None
+            self.tool.selected_network = None
+            self.tool.network_password = None
 
-        selected_iface = self.select_interface(parent_win)
-        if not selected_iface:
-            self.logger.debug("No interface selected; aborting connect-from-founds.")
-            return
-        self.tool.selected_interface = selected_iface
+            selected_iface = self.select_interface(parent_win)
+            if not selected_iface:
+                self.logger.debug("No interface selected; aborting connect-from-founds.")
+                return
+            self.tool.selected_interface = selected_iface
 
-        parent_win.clear()
-        parent_win.addstr(0, 0, f"Scanning for networks on {selected_iface}...")
-        parent_win.refresh()
-
-        scan_networks = get_wifi_networks(selected_iface, self.logger)
-        self.logger.debug(f"Networks found from scan: {scan_networks}")
-        if not scan_networks:
             parent_win.clear()
-            parent_win.addstr(0, 0, "No networks found from scan!")
+            parent_win.addstr(0, 0, f"Scanning for networks on {selected_iface}...")
             parent_win.refresh()
-            parent_win.getch()
-            return
 
-        parent_win.clear()
-        parent_win.addstr(0, 0, "Loading found networks from database...")
-        parent_win.refresh()
+            scan_networks = get_wifi_networks(selected_iface, self.logger)
+            self.logger.debug(f"Networks found from scan: {scan_networks}")
+            if not scan_networks:
+                parent_win.clear()
+                parent_win.addstr(0, 0, "No networks found from scan!")
+                parent_win.refresh()
+                parent_win.getch()
+                return
 
-        from config.constants import BASE_DIR
-        founds = get_founds_ssid_and_key(BASE_DIR)
-        self.logger.debug(f"Raw founds (SSID, key): {founds}")
-        if not founds:
             parent_win.clear()
-            parent_win.addstr(0, 0, "No found networks in the database!")
+            parent_win.addstr(0, 0, "Loading found networks from database...")
             parent_win.refresh()
-            parent_win.getch()
-            return
-        founds_dict = dict(founds)
-        self.logger.debug(f"Found networks in DB: {founds_dict}")
 
-        filtered_networks = [(ssid, sec) for ssid, sec in scan_networks if ssid in founds_dict]
-        self.logger.debug(f"Filtered networks matching founds: {filtered_networks}")
-        if not filtered_networks:
+            from config.constants import BASE_DIR
+            founds = get_founds_ssid_and_key(BASE_DIR)
+            self.logger.debug(f"Raw founds (SSID, key): {founds}")
+            if not founds:
+                parent_win.clear()
+                parent_win.addstr(0, 0, "No found networks in the database!")
+                parent_win.refresh()
+                parent_win.getch()
+                return
+            founds_dict = dict(founds)
+            self.logger.debug(f"Found networks in DB: {founds_dict}")
+
+            filtered_networks = [(ssid, sec) for ssid, sec in scan_networks if ssid in founds_dict]
+            self.logger.debug(f"Filtered networks matching founds: {filtered_networks}")
+            if not filtered_networks:
+                parent_win.clear()
+                parent_win.addstr(0, 0, "No found networks are currently available!")
+                parent_win.refresh()
+                parent_win.getch()
+                return
+
+            menu_items = []
+            for ssid, security in filtered_networks:
+                sec_str = " (Secured)" if security and security != "--" else " (Open)"
+                menu_items.append(f"{ssid}{sec_str}")
+            selection = self.draw_paginated_menu(parent_win, "Available Found Networks", menu_items)
+            if selection == "back":
+                return
+
+            chosen_ssid = None
+            chosen_security = None
+            for ssid, security in filtered_networks:
+                sec_str = " (Secured)" if security and security != "--" else " (Open)"
+                if f"{ssid}{sec_str}" == selection:
+                    chosen_ssid = ssid
+                    chosen_security = security
+                    break
+            if not chosen_ssid:
+                self.logger.debug("No network selected; aborting connect-from-founds.")
+                return
+
+            self.tool.selected_network = chosen_ssid
+            auto_password = founds_dict.get(chosen_ssid, "")
+            self.tool.network_password = auto_password
+            self.logger.debug(f"Auto-filled password for '{chosen_ssid}': {auto_password}")
+
             parent_win.clear()
-            parent_win.addstr(0, 0, "No found networks are currently available!")
+            confirm_msg = f"Connecting to '{chosen_ssid}' on {selected_iface} (from founds)..."
+            parent_win.addstr(0, 0, confirm_msg)
             parent_win.refresh()
-            parent_win.getch()
-            return
-
-        menu_items = []
-        for ssid, security in filtered_networks:
-            sec_str = " (Secured)" if security and security != "--" else " (Open)"
-            menu_items.append(f"{ssid}{sec_str}")
-        selection = self.draw_paginated_menu(parent_win, "Available Found Networks", menu_items)
-        if selection == "back":
-            return
-
-        chosen_ssid = None
-        chosen_security = None
-        for ssid, security in filtered_networks:
-            sec_str = " (Secured)" if security and security != "--" else " (Open)"
-            if f"{ssid}{sec_str}" == selection:
-                chosen_ssid = ssid
-                chosen_security = security
-                break
-        if not chosen_ssid:
-            self.logger.debug("No network selected; aborting connect-from-founds.")
-            return
-
-        self.tool.selected_network = chosen_ssid
-        auto_password = founds_dict.get(chosen_ssid, "")
-        self.tool.network_password = auto_password
-        self.logger.debug(f"Auto-filled password for '{chosen_ssid}': {auto_password}")
-
-        parent_win.clear()
-        confirm_msg = f"Connecting to '{chosen_ssid}' on {selected_iface} (from founds)..."
-        parent_win.addstr(0, 0, confirm_msg)
-        parent_win.refresh()
-        curses.napms(1500)
-        try:
-            self.tool.run()
-        except Exception as e:
-            parent_win.clear()
-            parent_win.addstr(0, 0, f"Error launching connection: {e}")
-            parent_win.refresh()
-            parent_win.getch()
+            curses.napms(1500)
+            try:
+                self.tool.run()
+                break  # Connection succeeded.
+            except Exception as e:
+                parent_win.clear()
+                parent_win.addstr(0, 0, f"Error launching connection: {e}")
+                parent_win.addstr(1, 0, "Press any key to retry or 0 to cancel.")
+                parent_win.refresh()
+                key = parent_win.getch()
+                try:
+                    if chr(key) == "0":
+                        return
+                except Exception:
+                    return
 
     def launch_disconnect(self, parent_win) -> None:
         """
@@ -247,6 +268,25 @@ class PyfyConnectSubmenu(BaseSubmenu):
         parent_win.refresh()
         parent_win.getch()
 
+    def launch_background_scan(self, parent_win) -> None:
+        """
+        Initiates the background scan process for matching networks from the database.
+        Loads the database networks, starts the background scanning thread,
+        and shows a confirmation message.
+        """
+        # load all database networks into memory
+        self.tool.load_db_networks()
+        # start the background scanning thread if not already running
+        if not self.tool.scanner_running:
+            self.tool.start_background_scan()
+            parent_win.clear()
+            parent_win.addstr(0, 0, "Background scan initiated. Alerts will display when a network is found.")
+        else:
+            parent_win.clear()
+            parent_win.addstr(0, 0, "Background scan is already running.")
+        parent_win.refresh()
+        curses.napms(2000)
+
     def __call__(self, stdscr) -> None:
         """
         Launches the NetConnect submenu using curses.
@@ -268,15 +308,17 @@ class PyfyConnectSubmenu(BaseSubmenu):
         submenu_win.clear()
         submenu_win.refresh()
 
-        base_menu = ["Manual Connect", "Auto-Connect", "Disconnect"]
+        base_menu = ["Start Scanning", "Manual Connect", "Auto-Connect", "Disconnect"]
         while True:
             selection = self.show_main_menu(submenu_win, base_menu, "NetConnect")
             if selection.lower() == "back":
                 break
-            elif selection == "Manual Connect":
-                self.launch_connect(submenu_win)
+            elif selection == "Start Scanning":
+                self.launch_background_scan(submenu_win)
             elif selection == "Auto-Connect":
                 self.launch_connect_from_founds(submenu_win)
+            elif selection == "Manual Connect":
+                self.launch_connect(submenu_win)
             elif selection == "Disconnect":
                 self.launch_disconnect(submenu_win)
             submenu_win.clear()

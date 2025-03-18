@@ -1,4 +1,5 @@
 
+import re
 import yaml
 import time
 import psutil
@@ -184,6 +185,37 @@ def get_gateways() -> dict:
 
     logging.debug(f"gateways: {gateways}")
     return gateways
+
+def parse_nmcli_ssid_bssid(output: str) -> list:
+    """
+    Parses nmcli output from a command like:
+      nmcli -f SSID,BSSID device wifi list ifname <interface>
+    and returns a list of dictionaries:
+      [{"ssid": "MyHomeWiFi", "bssid": "AA:BB:CC:DD:EE:FF"}, ...]
+
+    It assumes the first line is a header and that columns are separated by at least two spaces.
+
+    :param output: Raw output from nmcli.
+    :return: List of dictionaries with 'ssid' and 'bssid' keys.
+    """
+    lines = output.strip().splitlines()
+    if not lines:
+        return []
+
+    # remove the header line
+    data_lines = lines[1:]
+    results = []
+
+    for line in data_lines:
+        if not line.strip():
+            continue  # skip empty lines
+        # split the line on two or more whitespace characters.
+        parts = re.split(r'\s{2,}', line.strip())
+        if len(parts) >= 2:
+            ssid, bssid = parts[0], parts[1]
+            results.append({"ssid": ssid, "bssid": bssid})
+    return results
+
 
 
 

@@ -2,6 +2,8 @@ import tempfile
 import subprocess
 import os
 import logging
+import threading
+import time
 from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -11,20 +13,26 @@ from database.db_manager import get_db_connection
 from tools.pyfyconnect.db import init_pyfyconnect_schema
 from tools.pyfyconnect.submenu import PyfyConnectSubmenu
 from tools.tools import Tool
+from utils.ipc_client import IPCClient
 from utils.tool_registry import register_tool
 
 
 @register_tool("pyfyconnect")
 class PyfyConnectTool(Tool, ABC):
-    def __init__(self, base_dir: Path, config_file: Optional[str] = None,
-                 interfaces: Optional[Any] = None, settings: Optional[Dict[str, Any]] = None):
+    def __init__(self,
+                 base_dir: Path,  # pyfyconnect module base, not project base
+                 config_file: Optional[str] = None,
+                 interfaces: Optional[Any] = None,
+                 presets: Optional[Dict[str, Any]] = None,
+                 ui_instance: Optional[Any] = None) -> None:
         super().__init__(
             name="pyfyconnect",
             description="Tool for connecting to a network using wpa_supplicant",
             base_dir=base_dir,
             config_file=config_file,
             interfaces=interfaces,
-            settings=settings
+            settings=presets,
+            ui_instance=ui_instance
         )
         self.logger = logging.getLogger(self.name.upper())
         self.submenu_instance = PyfyConnectSubmenu(self)
@@ -37,6 +45,10 @@ class PyfyConnectTool(Tool, ABC):
         conn = get_db_connection(BASE_DIR)
         init_pyfyconnect_schema(conn)
         conn.close()
+
+        # auto-scanning for db match
+        self.db_networks = None
+        self.scanner_running = False
 
     def submenu(self, stdscr) -> None:
         """
@@ -152,4 +164,69 @@ class PyfyConnectTool(Tool, ABC):
             self.logger.info(f"Killed wpa_supplicant on {iface}.")
         except Exception as e:
             self.logger.error(f"Error killing wpa_supplicant on {iface}: {e}")
+
+    ##################################################
+    ##### AUTO-SCAN IN BACKGROUND FOR DB MATCHES #####
+    ##################################################
+    def load_db_networks(self):
+        """
+        Loads all rows from the hcxtool table into a dictionary.
+        The resulting dictionary maps each SSID to its bssid and key.
+        Example:
+           {
+             "MyHomeWiFi": {"bssid": "AA:BB:CC:DD:EE:FF", "key": "pass123"},
+             "OfficeWiFi": {"bssid": "11:22:33:44:55:66", "key": "secret"}
+           }
+        """
+        from tools.helpers.sql_utils import get_founds_bssid_ssid_and_key
+        founds = get_founds_bssid_ssid_and_key(self.base_dir)
+        self.db_networks = {}
+        for bssid, ssid, key in founds:
+            self.db_networks[ssid] = {"bssid": bssid, "key": key}
+
+    def start_background_scan(self):
+        self.scanner_running = True
+        threading.Thread(target=self.background_scan_loop, daemon=True).start()
+
+    def background_scan_loop(self):
+        while self.scanner_running:
+            available_networks = self.scan_networks_cli(self.selected_interface)
+            # compare available to db
+            for net in available_networks:
+                ssid = net.get("ssid")
+                if ssid in self.db_networks:
+                    alert_data = {
+                        "action": "NETWORK_FOUND",
+                        "tool": self.name,
+                        "ssid": ssid,
+                        "bssid": net.get("bssid"),
+                        "key": self.db_networks[ssid].get("key")
+                    }
+                    self.send_network_found_alert(alert_data)
+            time.sleep(10)  # check every 10 seconds
+
+    def scan_networks_cli(self, interface):
+        """
+        Scans for available networks using nmcli
+        Returns a list of dictionaries like:
+          [{"ssid": "MyHomeWiFi", "bssid": "AA:BB:CC:DD:EE:FF"}, ...]
+        """
+        try:
+            output = subprocess.check_output(
+                ["nmcli", "-f", "SSID,BSSID", "device", "wifi", "list", "ifname", interface],
+                text=True
+            )
+            from tools.helpers.tool_utils import parse_nmcli_ssid_bssid
+            return parse_nmcli_ssid_bssid(output)
+        except Exception as e:
+            self.logger.error("Background scan error: %s", e)
+            return []
+
+    def send_network_found_alert(self, alert_data):
+        """
+        Uses the IPC client to send a 'NETWORK_FOUND' message.
+        """
+        client = IPCClient()  # uses published sock file.. instancing is fine
+        response = client.send(alert_data)
+        self.logger.debug("Network found alert sent: %s, response: %s", alert_data, response)
 

@@ -16,8 +16,12 @@ from tools.helpers.wpasec import get_wpasec_api_key as wpasec_get_api_key
 
 @register_tool("hcxtool")
 class Hcxtool(Tool, ABC):
-    def __init__(self, base_dir: Path, config_file: Optional[str] = None,
-                 interfaces: Optional[Any] = None, presets: Optional[Dict[str, Any]] = None):
+    def __init__(self,
+                 base_dir: Path, # hcxtool module base, not project base
+                 config_file: Optional[str] = None,
+                 interfaces: Optional[Any] = None,
+                 presets: Optional[Dict[str, Any]] = None,
+                 ui_instance: Optional[Any] = None) -> None:
 
         super().__init__(
             name="hcxtool",
@@ -25,7 +29,8 @@ class Hcxtool(Tool, ABC):
             base_dir=base_dir,
             config_file=config_file,
             interfaces=interfaces,
-            settings=presets
+            settings=presets,
+            ui_instance=ui_instance
         )
 
         self.logger = logging.getLogger(self.name)

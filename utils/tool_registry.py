@@ -2,12 +2,15 @@
 import logging
 from typing import Any, Callable, Dict
 
+# global (initialized in utils/ui/main_menu.py at launch)
+global_ui_instance = None
+
 
 class ToolRegistry:
     def __init__(self) -> None:
         self.logger = logging.getLogger("TOOL_REGISTRY")
         self._registry: Dict[str, Callable[..., Any]] = {}
-        self.tool_instances: Dict[str, Any] = {}  # Cache for instantiated tools
+        self.tool_instances: Dict[str, Any] = {}  # cache for instantiated tools
 
     def register(self, tool_name: str, tool_class: Callable[..., Any]) -> None:
         """Register a tool by name."""
@@ -36,6 +39,10 @@ class ToolRegistry:
         if "config_file" not in override_kwargs:
             override_kwargs["config_file"] = tool_config_path
 
+        # if ui_instance is not provided, check the global_ui_instance
+        if "ui_instance" not in override_kwargs and global_ui_instance is not None:
+            override_kwargs["ui_instance"] = global_ui_instance
+
         instance = tool_class(**override_kwargs)
         self.tool_instances[normalized] = instance
         return instance
@@ -53,3 +60,10 @@ def register_tool(tool_name: str) -> Callable:
         logging.getLogger("REGISTER_TOOL").info(f"Registered tool: {tool_name}")
         return cls
     return decorator
+
+def set_ui_instance(ui):
+    global global_ui_instance
+    global_ui_instance = ui
+    # update ui_instance on any already instantiated tools
+    for tool in tool_registry.tool_instances.values():
+        tool.ui_instance = ui

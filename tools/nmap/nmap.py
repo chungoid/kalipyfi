@@ -19,8 +19,12 @@ from tools.nmap.db import init_nmap_network_schema, init_nmap_host_schema
 
 @register_tool("nmap")
 class Nmap(Tool, ABC):
-    def __init__(self, base_dir: Path, config_file: Optional[str] = None,
-                 interfaces: Optional[Any] = None, presets: Optional[Dict[str, Any]] = None):
+    def __init__(self,
+                 base_dir: Path,  # nmap module base, not project base
+                 config_file: Optional[str] = None,
+                 interfaces: Optional[Any] = None,
+                 presets: Optional[Dict[str, Any]] = None,
+                 ui_instance: Optional[Any] = None) -> None:
 
         super().__init__(
             name="nmap",
@@ -28,7 +32,8 @@ class Nmap(Tool, ABC):
             base_dir=base_dir,
             config_file=config_file,
             interfaces=interfaces,
-            settings=presets
+            settings=presets,
+            ui_instance=ui_instance
         )
         self.logger = logging.getLogger(self.name)
 

@@ -263,12 +263,17 @@ def main():
     callback_socket = get_shared_callback_socket()
     logging.debug(f"Main: Shared callback socket: {callback_socket}")
 
-    # instantiate ui & ipc server instances
+    # instantiate ui set global instance in tool_registry
     ui_instance = UIManager("kalipyfi")
+    from utils.tool_registry import set_ui_instance
+    set_ui_instance(ui_instance)
+    logging.info("UI instance in main_menu: %s (id: %s)", ui_instance, id(ui_instance))
+
+    # instantiate ipc with ui_instance & start server
     ipc_server = IPCServer(ui_instance, socket_path)
     ipc_server.start()
 
-    # start IPC server with the specific socket path
+    # insurance
     time.sleep(2)
 
     # run the main menu
