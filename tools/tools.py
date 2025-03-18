@@ -222,7 +222,7 @@ class Tool:
         updates the configuration by auto-adding connected wireless interfaces.
         Uses get_connected_wireless_interfaces and update_yaml_value helpers.
         """
-        from tools.helpers.tool_utils import get_connected_wireless_interfaces, update_yaml_value
+        from tools.helpers.tool_utils import get_available_wireless_interfaces, update_yaml_value
         import yaml
 
         try:
@@ -239,7 +239,7 @@ class Tool:
             config["interfaces"]["wlan"] = []
 
         # Get currently connected wireless interfaces.
-        connected = get_connected_wireless_interfaces(self.logger)
+        connected = get_available_wireless_interfaces(self.logger)
         self.logger.debug(f"Connected wireless interfaces: {connected}")
         if not connected:
             self.logger.info("No wireless interfaces are currently connected.")

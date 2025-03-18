@@ -814,7 +814,7 @@ class BaseSubmenu:
         and updates the configuration file accordingly. Prompts for description, locked (true/false),
         and name. When prompting for the interface name, it displays the currently connected interfaces.
         """
-        from tools.helpers.tool_utils import update_yaml_value, get_connected_wireless_interfaces
+        from tools.helpers.tool_utils import update_yaml_value, get_available_wireless_interfaces
         config_file = self.tool.config_file
 
         # load current config
@@ -849,7 +849,7 @@ class BaseSubmenu:
             return
 
         # get currently connected interfaces and display them in the prompt
-        connected = get_connected_wireless_interfaces(self.logger)
+        connected = get_available_wireless_interfaces(self.logger)
         available_str = ", ".join(connected) if connected else "None"
         parent_win.erase()
         prompt = (f"Enter interface name for '{category}' (e.g., wlan4):\n"

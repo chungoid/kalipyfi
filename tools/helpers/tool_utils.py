@@ -118,27 +118,27 @@ def get_all_connected_interfaces(logger: logging.Logger) -> List[str]:
     logger.debug(f"Connected interfaces: {connected}")
     return connected
 
-def get_connected_wireless_interfaces(logger: logging.Logger) -> List[str]:
+def get_available_wireless_interfaces(logger: logging.Logger) -> List[str]:
     """
-    Uses nmcli to retrieve a list of devices that are currently in the 'connected'
-    state and are wireless (TYPE == wifi).
-    Returns a list of wireless interface names.
+    Uses nmcli to retrieve a list of devices that are wireless (TYPE == wifi)
+    and are not 'unmanaged'. This returns both connected and disconnected wireless interfaces.
     """
     cmd = ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "device"]
     try:
         output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True)
     except Exception as e:
-        logger.error(f"Error retrieving connected interfaces: {e}")
+        logger.error(f"Error retrieving interfaces: {e}")
         return []
-    connected = []
+    available = []
     for line in output.splitlines():
         parts = line.split(":")
         if len(parts) >= 3:
             device, dev_type, state = parts[0].strip(), parts[1].strip(), parts[2].strip()
-            if state.lower() == "connected" and dev_type.lower() == "wifi":
-                connected.append(device)
-    logger.debug(f"Connected wireless interfaces: {connected}")
-    return connected
+            # accept any managed Wi-Fi iface
+            if dev_type.lower() == "wifi" and state.lower() != "unmanaged":
+                available.append(device)
+    logger.debug(f"Available wireless interfaces: {available}")
+    return available
 
 def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str, str]]:
     """
