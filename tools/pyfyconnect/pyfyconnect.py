@@ -41,7 +41,7 @@ class PyfyConnectTool(Tool, ABC):
         self.selected_network = None  # SSID of the network
         self.network_password = None  # Password (if needed)
 
-        # nmap-specific database schema (tools/nmap/db.py)
+        # pyfyconnect-specific database schema (tools/nmap/db.py)
         conn = get_db_connection(BASE_DIR)
         init_pyfyconnect_schema(conn)
         conn.close()
