@@ -140,6 +140,28 @@ def get_available_wireless_interfaces(logger: logging.Logger) -> List[str]:
     logger.debug(f"Available wireless interfaces: {available}")
     return available
 
+def get_available_ethernet_interfaces(logger: logging.Logger) -> List[str]:
+    """
+    Uses nmcli to retrieve a list of devices that are ethernet and are not 'unmanaged'.
+    Returns a list of ethernet interface names.
+    """
+    cmd = ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "device"]
+    try:
+        output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True)
+    except Exception as e:
+        logger.error(f"Error retrieving ethernet interfaces: {e}")
+        return []
+    available = []
+    for line in output.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 3:
+            device, dev_type, state = parts[0].strip(), parts[1].strip(), parts[2].strip()
+            # Accept ethernet devices that are not marked as unmanaged.
+            if dev_type.lower() == "ethernet" and state.lower() != "unmanaged":
+                available.append(device)
+    logger.debug(f"Available ethernet interfaces: {available}")
+    return available
+
 def get_wifi_networks(interface: str, logger: logging.Logger) -> List[Tuple[str, str]]:
     """
     Uses nmcli to scan for available networks on the specified interface.

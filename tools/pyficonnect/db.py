@@ -3,11 +3,11 @@ import sqlite3
 
 def init_pyfyconnect_schema(conn: sqlite3.Connection) -> None:
     """
-    Initializes the pyfyconnect schema with only bssid, ssid, and key.
+    Initializes the pyficonnect schema with only bssid, ssid, and key.
     A created_at timestamp is added by default.
     """
     query = """
-    CREATE TABLE IF NOT EXISTS pyfyconnect (
+    CREATE TABLE IF NOT EXISTS pyficonnect (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         bssid TEXT NOT NULL,
         ssid TEXT,
@@ -22,12 +22,12 @@ def init_pyfyconnect_schema(conn: sqlite3.Connection) -> None:
 
 def sync_pyfyconnect_from_hcxtool(conn: sqlite3.Connection, hcxtool_db: str) -> None:
     """
-    Synchronizes entries from the hcxtool database into the pyfyconnect table.
+    Synchronizes entries from the hcxtool database into the pyficonnect table.
     Only rows where both bssid and key are available are considered.
     For each such row, only the bssid, ssid, and key columns are imported.
     On conflict (same bssid and ssid), the key is updated.
 
-    :param conn: sqlite3.Connection to the pyfyconnect database.
+    :param conn: sqlite3.Connection to the pyficonnect database.
     :param hcxtool_db: Path to the hcxtool database file.
     """
     # get bssid, ssid, key from hcxtool table
@@ -46,7 +46,7 @@ def sync_pyfyconnect_from_hcxtool(conn: sqlite3.Connection, hcxtool_db: str) -> 
 
     # update otherwise insert (upsert)
     upsert_query = """
-    INSERT INTO pyfyconnect (bssid, ssid, key)
+    INSERT INTO pyficonnect (bssid, ssid, key)
     VALUES (?, ?, ?)
     ON CONFLICT(bssid, ssid) DO UPDATE SET
         key = excluded.key;

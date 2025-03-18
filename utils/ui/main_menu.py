@@ -27,7 +27,7 @@ from utils.helper import setup_signal_handlers, publish_socket_path, get_unique_
 from utils.tool_registry import ToolRegistry
 from tools.hcxtool import hcxtool
 from tools.nmap import nmap
-from tools.pyfyconnect import pyfyconnect
+from tools.pyficonnect import pyficonnect
 
 def draw_menu(stdscr, title, menu_items):
     stdscr.clear()

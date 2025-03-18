@@ -5,14 +5,13 @@ import subprocess
 from abc import ABC
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, override
 
 # locals
 from config.constants import BASE_DIR
 from tools.tools import Tool
-from utils.ipc_callback import get_shared_callback_socket, shared_callback_listener
+from utils.ipc_callback import shared_callback_listener
 from utils.tool_registry import register_tool
-from tools.helpers.tool_utils import get_gateways
 from database.db_manager import get_db_connection
 from tools.nmap.db import init_nmap_network_schema, init_nmap_host_schema
 
@@ -35,6 +34,7 @@ class Nmap(Tool, ABC):
             ui_instance=ui_instance
         )
         self.logger = logging.getLogger(self.name)
+        self.sync_connected_ethernet_interfaces()
 
         # Set a scan mode flag:
         # 'cidr' for full network,
@@ -47,11 +47,11 @@ class Nmap(Tool, ABC):
 
         # For host-specific scans from hosts in database
         self.parent_dir = None
-        self.selected_target_host = None
-        self.selected_preset = None
-        self.gateways = get_gateways()  # dict mapping interface -> gateway
-        self.target_networks = self.get_target_networks()  # Compute CIDR for interface associated gateways
-        self.target_ip = None
+        self.selected_target_host = None # host from db
+        self.selected_preset = None # scan config
+        self.gateways = None  # dict mapping interface -> gateway
+        self.target_networks = None # Compute CIDR for interface associated gateways
+        self.target_ip = None # selected ip to be scanned
 
         # tools/nmap/submenu.py
         from tools.nmap.submenu import NmapSubmenu
@@ -350,6 +350,25 @@ class Nmap(Tool, ABC):
         else:
             # Single host: run searchsploit normally (or use run_searchsploit)
             self.run_searchsploit()
+
+    @override
+    def get_target_networks(self) -> dict:
+        """
+        Returns a dictionary mapping each interface (from self.interfaces)
+        to its computed network (CIDR notation). For nmap, this override
+        checks both 'wlan' and 'eth' interface categories.
+        """
+        from tools.helpers.tool_utils import get_network_from_interface
+        target_networks = {}
+        # Loop through both wlan and eth categories.
+        for category in ["wlan", "eth"]:
+            for iface_info in self.interfaces.get(category, []):
+                iface = iface_info.get("name")
+                if iface:
+                    network = get_network_from_interface(iface)
+                    if network:
+                        target_networks[iface] = network
+        return target_networks
 
     #####################
     ##### UTILITIES #####

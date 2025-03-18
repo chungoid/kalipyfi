@@ -345,14 +345,14 @@ def handle_kill_window(ui_instance, request: dict) -> dict:
 
 def handle_network_found(ui_instance, request: dict) -> dict:
     """
-    Handles the NETWORK_FOUND event from pyfyconnect.
+    Handles the NETWORK_FOUND event from pyficonnect.
     This will trigger an alert in the UI indicating that a network
     stored in the database is now in range.
 
     Expected request format:
     {
         "action": "NETWORK_FOUND",
-        "tool": "pyfyconnect",
+        "tool": "pyficonnect",
         "ssid": <SSID>,
         "bssid": <BSSID>,
         "key": <key>

@@ -10,23 +10,23 @@ from typing import Optional, Dict, Any
 
 from config.constants import BASE_DIR
 from database.db_manager import get_db_connection
-from tools.pyfyconnect.db import init_pyfyconnect_schema
-from tools.pyfyconnect.submenu import PyfyConnectSubmenu
+from tools.pyficonnect.db import init_pyfyconnect_schema
+from tools.pyficonnect.submenu import PyfyConnectSubmenu
 from tools.tools import Tool
 from utils.ipc_client import IPCClient
 from utils.tool_registry import register_tool
 
 
-@register_tool("pyfyconnect")
-class PyfyConnectTool(Tool, ABC):
+@register_tool("pyficonnect")
+class PyfiConnectTool(Tool, ABC):
     def __init__(self,
-                 base_dir: Path,  # pyfyconnect module base, not project base
+                 base_dir: Path,  # pyficonnect module base, not project base
                  config_file: Optional[str] = None,
                  interfaces: Optional[Any] = None,
                  presets: Optional[Dict[str, Any]] = None,
                  ui_instance: Optional[Any] = None) -> None:
         super().__init__(
-            name="pyfyconnect",
+            name="pyficonnect",
             description="Tool for connecting to a network using wpa_supplicant",
             base_dir=base_dir,
             config_file=config_file,
@@ -41,7 +41,7 @@ class PyfyConnectTool(Tool, ABC):
         self.selected_network = None  # SSID of the network
         self.network_password = None  # Password (if needed)
 
-        # pyfyconnect-specific database schema (tools/nmap/db.py)
+        # pyficonnect-specific database schema (tools/pyficonnect/db.py)
         conn = get_db_connection(BASE_DIR)
         init_pyfyconnect_schema(conn)
         conn.close()
