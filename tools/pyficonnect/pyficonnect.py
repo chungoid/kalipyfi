@@ -76,101 +76,78 @@ class PyfiConnectTool(Tool, ABC):
 
     def run(self, profile=None) -> None:
         """
-        Connect to the network using wpa_supplicant.
+        Connect to the network using nmcli.
 
         Steps:
-         1. Generate a temporary wpa_supplicant configuration using wpa_passphrase.
-         2. Write the configuration to a temporary file.
-         3. Launch wpa_supplicant in the background on the selected interface.
-         4. Wait until the interface is fully associated.
-         5. Run a DHCP client (dhclient) to obtain an IP address.
-         6. Clean up the temporary config file.
+          1. Use nmcli to connect to the WiFi network on the selected interface.
+          2. After a successful connection, remove the saved connection profile
+             to avoid persisting it.
         """
         if not self.selected_interface or not self.selected_network:
             self.logger.error("Interface or network not specified!")
             return
 
-        # generate wpa_supplicant configuration
-        config_text = self.build_wpa_config()
-        if config_text is None:
-            self.logger.error("Failed to generate wpa_supplicant configuration.")
-            return
-
-        # write the config to a temporary file
+        # connect using nmcli
         try:
-            with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmpfile:
-                tmpfile.write(config_text)
-                tmpfile_path = tmpfile.name
-            self.logger.debug(f"Temporary wpa_supplicant config written to {tmpfile_path}")
+            nmcli_cmd = [
+                "nmcli", "device", "wifi", "connect",
+                self.selected_network,
+                "password", self.network_password,
+                "ifname", self.selected_interface
+            ]
+            self.logger.debug("Running nmcli command: " + " ".join(nmcli_cmd))
+            subprocess.check_call(nmcli_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.logger.info(f"Connected to {self.selected_network} on {self.selected_interface} using nmcli")
         except Exception as e:
-            self.logger.error(f"Error writing temporary config file: {e}")
+            self.logger.error(f"Error connecting using nmcli: {e}")
             return
 
-        # launch wpa_supplicant in the background
-        ws_cmd = ["wpa_supplicant", "-B", "-i", self.selected_interface, "-c", tmpfile_path]
+        # remove the saved connection profile to avoid persistence
         try:
-            subprocess.check_call(ws_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.logger.info(f"wpa_supplicant launched on {self.selected_interface}")
+            # get list of active connections in a terse format (NAME:DEVICE)
+            active_output = subprocess.check_output(
+                ["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"],
+                text=True
+            )
+            self.logger.debug(f"Active connections: {active_output.strip()}")
+            connection_name = None
+            # find the connection profile corresponding to the selected interface
+            for line in active_output.strip().splitlines():
+                parts = line.split(":")
+                if len(parts) >= 2:
+                    name, device = parts[0], parts[1]
+                    if device == self.selected_interface:
+                        connection_name = name
+                        break
+            if connection_name:
+                self.logger.debug(f"Deleting connection profile '{connection_name}' on {self.selected_interface}")
+                subprocess.check_call(
+                    ["nmcli", "connection", "delete", connection_name],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+            else:
+                self.logger.warning("No active connection profile found to delete.")
         except Exception as e:
-            self.logger.error(f"Error launching wpa_supplicant: {e}")
-            os.unlink(tmpfile_path)
+            self.logger.error(f"Error deleting connection profile: {e}")
             return
-
-        # wait until the interface is associated
-        if not self.wait_for_association(self.selected_interface, timeout=30):
-            self.logger.error("Association did not complete in time; aborting dhclient run.")
-            os.unlink(tmpfile_path)
-            return
-
-        # obtain an IP address using dhclient
-        try:
-            subprocess.check_call(["dhclient", self.selected_interface],
-                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.logger.info("dhclient ran successfully; IP address obtained.")
-        except Exception as e:
-            self.logger.error(f"Error running dhclient: {e}")
-            os.unlink(tmpfile_path)
-            return
-
-        # clean up temporary config file
-        try:
-            os.unlink(tmpfile_path)
-            self.logger.debug("Temporary wpa_supplicant config file removed.")
-        except Exception as e:
-            self.logger.error(f"Error removing temporary config file: {e}")
-
-        self.logger.info("Connected to network using wpa_supplicant.")
 
     def disconnect(self) -> None:
         """
-        Disconnects the network on the selected interface by:
-          1. Releasing the DHCP lease.
-          2. Killing any wpa_supplicant process running on that interface.
+        Disconnects from the network using nmcli.
+
+        Uses nmcli to disconnect the selected interface from any network.
         """
         if not self.selected_interface:
             self.logger.error("No interface selected for disconnecting!")
             return
 
-        iface = self.selected_interface
-
-        # release dhcp lease
         try:
-            subprocess.check_call(
-                ["dhclient", "-r", iface],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            self.logger.info(f"Released DHCP lease on {iface}.")
+            disconnect_cmd = ["nmcli", "device", "disconnect", self.selected_interface]
+            self.logger.debug("Running nmcli disconnect command: " + " ".join(disconnect_cmd))
+            subprocess.check_call(disconnect_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.logger.info(f"Disconnected {self.selected_interface} using nmcli")
         except Exception as e:
-            self.logger.error(f"Error releasing DHCP lease on {iface}: {e}")
-
-        # kill wpa_supplicant for interface
-        try:
-            pkill_cmd = f"pkill -f 'wpa_supplicant.*-i {iface}'"
-            subprocess.check_call(pkill_cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.logger.info(f"Killed wpa_supplicant on {iface}.")
-        except Exception as e:
-            self.logger.error(f"Error killing wpa_supplicant on {iface}: {e}")
+            self.logger.error(f"Error disconnecting using nmcli: {e}")
 
     ##################################################
     ##### AUTO-SCAN IN BACKGROUND FOR DB MATCHES #####
@@ -239,26 +216,3 @@ class PyfiConnectTool(Tool, ABC):
         client = IPCClient()  # uses published sock file.. instancing is fine
         response = client.send(alert_data)
         self.logger.debug("Network found alert sent: %s, response: %s", alert_data, response)
-
-    ##########################
-    ##### HELPER METHODS #####
-    ##########################
-    def wait_for_association(self, interface: str, timeout: int = 30) -> bool:
-        """
-        Polls the wireless interface until it is fully associated with an access point.
-        Returns True if association is confirmed within the timeout, else False.
-        """
-        start_time = time.time()
-        self.logger.debug(f"Waiting for association on interface {interface} (timeout {timeout}s)...")
-        while time.time() - start_time < timeout:
-            try:
-                output = subprocess.check_output(["iw", "dev", interface, "link"], text=True)
-                self.logger.debug(f"Association check output: {output.strip()}")
-                if "Connected to" in output:
-                    self.logger.debug(f"Interface {interface} is now associated.")
-                    return True
-            except Exception as e:
-                self.logger.debug(f"Error checking association on {interface}: {e}")
-            time.sleep(1)
-        self.logger.debug(f"Timeout reached: Interface {interface} is not associated after {timeout} seconds.")
-        return False
