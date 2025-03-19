@@ -80,21 +80,22 @@ class PyfiConnectTool(Tool, ABC):
 
         Steps:
           1. Use nmcli to connect to the WiFi network on the selected interface.
-          2. After a successful connection, remove the saved connection profile
-             to avoid persisting it.
+          2. After a successful connection, disable autoconnect in the saved connection profile.
         """
         if not self.selected_interface or not self.selected_network:
             self.logger.error("Interface or network not specified!")
             return
 
-        # connect using nmcli
+        # Connect using nmcli
         try:
             nmcli_cmd = [
                 "nmcli", "device", "wifi", "connect",
-                self.selected_network,
-                "password", self.network_password,
+                f'"{self.selected_network}"',  # adding quotes if required by your environment
+                "password", f'"{self.network_password}"',
                 "ifname", self.selected_interface
             ]
+            # Alternatively, if you prefer building a full command string, you can do:
+            # nmcli_cmd = f'nmcli device wifi connect "{self.selected_network}" password "{self.network_password}" ifname {self.selected_interface}'
             self.logger.debug("Running nmcli command: " + " ".join(nmcli_cmd))
             subprocess.check_call(nmcli_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.logger.info(f"Connected to {self.selected_network} on {self.selected_interface} using nmcli")
@@ -102,16 +103,16 @@ class PyfiConnectTool(Tool, ABC):
             self.logger.error(f"Error connecting using nmcli: {e}")
             return
 
-        # remove the saved connection profile to avoid persistence
+        # Disable autoconnect in the saved connection profile instead of deleting it.
         try:
-            # get list of active connections in a terse format (NAME:DEVICE)
+            # Get the list of active connections in a terse format (NAME:DEVICE)
             active_output = subprocess.check_output(
                 ["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"],
                 text=True
             )
             self.logger.debug(f"Active connections: {active_output.strip()}")
             connection_name = None
-            # find the connection profile corresponding to the selected interface
+            # Find the connection profile corresponding to the selected interface.
             for line in active_output.strip().splitlines():
                 parts = line.split(":")
                 if len(parts) >= 2:
@@ -120,16 +121,19 @@ class PyfiConnectTool(Tool, ABC):
                         connection_name = name
                         break
             if connection_name:
-                self.logger.debug(f"Deleting connection profile '{connection_name}' on {self.selected_interface}")
+                self.logger.debug(
+                    f"Disabling autoconnect for connection profile '{connection_name}' on {self.selected_interface}")
                 subprocess.check_call(
-                    ["nmcli", "connection", "delete", connection_name],
+                    ["nmcli", "connection", "modify", connection_name, "connection.autoconnect", "no"],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                 )
             else:
-                self.logger.warning("No active connection profile found to delete.")
+                self.logger.warning("No active connection profile found to modify.")
         except Exception as e:
-            self.logger.error(f"Error deleting connection profile: {e}")
+            self.logger.error(f"Error modifying connection profile: {e}")
             return
+
+        self.logger.info("Connected to network using nmcli with autoconnect disabled.")
 
     def disconnect(self) -> None:
         """
