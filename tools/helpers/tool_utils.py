@@ -260,6 +260,52 @@ def parse_nmcli_ssid_bssid(output: str) -> list:
             results.append({"ssid": ssid, "bssid": bssid})
     return results
 
+def get_interface_mode(interface: str, logger: logging.Logger) -> str:
+    """
+    Returns the current mode for the given interface by parsing the output of:
+        iw dev <interface> info
+    Typically, the mode is indicated as "managed", "monitor", etc.
+    Returns an empty string if mode cannot be determined.
+    """
+    try:
+        output = subprocess.check_output(
+            ["iw", "dev", interface, "info"],
+            stderr=subprocess.DEVNULL,
+            text=True
+        )
+        # find mode
+        for line in output.splitlines():
+            line = line.strip()
+            if line.startswith("type"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    return parts[1].lower()
+    except Exception as e:
+        logger.error(f"Error getting mode for interface {interface}: {e}")
+    return ""
+
+def switch_interface_to_managed(interface: str, logger: logging.Logger) -> bool:
+    """
+    Attempts to switch the specified interface to managed mode.
+    The typical sequence is:
+      1. Bring the interface down.
+      2. Change its mode to managed.
+      3. Bring the interface up.
+    Returns True if successful, False otherwise.
+    """
+    try:
+        subprocess.check_call(["ip", "link", "set", interface, "down"],
+                              stderr=subprocess.DEVNULL)
+        subprocess.check_call(["iw", "dev", interface, "set", "type", "managed"],
+                              stderr=subprocess.DEVNULL)
+        subprocess.check_call(["ip", "link", "set", interface, "up"],
+                              stderr=subprocess.DEVNULL)
+        logger.info(f"Interface {interface} switched to managed mode.")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error switching interface {interface} to managed mode: {e}")
+    return False
+
 
 
 

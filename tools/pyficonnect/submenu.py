@@ -145,14 +145,19 @@ class PyfyConnectSubmenu(BaseSubmenu):
     def launch_connect_from_founds(self, parent_win) -> None:
         """
         Connect from Founds:
-          1. Select interface.
-          2. Scan for networks.
-          3. Retrieve found networks (SSID, key) from the database.
-          4. Filter scan results to those found in the DB.
-          5. Auto-fill SSID and password based on found records.
-          6. Launch the connection.
+          1. Reset values and select interface.
+          2. Check interface mode; if not managed, prompt to switch.
+          3. Scan for networks.
+          4. Retrieve found networks (SSID, key) from the database.
+          5. Filter scan results to those found in the DB.
+          6. Auto-fill SSID and password based on found records.
+          7. Launch the connection.
         Uses a nested loop to allow retry on failure.
         """
+        from tools.helpers.tool_utils import get_interface_mode, switch_interface_to_managed, get_wifi_networks, \
+            get_founds_ssid_and_key
+        from config.constants import BASE_DIR
+
         while True:
             self.reset_connection_values()
 
@@ -161,6 +166,34 @@ class PyfyConnectSubmenu(BaseSubmenu):
                 self.logger.debug("No interface selected; aborting connect-from-founds.")
                 return
             self.tool.selected_interface = selected_iface
+
+            # Check current interface mode.
+            current_mode = get_interface_mode(selected_iface, self.logger)
+            if current_mode != "managed":
+                parent_win.clear()
+                parent_win.addstr(0, 0, f"Interface {selected_iface} is in '{current_mode}' mode.")
+                parent_win.addstr(1, 0, "Press 1 to switch to managed mode, or 2 to cancel.")
+                parent_win.refresh()
+                key = parent_win.getch()
+                try:
+                    if chr(key) == "1":
+                        if switch_interface_to_managed(selected_iface, self.logger):
+                            parent_win.clear()
+                            parent_win.addstr(0, 0,
+                                              f"Switched {selected_iface} to managed mode. Press any key to continue.")
+                            parent_win.refresh()
+                            parent_win.getch()
+                        else:
+                            parent_win.clear()
+                            parent_win.addstr(0, 0,
+                                              f"Failed to switch {selected_iface} to managed mode. Press any key to cancel.")
+                            parent_win.refresh()
+                            parent_win.getch()
+                            return
+                    else:
+                        return
+                except Exception:
+                    return
 
             parent_win.clear()
             parent_win.addstr(0, 0, f"Scanning for networks on {selected_iface}...")
@@ -179,7 +212,6 @@ class PyfyConnectSubmenu(BaseSubmenu):
             parent_win.addstr(0, 0, "Loading found networks from database...")
             parent_win.refresh()
 
-            from config.constants import BASE_DIR
             founds = get_founds_ssid_and_key(BASE_DIR)
             self.logger.debug(f"Raw founds (SSID, key): {founds}")
             if not founds:
