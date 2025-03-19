@@ -1,5 +1,7 @@
+import logging
 import sqlite3
 
+logger = logging.getLogger(__name__)
 
 def init_pyfyconnect_schema(conn: sqlite3.Connection) -> None:
     """
@@ -20,38 +22,31 @@ def init_pyfyconnect_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def sync_pyfyconnect_from_hcxtool(conn: sqlite3.Connection, hcxtool_db: str) -> None:
+def safe_sync_pyfyconnect_from_hcxtool(conn: sqlite3.Connection) -> None:
     """
-    Synchronizes entries from the hcxtool database into the pyficonnect table.
-    Only rows where both bssid and key are available are considered.
-    For each such row, only the bssid, ssid, and key columns are imported.
-    On conflict (same bssid and ssid), the key is updated.
+    Safely synchronizes entries from the hcxtool table into the pyficonnect table.
+    If the hcxtool table doesn't exist or no valid data is available, this function logs
+    the situation and exits gracefully.
+    """
+    try:
+        cursor = conn.cursor()
+        # check if the hcxtool table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='hcxtool'")
+        if not cursor.fetchone():
+            logger.info("hcxtool table does not exist. Skipping sync.")
+            return
 
-    :param conn: sqlite3.Connection to the pyficonnect database.
-    :param hcxtool_db: Path to the hcxtool database file.
-    """
-    # get bssid, ssid, key from hcxtool table
-    hcxtool_conn = sqlite3.connect(hcxtool_db)
-    hcxtool_conn.row_factory = sqlite3.Row
-    cur = hcxtool_conn.cursor()
-    query = """
-    SELECT bssid, ssid, key
-    FROM hcxtool
-    WHERE bssid IS NOT NULL AND key IS NOT NULL
-      AND bssid <> '' AND key <> ''
-    """
-    cur.execute(query)
-    rows = cur.fetchall()
-    hcxtool_conn.close()
-
-    # update otherwise insert (upsert)
-    upsert_query = """
-    INSERT INTO pyficonnect (bssid, ssid, key)
-    VALUES (?, ?, ?)
-    ON CONFLICT(bssid, ssid) DO UPDATE SET
-        key = excluded.key;
-    """
-    cur = conn.cursor()
-    for row in rows:
-        cur.execute(upsert_query, (row["bssid"], row["ssid"], row["key"]))
-    conn.commit()
+        # perform upsert sync
+        upsert_query = """
+        INSERT INTO pyficonnect (bssid, ssid, key)
+        SELECT bssid, ssid, key FROM hcxtool
+        WHERE bssid IS NOT NULL AND key IS NOT NULL
+          AND bssid <> '' AND key <> ''
+        ON CONFLICT(bssid, ssid) DO UPDATE SET
+            key = excluded.key;
+        """
+        conn.execute(upsert_query)
+        conn.commit()
+        logger.info("Successfully synchronized pyficonnect table from hcxtool table.")
+    except sqlite3.Error as e:
+        logger.error(f"Error during sync from hcxtool: {e}")

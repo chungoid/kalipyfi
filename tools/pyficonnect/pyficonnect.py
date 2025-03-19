@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 # locals
 from config.constants import BASE_DIR
 from database.db_manager import get_db_connection
-from tools.pyficonnect.db import init_pyfyconnect_schema
+from tools.pyficonnect.db import init_pyfyconnect_schema, safe_sync_pyfyconnect_from_hcxtool
 from tools.pyficonnect.submenu import PyfyConnectSubmenu
 from tools.tools import Tool
 from utils.ipc_client import IPCClient
@@ -35,7 +35,7 @@ class PyfiConnectTool(Tool, ABC):
         )
         self.logger = logging.getLogger(self.name.upper())
         self.submenu_instance = PyfyConnectSubmenu(self)
-        # These are set via the submenu
+        # submenu user selections
         self.selected_interface = None  # "wlan0, wlan1, etc. from config.yaml"
         self.selected_network = None  # SSID of the network
         self.network_password = None  # Password (if needed)
@@ -43,6 +43,7 @@ class PyfiConnectTool(Tool, ABC):
         # pyficonnect-specific database schema (tools/pyficonnect/db.py)
         conn = get_db_connection(BASE_DIR)
         init_pyfyconnect_schema(conn)
+        safe_sync_pyfyconnect_from_hcxtool(conn)
         conn.close()
 
         # auto-scanning for db match
