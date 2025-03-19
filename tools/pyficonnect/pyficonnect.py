@@ -88,16 +88,12 @@ class PyfiConnectTool(Tool, ABC):
 
         # Connect using nmcli
         try:
-            nmcli_cmd = [
-                "nmcli", "device", "wifi", "connect",
-                f'"{self.selected_network}"',  # adding quotes if required by your environment
-                "password", f'"{self.network_password}"',
-                "ifname", self.selected_interface
-            ]
-            # Alternatively, if you prefer building a full command string, you can do:
-            # nmcli_cmd = f'nmcli device wifi connect "{self.selected_network}" password "{self.network_password}" ifname {self.selected_interface}'
+            nmcli_cmd = (
+                f'nmcli device wifi connect "{self.selected_network}" '
+                f'password "{self.network_password}" ifname {self.selected_interface}'
+            )
             self.logger.debug("Running nmcli command: " + " ".join(nmcli_cmd))
-            subprocess.check_call(nmcli_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.check_call(nmcli_cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.logger.info(f"Connected to {self.selected_network} on {self.selected_interface} using nmcli")
         except Exception as e:
             self.logger.error(f"Error connecting using nmcli: {e}")
