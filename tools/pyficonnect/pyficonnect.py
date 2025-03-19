@@ -76,60 +76,69 @@ class PyfiConnectTool(Tool, ABC):
 
     def run(self, profile=None) -> None:
         """
-        Connect to the network using nmcli.
+        Connect to the network using nmcli with explicit connection profile creation.
 
         Steps:
-          1. Use nmcli to connect to the WiFi network on the selected interface.
-          2. After a successful connection, disable autoconnect in the saved connection profile.
+          1. Create a connection profile from self.selected_network and self.network_password.
+          2. Modify the profile to disable autoconnect.
+          3. Verify that the profile exists and autoconnect is disabled.
+          4. Bring up the connection using nmcli.
         """
         if not self.selected_interface or not self.selected_network:
             self.logger.error("Interface or network not specified!")
             return
 
-        # Connect using nmcli
+        # use ssid as profile name
+        con_name = self.selected_network
+
+        # create profile
         try:
-            nmcli_cmd = (
-                f'nmcli device wifi connect "{self.selected_network}" '
-                f'password "{self.network_password}" ifname {self.selected_interface}'
-            )
-            self.logger.debug("Running nmcli command: " + " ".join(nmcli_cmd))
-            subprocess.check_call(nmcli_cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.logger.info(f"Connected to {self.selected_network} on {self.selected_interface} using nmcli")
+            create_cmd = [
+                "nmcli", "connection", "add",
+                "type", "wifi",
+                "ifname", self.selected_interface,
+                "con-name", con_name,
+                "ssid", self.selected_network,
+                "autoconnect", "no"
+            ]
+            self.logger.debug("Creating connection profile with command: " + " ".join(create_cmd))
+            subprocess.check_call(create_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # modify profile properties
+            modify_cmd = [
+                "nmcli", "connection", "modify", con_name,
+                "wifi-sec.key-mgmt", "wpa-psk",
+                "wifi-sec.psk", self.network_password
+            ]
+            self.logger.debug("Modifying connection profile security with command: " + " ".join(modify_cmd))
+            subprocess.check_call(modify_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as e:
-            self.logger.error(f"Error connecting using nmcli: {e}")
+            self.logger.error(f"Error creating or modifying connection profile: {e}")
             return
 
-        # Disable autoconnect in the saved connection profile instead of deleting it.
+        # verify profile properties
         try:
-            # Get the list of active connections in a terse format (NAME:DEVICE)
-            active_output = subprocess.check_output(
-                ["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"],
-                text=True
-            )
-            self.logger.debug(f"Active connections: {active_output.strip()}")
-            connection_name = None
-            # Find the connection profile corresponding to the selected interface.
-            for line in active_output.strip().splitlines():
-                parts = line.split(":")
-                if len(parts) >= 2:
-                    name, device = parts[0], parts[1]
-                    if device == self.selected_interface:
-                        connection_name = name
-                        break
-            if connection_name:
-                self.logger.debug(
-                    f"Disabling autoconnect for connection profile '{connection_name}' on {self.selected_interface}")
-                subprocess.check_call(
-                    ["nmcli", "connection", "modify", connection_name, "connection.autoconnect", "no"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                )
-            else:
-                self.logger.warning("No active connection profile found to modify.")
+            verify_cmd = ["nmcli", "-g", "connection.autoconnect", "connection", "show", con_name]
+            self.logger.debug("Verifying autoconnect with command: " + " ".join(verify_cmd))
+            verify_output = subprocess.check_output(verify_cmd, text=True).strip()
+            self.logger.debug(f"Verification output: {verify_output}")
+            if verify_output != "no":
+                self.logger.error("Autoconnect is not disabled in the connection profile.")
+                return
         except Exception as e:
-            self.logger.error(f"Error modifying connection profile: {e}")
+            self.logger.error(f"Error verifying connection profile: {e}")
             return
 
-        self.logger.info("Connected to network using nmcli with autoconnect disabled.")
+        # activate the connection
+        try:
+            up_cmd = ["nmcli", "connection", "up", con_name]
+            self.logger.debug("Bringing up connection with command: " + " ".join(up_cmd))
+            subprocess.check_call(up_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.logger.info(
+                f"Connected to {self.selected_network} on {self.selected_interface} using profile '{con_name}'.")
+        except Exception as e:
+            self.logger.error(f"Error bringing up connection: {e}")
+            return
 
     def disconnect(self) -> None:
         """
