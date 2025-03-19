@@ -97,6 +97,15 @@ def format_scan_display(scan: dict) -> str:
 #######################################################
 ### OS/HARDWARE/NETWORK INFORMATION GATHERING UTILS ###
 #######################################################
+def wait_for_association(interface, timeout=30):
+    start = time.time()
+    while time.time() - start < timeout:
+        output = subprocess.check_output(["iw", "dev", interface, "link"], text=True)
+        if "Connected to" in output:
+            return True
+        time.sleep(1)
+    return False
+
 def get_all_connected_interfaces(logger: logging.Logger) -> List[str]:
     """
     Uses nmcli to retrieve a list of devices that are currently in the 'connected' state.

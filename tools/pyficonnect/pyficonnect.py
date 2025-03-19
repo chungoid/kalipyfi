@@ -82,8 +82,9 @@ class PyfiConnectTool(Tool, ABC):
          1. Generate a temporary wpa_supplicant configuration using wpa_passphrase.
          2. Write the configuration to a temporary file.
          3. Launch wpa_supplicant in the background on the selected interface.
-         4. Run a DHCP client (dhclient) to obtain an IP address.
-         5. Clean up the temporary config file.
+         4. Wait until the interface is fully associated.
+         5. Run a DHCP client (dhclient) to obtain an IP address.
+         6. Clean up the temporary config file.
         """
         if not self.selected_interface or not self.selected_network:
             self.logger.error("Interface or network not specified!")
@@ -95,7 +96,7 @@ class PyfiConnectTool(Tool, ABC):
             self.logger.error("Failed to generate wpa_supplicant configuration.")
             return
 
-        # write the config to temp file
+        # write the config to a temporary file
         try:
             with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmpfile:
                 tmpfile.write(config_text)
@@ -115,6 +116,12 @@ class PyfiConnectTool(Tool, ABC):
             os.unlink(tmpfile_path)
             return
 
+        # wait until the interface is associated
+        if not self.wait_for_association(self.selected_interface, timeout=30):
+            self.logger.error("Association did not complete in time; aborting dhclient run.")
+            os.unlink(tmpfile_path)
+            return
+
         # obtain an IP address using dhclient
         try:
             subprocess.check_call(["dhclient", self.selected_interface],
@@ -125,7 +132,7 @@ class PyfiConnectTool(Tool, ABC):
             os.unlink(tmpfile_path)
             return
 
-        # clean up temp file
+        # clean up temporary config file
         try:
             os.unlink(tmpfile_path)
             self.logger.debug("Temporary wpa_supplicant config file removed.")
@@ -182,6 +189,7 @@ class PyfiConnectTool(Tool, ABC):
         founds = get_founds_bssid_ssid_and_key(self.base_dir)
         self.db_networks = {}
         for bssid, ssid, key in founds:
+            self.logger.debug(f"database networks: {bssid}, {ssid}, {key}")
             self.db_networks[ssid] = {"bssid": bssid, "key": key}
 
     def start_background_scan(self):
@@ -202,6 +210,7 @@ class PyfiConnectTool(Tool, ABC):
                         "bssid": net.get("bssid"),
                         "key": self.db_networks[ssid].get("key")
                     }
+                    self.logger.debug(f"background scan alert_data: {alert_data}")
                     self.send_network_found_alert(alert_data)
             time.sleep(10)  # check every 10 seconds
 
@@ -217,6 +226,7 @@ class PyfiConnectTool(Tool, ABC):
                 text=True
             )
             from tools.helpers.tool_utils import parse_nmcli_ssid_bssid
+            self.logger.debug(f"background scan result: {output}")
             return parse_nmcli_ssid_bssid(output)
         except Exception as e:
             self.logger.error("Background scan error: %s", e)
@@ -230,3 +240,25 @@ class PyfiConnectTool(Tool, ABC):
         response = client.send(alert_data)
         self.logger.debug("Network found alert sent: %s, response: %s", alert_data, response)
 
+    ##########################
+    ##### HELPER METHODS #####
+    ##########################
+    def wait_for_association(self, interface: str, timeout: int = 30) -> bool:
+        """
+        Polls the wireless interface until it is fully associated with an access point.
+        Returns True if association is confirmed within the timeout, else False.
+        """
+        start_time = time.time()
+        self.logger.debug(f"Waiting for association on interface {interface} (timeout {timeout}s)...")
+        while time.time() - start_time < timeout:
+            try:
+                output = subprocess.check_output(["iw", "dev", interface, "link"], text=True)
+                self.logger.debug(f"Association check output: {output.strip()}")
+                if "Connected to" in output:
+                    self.logger.debug(f"Interface {interface} is now associated.")
+                    return True
+            except Exception as e:
+                self.logger.debug(f"Error checking association on {interface}: {e}")
+            time.sleep(1)
+        self.logger.debug(f"Timeout reached: Interface {interface} is not associated after {timeout} seconds.")
+        return False
