@@ -2,9 +2,9 @@ import curses
 import logging
 from typing import List, Tuple, Any
 
+# local
 from tools.submenu import BaseSubmenu
-from tools.helpers.sql_utils import get_founds_ssid_and_key
-from tools.helpers.tool_utils import get_all_connected_interfaces, get_wifi_networks
+
 
 class PyfyConnectSubmenu(BaseSubmenu):
     def __init__(self, tool_instance):
@@ -20,6 +20,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
         Scans for available networks using nmcli on the currently selected interface.
         Returns a list of tuples in the form (SSID, SECURITY).
         """
+        from tools.helpers.tool_utils import get_wifi_networks
         if not self.tool.selected_interface:
             self.logger.error("No interface selected for scanning networks.")
             return []
@@ -29,6 +30,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
         """
         Presents a paginated menu of currently connected interfaces.
         """
+        from tools.helpers.tool_utils import get_all_connected_interfaces
         while True:
             connected = get_all_connected_interfaces(self.logger)
             if not connected:
@@ -154,9 +156,8 @@ class PyfyConnectSubmenu(BaseSubmenu):
           7. Launch the connection.
         Uses a nested loop to allow retry on failure.
         """
-        from tools.helpers.tool_utils import get_interface_mode, switch_interface_to_managed, get_wifi_networks, \
-            get_founds_ssid_and_key
-        from config.constants import BASE_DIR
+        from tools.helpers.tool_utils import (get_interface_mode, switch_interface_to_managed,
+                                              get_wifi_networks)
 
         while True:
             self.reset_connection_values()
@@ -212,6 +213,8 @@ class PyfyConnectSubmenu(BaseSubmenu):
             parent_win.addstr(0, 0, "Loading found networks from database...")
             parent_win.refresh()
 
+            from config.constants import BASE_DIR
+            from tools.helpers.sql_utils import get_founds_ssid_and_key
             founds = get_founds_ssid_and_key(BASE_DIR)
             self.logger.debug(f"Raw founds (SSID, key): {founds}")
             if not founds:
