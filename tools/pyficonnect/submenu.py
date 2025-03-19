@@ -117,6 +117,9 @@ class PyfyConnectSubmenu(BaseSubmenu):
             self.tool.selected_interface = selected_iface
 
             # helper from tools/helpers/tool_utils.py to ensure managed
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Ensuring the {selected_iface} is in managed mode...")
+            parent_win.refresh()
             if not self.ensure_interface_managed(parent_win, selected_iface):
                 return
 
@@ -167,6 +170,9 @@ class PyfyConnectSubmenu(BaseSubmenu):
             self.tool.selected_interface = selected_iface
 
             # ensure the interface is in managed mode
+            parent_win.clear()
+            parent_win.addstr(0, 0, f"Ensuring the {selected_iface} is in managed mode...")
+            parent_win.refresh()
             if not self.ensure_interface_managed(parent_win, selected_iface):
                 return
 
