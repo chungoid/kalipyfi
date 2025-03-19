@@ -19,6 +19,7 @@ class BaseSubmenu:
         self.logger = logging.getLogger("BaseSubmenu")
         self.logger.debug("BaseSubmenu initialized.")
         self.debug_win = None
+        self.BACK_OPTION = "back"
 
     def create_debug_window(self, stdscr, height: int = 4) -> any:
         max_y, max_x = stdscr.getmaxyx()
@@ -84,7 +85,7 @@ class BaseSubmenu:
                 current_page -= 1
                 continue
             elif ch == '0':
-                return BACK_OPTION
+                return self.BACK_OPTION
             elif ch.isdigit():
                 selection = int(ch)
                 if 1 <= selection <= len(page_items):
@@ -115,7 +116,7 @@ class BaseSubmenu:
             selection = self.draw_paginated_menu(parent_win, "Select Interface", available)
             parent_win.erase()
             parent_win.refresh()
-            if selection == BACK_OPTION:
+            if selection == self.BACK_OPTION:
                 return None
             return selection
 
@@ -133,7 +134,7 @@ class BaseSubmenu:
                 parent_win.addstr(0, 0, "No presets available!")
                 parent_win.refresh()
                 parent_win.getch()
-                return BACK_OPTION
+                return self.BACK_OPTION
             try:
                 sorted_keys = sorted(presets.keys(), key=lambda k: int(k))
             except Exception:
@@ -141,8 +142,8 @@ class BaseSubmenu:
             preset_list = [(key, presets[key]) for key in sorted_keys]
             menu_items = [preset.get("description", "No description") for _, preset in preset_list]
             selection = self.draw_paginated_menu(parent_win, "Select Scan Preset", menu_items)
-            if selection == BACK_OPTION:
-                return BACK_OPTION
+            if selection == self.BACK_OPTION:
+                return self.BACK_OPTION
             for key, preset in preset_list:
                 if preset.get("description", "No description") == selection:
                     self.logger.debug("Selected preset: %s", preset)
@@ -172,7 +173,7 @@ class BaseSubmenu:
         self.tool.preset_description = None
         while True:
             selected_preset = self.select_preset(parent_win)
-            if selected_preset == BACK_OPTION:
+            if selected_preset == self.BACK_OPTION:
                 return
             self.tool.selected_preset = selected_preset
             self.tool.preset_description = selected_preset.get("description", "")
@@ -289,6 +290,29 @@ class BaseSubmenu:
         """
         return ["Setup Configs", "Open Results Webserver", "Kill Window"]
 
+    def process_setup_configs_menu(self, parent_win) -> None:
+        """
+        Presents a nested submenu for setup configurations.
+        This method displays the "Setup Configs" options in a loop
+        and calls the corresponding method for each selection.
+        """
+        config_options = ["Create Scan Profile", "Edit Scan Profile", "Edit Interfaces"]
+        while True:
+            parent_win.clear()
+            parent_win.refresh()
+            sub_selection = self.draw_paginated_menu(parent_win, "Setup Configs", config_options)
+            if sub_selection.lower() == self.BACK_OPTION:
+                # User selected 'back' so exit the nested submenu.
+                break
+            elif sub_selection == "Create Scan Profile":
+                self.create_preset_profile_menu(parent_win)
+            elif sub_selection == "Edit Scan Profile":
+                self.edit_preset_profile_menu(parent_win)
+            elif sub_selection == "Edit Interfaces":
+                self.edit_interfaces_menu(parent_win)
+            parent_win.clear()
+            parent_win.refresh()
+
     def utils_menu(self, parent_win) -> None:
         """
         Presents a generic utilities menu with nested loops so that screen contents
@@ -307,26 +331,10 @@ class BaseSubmenu:
             parent_win.clear()
             parent_win.refresh()
             selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
-            if selection.lower() == BACK_OPTION:
+            if selection.lower() == self.BACK_OPTION:
                 break
             elif selection == "Setup Configs":
-                # nest loop in 'Setup Configs' to avoid tiling
-                config_options = ["Create Scan Profile", "Edit Scan Profile", "Edit Interfaces"]
-                while True:
-                    parent_win.clear()
-                    parent_win.refresh()
-                    sub_selection = self.draw_paginated_menu(parent_win, "Setup Configs", config_options)
-                    if sub_selection.lower() == BACK_OPTION:
-                        # return to the main Utils menu
-                        break
-                    elif sub_selection == "Create Scan Profile":
-                        self.create_preset_profile_menu(parent_win)
-                    elif sub_selection == "Edit Scan Profile":
-                        self.edit_preset_profile_menu(parent_win)
-                    elif sub_selection == "Edit Interfaces":
-                        self.edit_interfaces_menu(parent_win)
-                    parent_win.clear()
-                    parent_win.refresh()
+                self.process_setup_configs_menu(parent_win)
             elif selection == "Open Results Webserver":
                 self.open_results_webserver(parent_win)
             elif selection == "Kill Window":
@@ -494,7 +502,7 @@ class BaseSubmenu:
             parent_win.clear()
             parent_win.refresh()
             selection = self.draw_paginated_menu(parent_win, "Edit Profile", menu_items)
-            if selection == BACK_OPTION:
+            if selection == self.BACK_OPTION:
                 return
             selected_key = None
             selected_preset = None
@@ -518,7 +526,7 @@ class BaseSubmenu:
                 option_items = [f"{k}: {v}" for k, v in options.items()]
                 option_items.append("Finish Editing")
                 sub_selection = self.draw_paginated_menu(parent_win, "Select Option to Edit", option_items)
-                if sub_selection == BACK_OPTION or sub_selection == "Finish Editing":
+                if sub_selection == self.BACK_OPTION or sub_selection == "Finish Editing":
                     break  # exit after editing
                 try:
                     key_to_edit = sub_selection.split(":", 1)[0].strip()
@@ -971,6 +979,17 @@ class BaseSubmenu:
         alert_win.clear()
         alert_win.refresh()
 
+    ##########################
+    ##### HELPER METHODS #####
+    ##########################
+    def reset_connection_values(self):
+        """
+        Resets the connection-related selections to ensure a fresh start.
+        """
+        self.tool.selected_interface = None
+        self.tool.selected_network = None
+        self.tool.network_password = None
+
     def __call__(self, stdscr) -> None:
         curses.curs_set(0)
         self.tool.selected_preset = None
@@ -998,9 +1017,6 @@ class BaseSubmenu:
         # unregister on exit
         self.tool.ui_instance.unregister_active_submenu()
 
-
-# Constant for "back" selection
-BACK_OPTION = "back"
 
 def display_debug_info(win, debug_lines: list) -> None:
     """

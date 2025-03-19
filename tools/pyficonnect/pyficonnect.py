@@ -1,6 +1,4 @@
-import tempfile
 import subprocess
-import os
 import logging
 import threading
 import time
@@ -8,6 +6,7 @@ from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+# locals
 from config.constants import BASE_DIR
 from database.db_manager import get_db_connection
 from tools.pyficonnect.db import init_pyfyconnect_schema
@@ -56,42 +55,40 @@ class PyfiConnectTool(Tool, ABC):
         """
         self.submenu_instance(stdscr)
 
-    def build_wpa_config(self) -> Optional[str]:
-        """
-        Uses wpa_passphrase to generate a wpa_supplicant configuration for the selected network.
-        Returns the configuration as a string, or None if an error occurs.
-        """
-        if not self.selected_network or self.network_password is None:
-            self.logger.error("Missing SSID or password for generating wpa_supplicant config.")
-            return None
-        cmd = ["wpa_passphrase", self.selected_network, self.network_password]
-        try:
-            # capture output
-            config = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
-            self.logger.debug("Generated wpa_supplicant config using wpa_passphrase.")
-            return config
-        except Exception as e:
-            self.logger.error(f"Error generating wpa_supplicant config: {e}")
-            return None
-
     def run(self, profile=None) -> None:
         """
-        Connect to the network using nmcli by creating a connection profile in one step.
+        Connect to the network using nmcli by creating or updating a connection profile.
+        The connection profile is named using the SSID and interface (e.g., 'HomeBase-5G_wlan1').
         This method:
-          1. Creates the profile with the SSID, password, and other settings, including:
+          1. Checks if a profile with the desired name already exists.
+             - If it exists, it can be updated or removed.
+          2. Creates the profile with the SSID, password, and other settings, including:
              - wifi-sec.key-mgmt set to wpa-psk
              - wifi-sec.psk set to the provided password
              - 802-11-wireless-security.psk-flags set to 0 (to store the password permanently)
              - autoconnect disabled
-          2. Activates the connection.
+          3. Activates the connection.
         """
         if not self.selected_interface or not self.selected_network:
             self.logger.error("Interface or network not specified!")
             return
 
-        con_name = self.selected_network
+        # e.g. ssid_wlan1
+        con_name = f"{self.selected_network}_{self.selected_interface}"
+
+        # if it exists delete it
+        if self.profile_exists(con_name):
+            try:
+                del_cmd = ["nmcli", "connection", "delete", con_name]
+                self.logger.debug("Profile exists. Deleting existing profile: " + " ".join(del_cmd))
+                subprocess.check_call(del_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.logger.info(f"Existing profile '{con_name}' deleted.")
+            except Exception as e:
+                self.logger.error(f"Error deleting existing profile '{con_name}': {e}")
+                return
+
         try:
-            # create the connection profile in one command
+            # create connection profile
             add_cmd = [
                 "nmcli", "connection", "add",
                 "type", "wifi",
@@ -111,7 +108,7 @@ class PyfiConnectTool(Tool, ABC):
             return
 
         try:
-            # activate the connection
+            # activate connection
             up_cmd = ["nmcli", "connection", "up", con_name]
             self.logger.debug("Running nmcli connection up command: " + " ".join(up_cmd))
             subprocess.check_call(up_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -138,6 +135,22 @@ class PyfiConnectTool(Tool, ABC):
             self.logger.info(f"Disconnected {self.selected_interface} using nmcli")
         except Exception as e:
             self.logger.error(f"Error disconnecting using nmcli: {e}")
+
+    def profile_exists(self, con_name: str) -> bool:
+        """
+        Check if a connection profile with the given name already exists.
+        """
+        try:
+            output = subprocess.check_output(
+                ["nmcli", "-g", "connection.id", "connection", "show"],
+                text=True
+            )
+            # split where a line is a profile name
+            existing_profiles = [line.strip() for line in output.splitlines() if line.strip()]
+            return con_name in existing_profiles
+        except Exception as e:
+            self.logger.error(f"Error checking if profile exists: {e}")
+            return False
 
     ##################################################
     ##### AUTO-SCAN IN BACKGROUND FOR DB MATCHES #####

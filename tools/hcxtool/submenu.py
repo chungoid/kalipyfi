@@ -184,27 +184,28 @@ class HcxToolSubmenu(BaseSubmenu):
             parent_win.refresh()
 
     def utils_menu(self, parent_win) -> None:
-        menu_options = ["WPA-sec", "Create Scan Profile", "Edit Scan Profile"]
+        menu_options = self.get_utils_menu_options()  # e.g., ["WPASEC", "Setup Configs", "Open Results Webserver", "Kill Window"]
         while True:
             parent_win.clear()
             parent_win.refresh()
             selection = self.draw_paginated_menu(parent_win, "Utils", menu_options)
-            if selection.lower() == "back":
+            if selection.lower() == self.BACK_OPTION:
                 break
-            elif selection == "WPA-sec":
-                parent_win.clear()
-                parent_win.refresh()
+            elif selection == "WPASEC":
                 self.wpasec_menu(parent_win)
-            elif selection == "Create Scan Profile":
-                parent_win.clear()
-                parent_win.refresh()
-                self.create_preset_profile_menu(parent_win)
-            elif selection == "Edit Scan Profile":
-                parent_win.clear()
-                parent_win.refresh()
-                self.edit_preset_profile_menu(parent_win)
+            elif selection == "Setup Configs":
+                # Instead of duplicating code, call the helper from BaseSubmenu
+                self.process_setup_configs_menu(parent_win)
+            elif selection == "Open Results Webserver":
+                self.open_results_webserver(parent_win)
+            elif selection == "Kill Window":
+                self.kill_background_window_menu(parent_win)
             parent_win.clear()
             parent_win.refresh()
+
+    def get_utils_menu_options(self) -> list:
+        base_options = super().get_utils_menu_options()
+        return ["WPASEC"] + base_options
 
     def __call__(self, stdscr) -> None:
         """
@@ -213,13 +214,11 @@ class HcxToolSubmenu(BaseSubmenu):
           - Launch Scan
           - View Scans
           - Utils
-          - (Plus the dynamic "Toggle Scrolling" option)
+          - Toggle Scrolling
           - Back
         """
         curses.curs_set(0)
-        self.tool.selected_interface = None
-        self.tool.selected_preset = None
-        self.tool.preset_description = None
+        self.reset_connection_values()
 
         h, w = stdscr.getmaxyx()
         submenu_win = curses.newwin(h, w, 0, 0)
@@ -240,6 +239,6 @@ class HcxToolSubmenu(BaseSubmenu):
                 self.view_scans(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
-            # Clear the window before re-displaying the main menu
+            # clear the window before re-displaying the main menu
             submenu_win.clear()
             submenu_win.refresh()
