@@ -5,10 +5,9 @@ import logging
 import subprocess
 from pathlib import Path
 
+# locals
 from config.constants import BASE_DIR
 from database.db_manager import get_db_connection
-from tools.hcxtool.db import insert_hcxtool_results
-
 
 def nmea_to_decimal(coord_str: str, direction: str) -> float:
     """
@@ -70,6 +69,7 @@ def parse_temp_csv(temp_csv_path: Path, master_output: str = "results.csv") -> P
     Returns:
         Path: The path to the master CSV file.
     """
+    from tools.helpers.tool_utils import normalize_mac
     results_dir = temp_csv_path.parent
     master_csv = results_dir / master_output
     new_rows = []
@@ -85,7 +85,7 @@ def parse_temp_csv(temp_csv_path: Path, master_output: str = "results.csv") -> P
 
             date = row[0]
             time_val = row[1]
-            bssid = row[2]
+            bssid = normalize_mac(row[2])
             ssid = row[3]
             encryption = row[4]
             raw_lat = row[10]
@@ -106,6 +106,7 @@ def parse_temp_csv(temp_csv_path: Path, master_output: str = "results.csv") -> P
 
             new_rows.append([date, time_val, bssid, ssid, encryption, latitude, longitude])
             # pass an empty string for 'key' ..add it later if user gets wpasec dl
+            from tools.hcxtool.db import insert_hcxtool_results
             insert_hcxtool_results(conn, date, time_val, bssid, ssid, encryption, latitude, longitude, "")
 
     conn.close()

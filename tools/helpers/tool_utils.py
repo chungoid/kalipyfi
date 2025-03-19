@@ -315,6 +315,20 @@ def switch_interface_to_managed(interface: str, logger: logging.Logger) -> bool:
         logger.error(f"Error switching interface {interface} to managed mode: {e}")
     return False
 
+def normalize_mac(mac: str) -> str:
+    """
+    Normalizes a MAC address to the format aa:bb:cc:dd:ee:ff.
+    Removes any non-alphanumeric characters, ensures lowercase, and then
+    reinserts colons every two characters if the MAC has exactly 12 hex digits.
+    """
+    if not mac:
+        return ""
+    mac = "".join(c for c in mac if c.isalnum()).lower()
+    if len(mac) == 12:
+        return ":".join(mac[i:i+2] for i in range(0, 12, 2))
+    return mac
+
+
 
 
 
