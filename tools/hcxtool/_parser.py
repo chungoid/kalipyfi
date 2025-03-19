@@ -8,6 +8,8 @@ from pathlib import Path
 # locals
 from config.constants import BASE_DIR
 from database.db_manager import get_db_connection
+from tools.helpers.tool_utils import normalize_mac
+
 
 def nmea_to_decimal(coord_str: str, direction: str) -> float:
     """
@@ -69,7 +71,6 @@ def parse_temp_csv(temp_csv_path: Path, master_output: str = "results.csv") -> P
     Returns:
         Path: The path to the master CSV file.
     """
-    from tools.helpers.tool_utils import normalize_mac
     results_dir = temp_csv_path.parent
     master_csv = results_dir / master_output
     new_rows = []
@@ -141,7 +142,7 @@ def read_founds(founds_txt: Path) -> dict:
                 raw_bssid = parts[0]
                 raw_ssid = parts[2]
                 key_val = parts[3]
-                bssid = raw_bssid.replace(";", "").replace(":", "").strip().lower()
+                bssid = normalize_mac(raw_bssid)
                 ssid = raw_ssid.strip().lower()
                 founds_map[(bssid, ssid)] = key_val
         logging.debug(f"Constructed founds_map with {len(founds_map)} entries.")
@@ -166,7 +167,7 @@ def read_master_csv(master_csv: Path) -> (dict, list):
                     continue
                 if len(row) < len(header):
                     row += [""] * (len(header) - len(row))
-                csv_bssid = row[2].replace(";", "").replace(":", "").strip().lower()
+                csv_bssid = normalize_mac(row[2])
                 csv_ssid = row[3].strip().lower()
                 data[(csv_bssid, csv_ssid)] = row
     except Exception as e:
