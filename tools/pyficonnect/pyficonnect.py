@@ -158,42 +158,46 @@ class PyfiConnectTool(Tool, ABC):
     ##################################################
     def load_db_networks(self):
         """
-        Loads all rows from the hcxtool table into a dictionary.
-        The resulting dictionary maps each SSID to its bssid and key.
+        Loads all rows from the hcxtool table into a dictionary keyed by BSSID.
+        The resulting dictionary maps each normalized BSSID to its SSID and key.
         Example:
            {
-             "MyHomeWiFi": {"bssid": "AA:BB:CC:DD:EE:FF", "key": "pass123"},
-             "OfficeWiFi": {"bssid": "11:22:33:44:55:66", "key": "secret"}
+             "AA:BB:CC:DD:EE:FF": {"ssid": "MyHomeWiFi", "key": "pass123"},
+             "11:22:33:44:55:66": {"ssid": "OfficeWiFi", "key": "secret"}
            }
         """
         from tools.helpers.sql_utils import get_founds_bssid_ssid_and_key
+        from tools.helpers.tool_utils import normalize_mac
         founds = get_founds_bssid_ssid_and_key(self.base_dir)
         self.db_networks = {}
         for bssid, ssid, key in founds:
-            self.logger.debug(f"database networks: {bssid}, {ssid}, {key}")
-            self.db_networks[ssid] = {"bssid": bssid, "key": key}
-
-    def start_background_scan(self):
-        self.scanner_running = True
-        threading.Thread(target=self.background_scan_loop, daemon=True).start()
+            norm_bssid = normalize_mac(bssid)  # this returns uppercase if updated as discussed
+            self.logger.debug(f"Database network: {norm_bssid}, {ssid}, {key}")
+            self.db_networks[norm_bssid] = {"ssid": ssid, "key": key}
 
     def background_scan_loop(self):
         while self.scanner_running:
             available_networks = self.scan_networks_cli(self.selected_interface)
-            # compare available to db
+            # compare available networks to db entries based on BSSID only
+            from tools.helpers.tool_utils import normalize_mac  # ensure consistent formatting
             for net in available_networks:
-                ssid = net.get("ssid")
-                if ssid in self.db_networks:
+                cli_bssid = net.get("bssid")
+                norm_cli_bssid = normalize_mac(cli_bssid)
+                if norm_cli_bssid in self.db_networks:
                     alert_data = {
                         "action": "NETWORK_FOUND",
                         "tool": self.name,
-                        "ssid": ssid,
-                        "bssid": net.get("bssid"),
-                        "key": self.db_networks[ssid].get("key")
+                        "ssid": self.db_networks[norm_cli_bssid]["ssid"],
+                        "bssid": norm_cli_bssid,
+                        "key": self.db_networks[norm_cli_bssid].get("key")
                     }
-                    self.logger.debug(f"background scan alert_data: {alert_data}")
+                    self.logger.debug(f"Background scan alert data: {alert_data}")
                     self.send_network_found_alert(alert_data)
             time.sleep(10)  # check every 10 seconds
+
+    def start_background_scan(self):
+        self.scanner_running = True
+        threading.Thread(target=self.background_scan_loop, daemon=True).start()
 
     def scan_networks_cli(self, interface):
         """

@@ -15,12 +15,11 @@ def init_pyfyconnect_schema(conn: sqlite3.Connection) -> None:
         ssid TEXT,
         key TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(bssid, ssid)
+        UNIQUE(bssid)
     );
     """
     conn.execute(query)
     conn.commit()
-
 
 def safe_sync_pyfyconnect_from_hcxtool(conn: sqlite3.Connection) -> None:
     """
