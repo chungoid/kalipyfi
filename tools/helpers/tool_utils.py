@@ -323,7 +323,7 @@ def normalize_mac(mac: str) -> str:
     """
     if not mac:
         return ""
-    mac = "".join(c for c in mac if c.isalnum()).lower()
+    mac = "".join(c for c in mac if c.isalnum()).upper()
     if len(mac) == 12:
         return ":".join(mac[i:i+2] for i in range(0, 12, 2))
     return mac
