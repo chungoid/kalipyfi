@@ -142,7 +142,7 @@ class PyfiConnectTool(Tool, ABC):
         """
         try:
             output = subprocess.check_output(
-                ["nmcli", "-g", "connection.id", "connection", "show"],
+                ["nmcli", "-g", "NAME", "connection", "show"],
                 text=True
             )
             # split where a line is a profile name
