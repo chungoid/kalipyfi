@@ -94,14 +94,17 @@ class PyfyConnectSubmenu(BaseSubmenu):
     def launch_connect(self, parent_win) -> None:
         """
         Standard connection process:
-          1. Select interface.
-          2. Scan for networks.
-          3. Prompt for password if needed.
-          4. Launch connection via self.tool.run().
+          1. Reset selections.
+          2. Select interface.
+          3. Check interface mode; if not managed, prompt to switch.
+          4. Scan for networks.
+          5. Prompt for password if needed.
+          6. Launch connection via self.tool.run().
         Uses a nested loop so that if an error occurs, the user can retry.
         """
+        from tools.helpers.tool_utils import get_interface_mode, switch_interface_to_managed, get_wifi_networks
         while True:
-            # reset previous selections
+            # Reset previous selections
             self.tool.selected_interface = None
             self.tool.selected_network = None
             self.tool.network_password = None
@@ -112,6 +115,35 @@ class PyfyConnectSubmenu(BaseSubmenu):
                 return
             self.tool.selected_interface = selected_iface
 
+            # Check current interface mode.
+            current_mode = get_interface_mode(selected_iface, self.logger)
+            if current_mode != "managed":
+                parent_win.clear()
+                parent_win.addstr(0, 0, f"Interface {selected_iface} is in '{current_mode}' mode.")
+                parent_win.addstr(1, 0, "Press 1 to switch to managed mode, or 2 to cancel.")
+                parent_win.refresh()
+                key = parent_win.getch()
+                try:
+                    if chr(key) == "1":
+                        if switch_interface_to_managed(selected_iface, self.logger):
+                            parent_win.clear()
+                            parent_win.addstr(0, 0,
+                                              f"Switched {selected_iface} to managed mode. Press any key to continue.")
+                            parent_win.refresh()
+                            parent_win.getch()
+                        else:
+                            parent_win.clear()
+                            parent_win.addstr(0, 0,
+                                              f"Failed to switch {selected_iface} to managed mode. Press any key to cancel.")
+                            parent_win.refresh()
+                            parent_win.getch()
+                            return
+                    else:
+                        return
+                except Exception:
+                    return
+
+            # proceed with network selection
             chosen_ssid, chosen_security = self.select_network(parent_win)
             if not chosen_ssid:
                 self.logger.debug("No network selected; aborting connection.")
@@ -131,7 +163,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
             curses.napms(1500)
             try:
                 self.tool.run()
-                break  # successful connection, exit loop
+                break  # Successful connection; exit loop.
             except Exception as e:
                 parent_win.clear()
                 parent_win.addstr(0, 0, f"Error launching connection: {e}")
