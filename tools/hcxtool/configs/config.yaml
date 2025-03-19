@@ -5,7 +5,7 @@ interfaces:
     name: wlan0
 presets:
   1:
-    description: lead
+    description: gps lead
     options:
       --gpsd: true
       -A: true

@@ -95,9 +95,10 @@ class BaseSubmenu:
     ##### MAIN MENU OPTIONS #####
     #############################
     def select_interface(self, parent_win) -> Union[str, None]:
+        from tools.helpers.tool_utils import (get_available_wireless_interfaces,
+                                              get_available_ethernet_interfaces)
         while True:
-            from tools.helpers.tool_utils import get_all_connected_interfaces
-            connected = get_all_connected_interfaces(self.logger)
+            connected = get_available_wireless_interfaces(self.logger)
             # get config.yaml interfaces
             interfaces = self.tool.interfaces.get("wlan", [])
             # filter found interfaces and display only connected
@@ -972,6 +973,7 @@ class BaseSubmenu:
         self.tool.selected_preset = None
         self.tool.preset_description = None
         self.tool.ui_instance.register_active_submenu(self)
+        self.tool.reload_config(self)
         h, w = stdscr.getmaxyx()
         submenu_win = curses.newwin(h, w, 0, 0)
         submenu_win.keypad(True)
