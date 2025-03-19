@@ -35,13 +35,14 @@ def safe_sync_pyfyconnect_from_hcxtool(conn: sqlite3.Connection) -> None:
             logger.info("hcxtool table does not exist. Skipping sync.")
             return
 
-        # perform upsert sync
+        # perform upsert sync based solely on bssid
         upsert_query = """
         INSERT INTO pyficonnect (bssid, ssid, key)
         SELECT bssid, ssid, key FROM hcxtool
         WHERE bssid IS NOT NULL AND key IS NOT NULL
           AND bssid <> '' AND key <> ''
-        ON CONFLICT(bssid, ssid) DO UPDATE SET
+        ON CONFLICT(bssid) DO UPDATE SET
+            ssid = excluded.ssid,
             key = excluded.key;
         """
         conn.execute(upsert_query)
@@ -49,3 +50,4 @@ def safe_sync_pyfyconnect_from_hcxtool(conn: sqlite3.Connection) -> None:
         logger.info("Successfully synchronized pyficonnect table from hcxtool table.")
     except sqlite3.Error as e:
         logger.error(f"Error during sync from hcxtool: {e}")
+
