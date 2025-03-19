@@ -1,7 +1,6 @@
 # tools/nmap/submenu.py
 import curses
 import logging
-import json
 from pathlib import Path
 from typing import Optional
 
@@ -9,7 +8,6 @@ from typing import Optional
 from tools.submenu import BaseSubmenu
 from tools.helpers.tool_utils import get_network_from_interface
 from database.db_manager import get_db_connection
-from config.constants import BASE_DIR
 
 
 class NmapSubmenu(BaseSubmenu):

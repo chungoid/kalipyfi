@@ -95,26 +95,29 @@ class BaseSubmenu:
     ##### MAIN MENU OPTIONS #####
     #############################
     def select_interface(self, parent_win) -> Union[str, None]:
-        from tools.helpers.tool_utils import (get_available_wireless_interfaces,
-                                              get_available_ethernet_interfaces)
+        from tools.helpers.tool_utils import get_available_wireless_interfaces
         while True:
             connected = get_available_wireless_interfaces(self.logger)
             # get config.yaml interfaces
             interfaces = self.tool.interfaces.get("wlan", [])
-            # filter found interfaces and display only connected
+            # filter found interfaces and display only connected ones
             available = [iface.get("name") for iface in interfaces if iface.get("name") in connected]
             if not available:
                 parent_win.clear()
-                parent_win.addstr(0, 0, f"No interfaces from {self.tool.config_file} found. \n"
-                                        f"\n Tip: Use Utils submenu from any tool menu to edit tool-specific configs.")
+                parent_win.addstr(0, 0,
+                                  f"No interfaces from {self.tool.config_file} found."
+                                  f"\n\nTip: Use the Utils submenu to edit tool-specific configs.")
                 parent_win.refresh()
                 parent_win.getch()
                 return None
+            parent_win.erase()
+            parent_win.refresh()
             selection = self.draw_paginated_menu(parent_win, "Select Interface", available)
+            parent_win.erase()
+            parent_win.refresh()
             if selection == BACK_OPTION:
                 return None
             return selection
-
 
     def select_preset(self, parent_win) -> Union[dict, str]:
         """
