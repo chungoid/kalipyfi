@@ -49,10 +49,20 @@ class BaseSubmenu:
     def draw_menu(self, parent_win, title: str, menu_items: List[str]) -> Any:
         parent_win.clear()
         h, w = parent_win.getmaxyx()
+
+        # define alert window size
+        alert_width = w // 3
+        # width and leave margin
+        available_width = w - alert_width - 1
+
         box_height = len(menu_items) + 4
-        box_width = max(len(title), *(len(item) for item in menu_items)) + 4
+        content_width = max(len(title), *(len(item) for item in menu_items))
+        box_width = min(content_width + 4, available_width)
+
+        # vertical centering
         start_y = (h - box_height) // 2
-        start_x = (w - box_width) // 2
+        start_x = alert_width + 1  # starting right after the alert window
+
         menu_win = curses.newwin(box_height, box_width, start_y, start_x)
         menu_win.keypad(True)
         menu_win.box()
@@ -117,7 +127,9 @@ class BaseSubmenu:
         alert_height = h
         alert_width = w // 3  # use one-third of the width
         self.alert_win = curses.newwin(alert_height, alert_width, 0, 0)
+        self.alert_win.box()  # draw the border by default
         self.alert_win.nodelay(True)
+        self.alert_win.refresh()
 
     def add_alert(self, alert_msg: str, duration: float = 3):
         """
