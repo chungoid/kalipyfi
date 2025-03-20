@@ -22,6 +22,7 @@ class BaseSubmenu:
         self.logger.debug("BaseSubmenu initialized.")
         self.tool.ui_instance.register_active_submenu(self)
         self.alert_queue = []
+        self.alert_win = None
         self.alert_popups_enabled = True
         self.debug_win = None
         self.BACK_OPTION = "back"
@@ -105,6 +106,16 @@ class BaseSubmenu:
         state = "enabled" if self.alert_popups_enabled else "disabled"
         self.logger.info(f"Alert popups have been {state}.")
         return state
+
+    def setup_alert_window(self, stdscr):
+        """
+        Create a persistent alert window using the main stdscr.
+        This should be called from __call__ when curses is properly initialized.
+        """
+        h, w = stdscr.getmaxyx()
+        alert_height = 3
+        self.alert_win = curses.newwin(alert_height, w, 0, 0)
+        self.alert_win.nodelay(True)
 
     def add_alert(self, alert_msg: str, duration: float = 3):
         """
@@ -1066,6 +1077,7 @@ class BaseSubmenu:
         self.tool.preset_description = None
         self.tool.reload_config(self)
         self.stdscr = stdscr
+        self.setup_alert_window(stdscr)
         h, w = stdscr.getmaxyx()
         submenu_win = curses.newwin(h, w, 0, 0)
         submenu_win.keypad(True)
@@ -1083,6 +1095,7 @@ class BaseSubmenu:
                 self.utils_menu(submenu_win)
             submenu_win.clear()
             submenu_win.refresh()
+            self.refresh_alert_area()
         self.tool.ui_instance.unregister_active_submenu()
         self.logger.debug("Active submenu unregistered in __call__ exit.")
 

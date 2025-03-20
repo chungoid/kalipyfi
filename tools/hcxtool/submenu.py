@@ -219,6 +219,7 @@ class HcxToolSubmenu(BaseSubmenu):
         """
         curses.curs_set(0)
         self.stdscr = stdscr
+        self.setup_alert_window(stdscr)
         self.reset_connection_values()
 
         h, w = stdscr.getmaxyx()

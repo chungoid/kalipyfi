@@ -412,7 +412,8 @@ class PyfyConnectSubmenu(BaseSubmenu):
         A label is dynamically inserted to show the background scan state.
         """
         curses.curs_set(0)
-        self.stdscr = stdscr  # Save the curses stdscr for popup functions
+        self.stdscr = stdscr
+        self.setup_alert_window(stdscr)
         self.reset_connection_values()
 
         h, w = stdscr.getmaxyx()

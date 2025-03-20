@@ -391,6 +391,7 @@ class NmapSubmenu(BaseSubmenu):
         """
         curses.curs_set(0)
         self.stdscr = stdscr
+        self.setup_alert_window(stdscr)
         # Reset state variables and reload configuration.
         self.tool.selected_network = None
         self.tool.selected_target_host = None
