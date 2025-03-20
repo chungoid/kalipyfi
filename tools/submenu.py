@@ -115,7 +115,7 @@ class BaseSubmenu:
         """
         h, w = stdscr.getmaxyx()
         alert_height = h
-        alert_width = w // 4  # use one-third of the width
+        alert_width = w // 3.3  # use one-third of the width
         self.alert_win = curses.newwin(alert_height, alert_width, 0, 0)
         self.alert_win.nodelay(True)
 
