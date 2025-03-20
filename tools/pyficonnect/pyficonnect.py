@@ -158,23 +158,14 @@ class PyfiConnectTool(Tool, ABC):
     ##################################################
     def load_db_networks(self):
         """
-        Loads all rows from the hcxtool table into a dictionary keyed by BSSID.
-        The resulting dictionary maps each normalized BSSID to its SSID and key.
-        Example:
-           {
-             "AA:BB:CC:DD:EE:FF": {"ssid": "MyHomeWiFi", "key": "pass123"},
-             "11:22:33:44:55:66": {"ssid": "OfficeWiFi", "key": "secret"}
-           }
+        Loads all rows from the pyficonnect table into a dictionary keyed by normalized BSSID.
         """
-        from tools.helpers.sql_utils import get_founds_bssid_ssid_and_key
-        from tools.helpers.tool_utils import normalize_mac
-        founds = get_founds_bssid_ssid_and_key(self.base_dir)
-        self.db_networks = {}
-        for bssid, ssid, key in founds:
-            norm_bssid = normalize_mac(bssid)
-            self.logger.debug(f"Database network loaded: {norm_bssid}, SSID: {ssid}, Key: {key}")
-            self.db_networks[norm_bssid] = {"ssid": ssid, "key": key}
-        self.logger.debug(f"Complete DB networks keys: {list(self.db_networks.keys())}")
+        from tools.pyficonnect._parser import (
+            get_pyficonnect_networks_from_db, format_pyficonnect_networks)
+
+        rows = get_pyficonnect_networks_from_db(BASE_DIR)
+        self.db_networks = format_pyficonnect_networks(rows)
+        self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     def background_scan_loop(self):
         while self.scanner_running:
