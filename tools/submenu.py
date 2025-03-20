@@ -157,9 +157,9 @@ class BaseSubmenu:
         """
         # build msg
         if 'ssid' in alert_data:
-            alert_msg = f"ALERT: {alert_data.get('ssid')}"
+            alert_msg = f"{alert_data.get('ssid')}"
         elif 'message' in alert_data:
-            alert_msg = f"ALERT: {alert_data.get('message')}"
+            alert_msg = f"{alert_data.get('message')}"
         else:
             alert_msg = "ALERT: Notification received."
 
