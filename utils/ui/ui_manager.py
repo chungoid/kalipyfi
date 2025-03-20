@@ -352,25 +352,19 @@ class UIManager:
     ############################
 
     def register_active_submenu(self, submenu_instance):
-        """Call this when a submenu becomes active."""
         self.active_submenu = submenu_instance
-        self.logger.debug("Active submenu registered.")
+        self.logger.debug(f"UIManager: Registered active submenu: {submenu_instance}")
 
     def unregister_active_submenu(self):
-        """Call this when the submenu is no longer active."""
+        self.logger.debug("UIManager: Unregistering active submenu.")
         self.active_submenu = None
-        self.logger.debug("Active submenu unregistered.")
 
     def display_network_found_alert(self, alert_data: dict):
-        """
-        Forwards the network found alert to the active curses submenu if one is registered.
-        If the active submenu has a display_alert_popup method, it will be used to show a modal alert.
-        """
-        if self.active_submenu and hasattr(self.active_submenu, "display_alert_popup"):
-            self.active_submenu.display_alert_popup(alert_data)
+        if self.active_submenu and hasattr(self.active_submenu, "display_alert"):
+            self.logger.debug(f"UIManager: Delegating alert to active submenu: {self.active_submenu}")
+            self.active_submenu.display_alert(alert_data)
         else:
-            # fallback: log the alert.
-            self.logger.info(f"Network found: SSID {alert_data.get('ssid')} on BSSID {alert_data.get('bssid')}")
+            self.logger.info(f"UIManager: No active submenu to display alert. Alert: {alert_data}")
 
     def swap_scan(self, tool_name: str, dedicated_pane_id: str, new_title: str) -> None:
         """

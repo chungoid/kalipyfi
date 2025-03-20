@@ -1040,6 +1040,7 @@ class BaseSubmenu:
         self.tool.selected_preset = None
         self.tool.preset_description = None
         self.tool.ui_instance.register_active_submenu(self)
+        self.logger.debug("Submenu __call__: Active submenu registered.")
         self.tool.reload_config(self)
         h, w = stdscr.getmaxyx()
         submenu_win = curses.newwin(h, w, 0, 0)
@@ -1048,7 +1049,7 @@ class BaseSubmenu:
         submenu_win.refresh()
         base_menu_items = ["Launch Scan", "Utils"]
         title = getattr(self.tool, "name", "Menu")
-        # loop so that after an action the main menu reappears
+
         while True:
             selection = self.show_main_menu(submenu_win, base_menu_items, title)
             if selection.lower() == "back":
@@ -1059,7 +1060,7 @@ class BaseSubmenu:
                 self.utils_menu(submenu_win)
             submenu_win.clear()
             submenu_win.refresh()
-        # unregister on exit
+        self.logger.debug("Submenu __call__: Unregistering active submenu.")
         self.tool.ui_instance.unregister_active_submenu()
 
 
