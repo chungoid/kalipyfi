@@ -75,7 +75,7 @@ class BaseSubmenu:
             page_items = menu_items[start_index:end_index]
             display_items = [f"[{i + 1}] {option}" for i, option in enumerate(page_items)]
             if total_pages > 1:
-                pagination_info = f"Page {current_page + 1}/{total_pages} (n: next, p: previous)"
+                pagination_info = f"Pg. {current_page + 1}/{total_pages} (n:ext, p:rev)"
                 display_items.append(pagination_info)
             display_items.append("[0] Back")
             menu_win = self.draw_menu(parent_win, title, display_items)
@@ -1008,10 +1008,10 @@ class BaseSubmenu:
             scrolling_state = False
             if state_response.get("status") == "COPY_MODE_STATE":
                 scrolling_state = state_response.get("copy_mode_enabled", False)
-            toggle_scrolling_label = f"Toggle Scrolling ({'on' if scrolling_state else 'off'})"
+            toggle_scrolling_label = f"Scrolling ({'on' if scrolling_state else 'off'})"
 
             # prepare label
-            toggle_alert_label = f"Toggle Alert Popups ({'on' if self.alert_popups_enabled else 'off'})"
+            toggle_alert_label = f"Alerts ({'on' if self.alert_popups_enabled else 'off'})"
 
             # build full menu
             full_menu = base_menu_items.copy()

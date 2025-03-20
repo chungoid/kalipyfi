@@ -426,8 +426,8 @@ class PyfyConnectSubmenu(BaseSubmenu):
             # menu list with scanner label on/off
             scan_state = "on" if self.tool.scanner_running else "off"
             base_menu = [
-                f"Scanning ({scan_state})",
-                "Manage Connections",
+                f"Scan ({scan_state})",
+                "Manage",
                 "Utils"
             ]
             selection = self.show_main_menu(submenu_win, base_menu, "PyfiConnect")
