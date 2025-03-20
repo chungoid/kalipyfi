@@ -18,6 +18,7 @@ class BaseSubmenu:
         self.tool = tool_instance
         self.logger = logging.getLogger("BaseSubmenu")
         self.logger.debug("BaseSubmenu initialized.")
+        self.tool.ui_instance.register_active_submenu(self)
         self.alert_popups_enabled = True
         self.debug_win = None
         self.BACK_OPTION = "back"
@@ -1039,7 +1040,6 @@ class BaseSubmenu:
         curses.curs_set(0)
         self.tool.selected_preset = None
         self.tool.preset_description = None
-        self.tool.ui_instance.register_active_submenu(self)
         self.logger.debug("Submenu __call__: Active submenu registered.")
         self.tool.reload_config(self)
         h, w = stdscr.getmaxyx()
@@ -1062,7 +1062,6 @@ class BaseSubmenu:
             submenu_win.refresh()
         self.logger.debug("Submenu __call__: Unregistering active submenu.")
         self.tool.ui_instance.unregister_active_submenu()
-
 
 def display_debug_info(win, debug_lines: list) -> None:
     """
