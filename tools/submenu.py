@@ -18,6 +18,7 @@ class BaseSubmenu:
         self.tool = tool_instance
         self.logger = logging.getLogger("BaseSubmenu")
         self.logger.debug("BaseSubmenu initialized.")
+        self.alert_popups_enabled = True
         self.debug_win = None
         self.BACK_OPTION = "back"
 
@@ -91,6 +92,26 @@ class BaseSubmenu:
                 if 1 <= selection <= len(page_items):
                     return page_items[selection - 1]
 
+    def toggle_alert_popups(self):
+        """
+        Toggles the state of alert popups.
+        """
+        self.alert_popups_enabled = not self.alert_popups_enabled
+        state = "enabled" if self.alert_popups_enabled else "disabled"
+        self.logger.info(f"Alert popups have been {state}.")
+        return state
+
+    def display_alert(self, alert_data: dict):
+        """
+        Displays an alert message. If alert popups are enabled, a modal popup is shown.
+        Otherwise, the alert is simply logged.
+        """
+        if self.alert_popups_enabled:
+            self.display_alert_popup(alert_data)
+        else:
+            # Fallback: log the alert (or optionally store it in a queue)
+            self.logger.info(
+                f"Alert (popup disabled): {alert_data.get('ssid', 'Unknown SSID')} on BSSID {alert_data.get('bssid', 'Unknown BSSID')}")
 
     #############################
     ##### MAIN MENU OPTIONS #####
@@ -923,13 +944,21 @@ class BaseSubmenu:
             scrolling_state = False
             if state_response.get("status") == "COPY_MODE_STATE":
                 scrolling_state = state_response.get("copy_mode_enabled", False)
-            toggle_label = f"Toggle Scrolling ({'on' if scrolling_state else 'off'})"
+            toggle_scrolling_label = f"Toggle Scrolling ({'on' if scrolling_state else 'off'})"
+
+            # prepare label
+            toggle_alert_label = f"Toggle Alert Popups ({'on' if self.alert_popups_enabled else 'off'})"
+
+            # build full menu
             full_menu = base_menu_items.copy()
             try:
                 utils_index = full_menu.index("Utils")
-                full_menu.insert(utils_index + 1, toggle_label)
+                full_menu.insert(utils_index + 1, toggle_scrolling_label)
+                full_menu.insert(utils_index + 2, toggle_alert_label)
             except ValueError:
-                full_menu.append(toggle_label)
+                full_menu.append(toggle_scrolling_label)
+                full_menu.append(toggle_alert_label)
+
             selection = self.draw_paginated_menu(submenu_win, title, full_menu)
             if selection.lower() == "back":
                 return "back"
@@ -949,18 +978,25 @@ class BaseSubmenu:
                     submenu_win.refresh()
                     curses.napms(1500)
                 continue
+            elif selection.startswith("Toggle Alert Popups"):
+                # toggle the alert popup state
+                new_state = self.toggle_alert_popups()  # change state
+                submenu_win.clear()
+                submenu_win.addstr(0, 0, f"Alert popups now {new_state}!")
+                submenu_win.refresh()
+                curses.napms(1500)
+                continue
             else:
                 return selection
 
     ##########################################
     ##### GLOBAL UI INSTANCE TOOL ALERTS #####
     ##########################################
-    def display_alert(self, alert_data: dict):
+    def display_alert_popup(self, alert_data: dict):
         """
-        Displays a generic alert message in a designated area of the curses window.
-        The alert_data dictionary can contain various keys (e.g., 'ssid', 'bssid', 'message').
-        This method builds the alert message accordingly.
+        Displays an alert as a modal popup that the user can dismiss.
         """
+        # Build the alert message.
         if 'ssid' in alert_data and 'bssid' in alert_data:
             alert_msg = f"ALERT: Found network '{alert_data.get('ssid')}' (BSSID: {alert_data.get('bssid')})."
         elif 'message' in alert_data:
@@ -968,16 +1004,25 @@ class BaseSubmenu:
         else:
             alert_msg = "ALERT: Unspecified notification received."
 
-        # display alert in bottom of current window
+        # Get the current screen dimensions.
         h, w = self.tool.ui_instance.session.attached_pane.window.getmaxyx()
-        alert_win = curses.newwin(3, w, h - 3, 0)
-        alert_win.clear()
-        alert_win.box()
-        alert_win.addstr(1, 2, alert_msg[:w - 4])
-        alert_win.refresh()
-        curses.napms(3000)
-        alert_win.clear()
-        alert_win.refresh()
+        # Set the popup dimensions.
+        popup_h = 5
+        popup_w = min(len(alert_msg) + 4, w - 4)
+        start_y = (h - popup_h) // 2
+        start_x = (w - popup_w) // 2
+
+        # Create and display the popup window.
+        popup_win = curses.newwin(popup_h, popup_w, start_y, start_x)
+        popup_win.clear()
+        popup_win.box()
+        popup_win.addstr(2, 2, alert_msg[:popup_w - 4])
+        popup_win.refresh()
+        # Wait for the user to dismiss the popup or for a timeout.
+        popup_win.timeout(5000)  # 5-second timeout.
+        popup_win.getch()
+        popup_win.clear()
+        popup_win.refresh()
 
     ##########################
     ##### HELPER METHODS #####

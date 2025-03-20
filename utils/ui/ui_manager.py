@@ -364,11 +364,12 @@ class UIManager:
     def display_network_found_alert(self, alert_data: dict):
         """
         Forwards the network found alert to the active curses submenu if one is registered.
+        If the active submenu has a display_alert_popup method, it will be used to show a modal alert.
         """
-        if self.active_submenu and hasattr(self.active_submenu, "display_alert"):
-            self.active_submenu.display_alert(alert_data)
+        if self.active_submenu and hasattr(self.active_submenu, "display_alert_popup"):
+            self.active_submenu.display_alert_popup(alert_data)
         else:
-            # fallback: log the alert or update dedicated alert area
+            # fallback: log the alert.
             self.logger.info(f"Network found: SSID {alert_data.get('ssid')} on BSSID {alert_data.get('bssid')}")
 
     def swap_scan(self, tool_name: str, dedicated_pane_id: str, new_title: str) -> None:
