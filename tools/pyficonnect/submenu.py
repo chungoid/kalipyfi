@@ -15,6 +15,29 @@ class PyfyConnectSubmenu(BaseSubmenu):
         self.logger = logging.getLogger("NetConnectToolSubmenu")
         self.logger.debug("NetConnectToolSubmenu initialized.")
 
+    ###################################
+    ##### ALERT DISPLAY OVERRIDES #####
+    ###################################
+    def display_alert(self, alert_data: dict):
+        # send to method for formatting based on key
+        if alert_data.get("action") == "NETWORK_FOUND":
+            from tools.pyficonnect._parser import _alert_nearby_from_db
+            formatted_alert = _alert_nearby_from_db(alert_data)
+            self.display_alert_popup(formatted_alert)
+        else:
+            super().display_alert(alert_data)
+
+    def display_alert_popup(self, alert_msg: str):
+        """
+        Instead of a modal popup that blocks input, simply adds the alert message
+        string to the alert queue so that it is drawn in the designated area.
+        """
+        self.add_alert(alert_msg, duration=3)
+
+
+    ###########################
+    ##### TOOL SCAN LOGIC #####
+    ###########################
     def scan_networks(self) -> List[Tuple[str, str]]:
         """
         Scans for available networks using nmcli on the currently selected interface.

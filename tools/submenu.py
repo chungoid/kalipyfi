@@ -155,31 +155,25 @@ class BaseSubmenu:
                     pass  # if the message doesn't fit
             self.alert_win.refresh()
 
-    def display_alert_popup(self, alert_data: dict):
+    def display_alert_popup(self, alert_msg: str):
         """
-        Instead of a modal popup that blocks input, simply adds the alert message
-        (without the BSSID) to the alert queue so that it is drawn in the designated area.
+        override in subclass to display alert popups. Use _parser to
+        format the alert_data instance dict based on the alert action.
+        ie; format alerts based on type with separate parsers helper functions.
         """
-        # build msg
-        if 'ssid' in alert_data:
-            alert_msg = f"{alert_data.get('ssid')}"
-        elif 'message' in alert_data:
-            alert_msg = f"{alert_data.get('message')}"
-        else:
-            alert_msg = "ALERT: Notification received."
-
-        # add to queue
-        self.add_alert(alert_msg, duration=3)
+        pass
 
     def display_alert(self, alert_data: dict):
         """
-        Delegates alert display to our non-blocking popup system.
+        override in subclass to display alert popups. Use _parser to
+        format the alert_data instance dict based on the alert action.
+        ie; format alerts based on type with separate parsers helper functions.
+
+        send formatters returned string to self.display_alert_popup(alert_msg: str)
+        for display in alert window.
         """
         # check if alerts enabled (toggled on)
-        if hasattr(self, "alert_popups_enabled") and self.alert_popups_enabled:
-            self.display_alert_popup(alert_data)
-        else:
-            self.logger.info(f"Alert (popup disabled): {alert_data.get('ssid', 'Unknown')}")
+        pass
 
 
     #############################

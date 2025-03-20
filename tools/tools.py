@@ -10,8 +10,10 @@ from datetime import datetime
 from abc import abstractmethod
 from typing import Dict, Any, List, Optional
 
+from common.models import AlertData
 # local
 from config.constants import BASE_DIR
+from common.process_manager import process_manager
 from config.config_utils import load_yaml_config
 from tools.helpers.autobpf import run_autobpf
 from tools.helpers.tool_utils import get_network_from_interface
@@ -32,6 +34,8 @@ class Tool:
 
         # Set UI instance (via registry)
         self.ui_instance = ui_instance
+        self.process_manager = process_manager
+        self.alert_data = AlertData(tool=self.name, data={})
 
         if not logging.getLogger().handlers:
             self.logger = logging.getLogger(self.__class__.__name__)
@@ -77,6 +81,7 @@ class Tool:
         self.logger.info(f"Initialized tool: {self.name} with ui instance: {self.ui_instance} (id: {id(self.ui_instance)})")
 
         self.client = IPCClient()
+
 
     ##############################################
     ##### SUBMENU AND CONFIG/INITIALIZATION ######
@@ -134,7 +139,7 @@ class Tool:
 
         original_cmd = f"{cmd_dict['executable']} {' '.join(cmd_dict['arguments'])}"
         unique_id = int(time.time())
-        pid_file = f"/tmp/nmap_{unique_id}.pid"
+        pid_file = f"/tmp/{self.name}_{unique_id}.pid"
 
         # group background job & waiting
         grouped_cmd = f'"( {original_cmd} & echo \\$! > {pid_file}; wait \\$! )"'
@@ -173,33 +178,34 @@ class Tool:
             time.sleep(1)
             try:
                 with open(pid_file, "r") as f:
-                    nmap_pid = int(f.read().strip())
-                self.logger.debug(f"Read nmap PID: {nmap_pid} from {pid_file}.")
+                    pid = int(f.read().strip())
+                self.logger.debug(f"Read PID: {pid} from {pid_file}.")
+                self.process_manager.register_process(self.name, pid)
             except Exception as e:
-                self.logger.error("Failed to read nmap PID from file: %s", e)
+                self.logger.error("Failed to read PID from file: %s", e)
                 return
 
             try:
-                self.logger.debug(f"Monitoring nmap PID {nmap_pid} with psutil.")
+                self.logger.debug(f"Monitoring PID {pid} with psutil.")
                 while True:
                     try:
-                        proc = psutil.Process(nmap_pid)
+                        proc = psutil.Process(pid)
                         if not proc.is_running():
                             break
                     except psutil.NoSuchProcess:
                         break
                     time.sleep(1)
-                self.logger.debug(f"nmap PID {nmap_pid} completed successfully.")
+                self.logger.debug(f"PID {pid} completed successfully.")
             except Exception as e:
-                self.logger.error(f"Error monitoring nmap PID {nmap_pid}: {e}")
+                self.logger.error(f"Error monitoring PID {pid}: {e}")
 
             # notify callback socket
             try:
                 cb_socket = ipc_message.get("callback_socket")
                 if cb_socket:
                     from utils.ipc import notify_scan_complete
-                    notify_scan_complete(cb_socket, response.get("pane_id"), nmap_pid, self.name)
-                    self.logger.debug(f"Sent SCAN_COMPLETE for nmap PID {nmap_pid} to socket {cb_socket}.")
+                    notify_scan_complete(cb_socket, response.get("pane_id"), pid, self.name)
+                    self.logger.debug(f"Sent SCAN_COMPLETE for {pid} to socket {cb_socket}.")
                 else:
                     self.logger.warning("Callback socket missing; no SCAN_COMPLETE sent.")
             except Exception as e:
@@ -212,6 +218,20 @@ class Tool:
     def run(self):
         self.logger.info("No you run..")
         return
+
+    def send_alert_payload(self, action: str, payload: dict) -> None:
+        """
+        :param action: IPC Action key
+        :param payload: Dict containing custom alert data
+        :return: None
+        """
+        if "action" not in payload:
+            payload["action"] = action
+
+        # new alert data instance
+        alert = AlertData(tool=self.name, data=payload)
+        self.logger.debug(f"Sending alert payload: {alert}")
+
 
     ######################################
     ##### HELPER METHODS BY CATEGORY #####

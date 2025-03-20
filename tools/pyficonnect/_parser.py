@@ -1,11 +1,22 @@
 import logging
 import sqlite3
+import time
 
 # locals
 from database.db_manager import get_db_connection, fetch_all
 from tools.helpers.tool_utils import normalize_mac
 
 logger = logging.getLogger(__name__)
+############################
+##### ALERT FORMATTING #####
+############################
+
+def _alert_nearby_from_db(alert_data: dict):
+    ssid = alert_data.get("ssid")
+    timestamp = alert_data.get("timestamp")
+    time_passed = time.time() - timestamp
+    formatted_message = f"Network Found: {ssid} ({time_passed:.2f}s)"
+    return formatted_message
 
 def get_pyficonnect_networks_from_db(basedir) -> list:
     """

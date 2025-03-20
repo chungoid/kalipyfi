@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field, asdict
 import time
+from typing import Dict, Any
+
 
 @dataclass
 class ProcessData:
@@ -41,3 +43,14 @@ class ScanData:
 
     def to_dict(self):
         return asdict(self)
+
+# testing
+@dataclass
+class AlertData:
+    tool: str
+    data: Dict[str, Any] = field(default_factory=dict)
+    created_at: float = field(default_factory=time.time)
+
+    def to_dict(self):
+        return asdict(self)
+

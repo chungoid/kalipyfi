@@ -360,6 +360,11 @@ class UIManager:
         self.active_submenu = None
 
     def display_network_found_alert(self, alert_data: dict):
+        # Ensure we have a consistent alert structure:
+        if not isinstance(alert_data, dict) or "tool" not in alert_data:
+            self.logger.error("Invalid alert data received.")
+            return
+
         if self.active_submenu and hasattr(self.active_submenu, "display_alert"):
             self.logger.debug(f"UIManager: Delegating alert to active submenu: {self.active_submenu}")
             self.active_submenu.display_alert(alert_data)

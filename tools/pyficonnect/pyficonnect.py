@@ -191,7 +191,7 @@ class PyfiConnectTool(Tool, ABC):
                     self.send_network_found_alert(alert_data)
                 else:
                     self.logger.debug(f"No match for scanned BSSID: {norm_cli_bssid}")
-            time.sleep(10)  # check every 10 seconds
+            time.sleep(10)
 
     def scan_networks_cli(self, interface):
         """
@@ -213,6 +213,7 @@ class PyfiConnectTool(Tool, ABC):
 
     def send_network_found_alert(self, alert_data):
         self.logger.debug(f"Sending alert via IPC: {alert_data}")
+        self.send_alert_payload("NETWORK_FOUND", alert_data)
         response = self.client.send(alert_data)
         self.logger.debug(f"IPC response for alert: {response}")
 
