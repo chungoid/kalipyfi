@@ -12,7 +12,6 @@ from database.db_manager import get_db_connection
 from tools.pyficonnect.db import init_pyfyconnect_schema, safe_sync_pyfyconnect_from_hcxtool
 from tools.pyficonnect.submenu import PyfyConnectSubmenu
 from tools.tools import Tool
-from utils.ipc_client import IPCClient
 from utils.tool_registry import register_tool
 
 
@@ -49,6 +48,7 @@ class PyfiConnectTool(Tool, ABC):
         # auto-scanning for db match
         self.db_networks = None
         self.scanner_running = False
+        self.alerted_networks = {}
 
     def submenu(self, stdscr) -> None:
         """
@@ -168,6 +168,8 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     def background_scan_loop(self):
+        alert_threshold = 120
+
         while self.scanner_running:
             available_networks = self.scan_networks_cli(self.selected_interface)
             from tools.helpers.tool_utils import normalize_mac  # ensure consistent formatting
@@ -179,16 +181,29 @@ class PyfiConnectTool(Tool, ABC):
                 cli_bssid = net.get("bssid")
                 norm_cli_bssid = normalize_mac(cli_bssid)
                 self.logger.debug(f"Scanned network BSSID: raw='{cli_bssid}' normalized='{norm_cli_bssid}'")
+
                 if norm_cli_bssid in self.db_networks:
+                    current_time = time.time()
+                    last_alert = self.alerted_networks.get(norm_cli_bssid)
+                    if last_alert and (current_time - last_alert) < alert_threshold:
+                        self.logger.debug(
+                            f"Already alerted for network {norm_cli_bssid} within threshold, skipping alert."
+                        )
+                        continue  # Skip sending alert if within threshold
+
+                    # Build alert_data and include the timestamp
                     alert_data = {
                         "action": "NETWORK_FOUND",
                         "tool": self.name,
                         "ssid": self.db_networks[norm_cli_bssid]["ssid"],
                         "bssid": norm_cli_bssid,
-                        "key": self.db_networks[norm_cli_bssid].get("key")
+                        "key": self.db_networks[norm_cli_bssid].get("key"),
+                        "timestamp": current_time,  # include timestamp so that the formatter can use it
                     }
                     self.logger.debug(f"Match found! Alert data: {alert_data}")
                     self.send_network_found_alert(alert_data)
+                    # Record that we alerted this network at the current time
+                    self.alerted_networks[norm_cli_bssid] = current_time
                 else:
                     self.logger.debug(f"No match for scanned BSSID: {norm_cli_bssid}")
             time.sleep(10)

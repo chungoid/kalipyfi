@@ -17,7 +17,7 @@ def _alert_nearby_from_db(alert_data: dict) -> str:
     if timestamp is None:
         timestamp = time.time()
     time_passed = time.time() - timestamp
-    formatted_message = f"Network Found: {ssid} ({time_passed:.2f}s ago)"
+    formatted_message = f"{ssid} ({time_passed:.2f}s ago)"
     return formatted_message
 
 
