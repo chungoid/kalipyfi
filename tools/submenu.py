@@ -1,6 +1,8 @@
 import curses
 import logging
 import socket
+import time
+
 import yaml
 from pathlib import Path
 from typing import List, Any, Union
@@ -19,6 +21,7 @@ class BaseSubmenu:
         self.logger = logging.getLogger("BaseSubmenu")
         self.logger.debug("BaseSubmenu initialized.")
         self.tool.ui_instance.register_active_submenu(self)
+        self.alert_queue = []
         self.alert_popups_enabled = True
         self.debug_win = None
         self.BACK_OPTION = "back"
@@ -103,24 +106,52 @@ class BaseSubmenu:
         self.logger.info(f"Alert popups have been {state}.")
         return state
 
-    def display_alert(self, alert_data: dict):
+    def add_alert(self, alert_msg: str, duration: float = 3):
         """
-        Displays an alert message. If alert popups are enabled, a modal popup is shown.
-        Otherwise, the alert is simply logged.
+        Appends an alert message to the alert queue with a set duration.
         """
-        if self.alert_popups_enabled:
-            self.display_alert_popup(alert_data)
+        expiration = time.time() + duration
+        self.alert_queue.append((alert_msg, expiration))
+        self.refresh_alert_area()
+
+    def refresh_alert_area(self):
+        """
+        Clears and redraws a designated alert region in the top left corner
+        with all active alerts (those whose expiration time hasn't passed).
+        """
+        current_time = time.time()
+        # remove expired
+        self.alert_queue = [(msg, exp) for msg, exp in self.alert_queue if exp > current_time]
+
+        # find dimensions
+        if hasattr(self, "stdscr") and self.stdscr:
+            h, w = self.stdscr.getmaxyx()
         else:
-            # Fallback: log the alert (or optionally store it in a queue)
-            self.logger.info(
-                f"Alert (popup disabled): {alert_data.get('ssid', 'Unknown SSID')} on BSSID {alert_data.get('bssid', 'Unknown BSSID')}")
+            h, w = curses.LINES, curses.COLS
+
+        # height (5 line limit)
+        alert_area_height = min(len(self.alert_queue) + 2, 5)
+
+        # alert window in top left
+        alert_win = curses.newwin(alert_area_height, w, 0, 0)
+        alert_win.clear()
+        alert_win.box()
+        for i, (msg, exp) in enumerate(self.alert_queue):
+            try:
+                alert_win.addstr(i + 1, 2, msg[:w - 4])
+            except curses.error:
+                pass
+        alert_win.refresh()
+
+        self.stdscr.touchwin()
+        self.stdscr.refresh()
 
     def display_alert_popup(self, alert_data: dict):
         """
-        Displays a transient alert message in the top-left corner without blocking menu input.
-        The message does not include the BSSID to keep it short. It clears itself after 3 seconds.
+        Instead of a modal popup that blocks input, simply adds the alert message
+        (without the BSSID) to the alert queue so that it is drawn in the designated area.
         """
-        # alert ssid
+        # build msg
         if 'ssid' in alert_data:
             alert_msg = f"ALERT: {alert_data.get('ssid')}"
         elif 'message' in alert_data:
@@ -128,22 +159,19 @@ class BaseSubmenu:
         else:
             alert_msg = "ALERT: Notification received."
 
-        # get dimensions from main stdscr
-        if hasattr(self, "stdscr") and self.stdscr:
-            h, w = self.stdscr.getmaxyx()
-        else:
-            h, w = curses.LINES, curses.COLS
+        # add to queue
+        self.add_alert(alert_msg, duration=3)
 
-        # draw alert
-        try:
-            self.stdscr.addstr(0, 0, alert_msg[:w - 1], curses.A_REVERSE)
-            self.stdscr.refresh()
-            curses.napms(3000)
-            self.stdscr.move(0, 0)
-            self.stdscr.clrtoeol()
-            self.stdscr.refresh()
-        except Exception as e:
-            self.logger.error("Error displaying alert popup: " + str(e))
+    def display_alert(self, alert_data: dict):
+        """
+        Delegates alert display to our non-blocking popup system.
+        """
+        # check if alerts enabled (toggled on)
+        if hasattr(self, "alert_popups_enabled") and self.alert_popups_enabled:
+            self.display_alert_popup(alert_data)
+        else:
+            self.logger.info(f"Alert (popup disabled): {alert_data.get('ssid', 'Unknown')}")
+
 
     #############################
     ##### MAIN MENU OPTIONS #####
@@ -1055,6 +1083,7 @@ class BaseSubmenu:
                 self.utils_menu(submenu_win)
             submenu_win.clear()
             submenu_win.refresh()
+            self.refresh_alert_area()
         self.tool.ui_instance.unregister_active_submenu()
         self.logger.debug("Active submenu unregistered in __call__ exit.")
 
