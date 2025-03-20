@@ -171,18 +171,23 @@ class PyfiConnectTool(Tool, ABC):
         founds = get_founds_bssid_ssid_and_key(self.base_dir)
         self.db_networks = {}
         for bssid, ssid, key in founds:
-            norm_bssid = normalize_mac(bssid)  # this returns uppercase if updated as discussed
-            self.logger.debug(f"Database network: {norm_bssid}, {ssid}, {key}")
+            norm_bssid = normalize_mac(bssid)
+            self.logger.debug(f"Database network loaded: {norm_bssid}, SSID: {ssid}, Key: {key}")
             self.db_networks[norm_bssid] = {"ssid": ssid, "key": key}
+        self.logger.debug(f"Complete DB networks keys: {list(self.db_networks.keys())}")
 
     def background_scan_loop(self):
         while self.scanner_running:
             available_networks = self.scan_networks_cli(self.selected_interface)
-            # compare available networks to db entries based on BSSID only
             from tools.helpers.tool_utils import normalize_mac  # ensure consistent formatting
+
+            # Log the current state of db_networks for comparison
+            self.logger.debug(f"DB networks for comparison: {list(self.db_networks.keys())}")
+
             for net in available_networks:
                 cli_bssid = net.get("bssid")
                 norm_cli_bssid = normalize_mac(cli_bssid)
+                self.logger.debug(f"Scanned network BSSID: raw='{cli_bssid}' normalized='{norm_cli_bssid}'")
                 if norm_cli_bssid in self.db_networks:
                     alert_data = {
                         "action": "NETWORK_FOUND",
@@ -191,13 +196,11 @@ class PyfiConnectTool(Tool, ABC):
                         "bssid": norm_cli_bssid,
                         "key": self.db_networks[norm_cli_bssid].get("key")
                     }
-                    self.logger.debug(f"Background scan alert data: {alert_data}")
+                    self.logger.debug(f"Match found! Alert data: {alert_data}")
                     self.send_network_found_alert(alert_data)
+                else:
+                    self.logger.debug(f"No match for scanned BSSID: {norm_cli_bssid}")
             time.sleep(10)  # check every 10 seconds
-
-    def start_background_scan(self):
-        self.scanner_running = True
-        threading.Thread(target=self.background_scan_loop, daemon=True).start()
 
     def scan_networks_cli(self, interface):
         """
@@ -221,3 +224,7 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Sending alert via IPC: {alert_data}")
         response = self.client.send(alert_data)
         self.logger.debug(f"IPC response for alert: {response}")
+
+    def start_background_scan(self):
+        self.scanner_running = True
+        threading.Thread(target=self.background_scan_loop, daemon=True).start()
