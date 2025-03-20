@@ -359,7 +359,7 @@ def handle_network_found(ui_instance, request: dict) -> dict:
     }
     """
     # Call a UI method to display the alert.
-    ui_instance.display_network_found_alert(request)
+    ui_instance.inform_new_alert(request)
     return {"status": "NETWORK_FOUND_OK"}
 
 def handle_connect_network(ui_instance, request: dict) -> dict:

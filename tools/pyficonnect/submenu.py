@@ -1,5 +1,6 @@
 import curses
 import logging
+import time
 from typing import List, Tuple, Any
 
 # local
@@ -18,14 +19,19 @@ class PyfyConnectSubmenu(BaseSubmenu):
     ###################################
     ##### ALERT DISPLAY OVERRIDES #####
     ###################################
-    def display_alert(self, alert_data: dict):
-        # send to method for formatting based on key
-        if alert_data.get("action") == "NETWORK_FOUND":
-            from tools.pyficonnect._parser import _alert_nearby_from_db
-            formatted_alert = _alert_nearby_from_db(alert_data)
-            self.display_alert_popup(formatted_alert)
-        else:
-            super().display_alert(alert_data)
+    def display_alert(self, alerts: List[dict]):
+        """
+        Expects a list of alert data dictionaries. This method can filter or
+        format alerts based on their 'timestamp' or any other keys.
+        """
+        recent_alerts = [alert for alert in alerts if time.time() - alert.get("timestamp", time.time()) < 120]
+        for alert in recent_alerts:
+            if alert.get("action") == "NETWORK_FOUND":
+                from tools.pyficonnect._parser import _alert_nearby_from_db
+                formatted_message = _alert_nearby_from_db(alert)
+                self.display_alert_popup(formatted_message)
+            else:
+                self.logger.debug(alert)
 
     def display_alert_popup(self, alert_msg: str):
         """

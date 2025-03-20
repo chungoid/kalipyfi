@@ -29,6 +29,7 @@ class UIManager:
         self.session = self.get_or_create_session(session_name)
         self.session_data = SessionData(session_name=self.session.get("session_name"))
         self.active_submenu = None
+        self.alerts = None
         # Active scans: map pane_id -> ScanData
         self.active_scans: Dict[str, ScanData] = {}
         # Tool Interfaces: map interface name -> InterfaceData
@@ -359,17 +360,25 @@ class UIManager:
         self.logger.debug("UIManager: Unregistering active submenu.")
         self.active_submenu = None
 
-    def display_network_found_alert(self, alert_data: dict):
-        # Ensure we have a consistent alert structure:
+    def inform_new_alert(self, alert_data: dict):
         if not isinstance(alert_data, dict) or "tool" not in alert_data:
             self.logger.error("Invalid alert data received.")
             return
 
+        tool_name = alert_data["tool"]
+        # initialize the list for this tool if necessary
+        #if tool_name not in self.alerts:
+            #self.alerts[tool_name] = []
+
+        # append the new alert data
+        self.alerts[tool_name].append(alert_data)
+
         if self.active_submenu and hasattr(self.active_submenu, "display_alert"):
-            self.logger.debug(f"UIManager: Delegating alert to active submenu: {self.active_submenu}")
-            self.active_submenu.display_alert(alert_data)
+            self.logger.debug(f"UIManager: Delegating all alerts for {tool_name} to active submenu: {self.active_submenu}")
+            # pass the full list of alerts for that tool
+            self.active_submenu.display_alert(self.alerts[tool_name])
         else:
-            self.logger.info(f"UIManager: No active submenu to display alert. Alert: {alert_data}")
+            self.logger.info(f"UIManager: No active submenu to display alerts for {tool_name}. Alerts: {self.alerts[tool_name]}")
 
     def swap_scan(self, tool_name: str, dedicated_pane_id: str, new_title: str) -> None:
         """
