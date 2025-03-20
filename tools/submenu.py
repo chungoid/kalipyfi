@@ -127,35 +127,26 @@ class BaseSubmenu:
 
     def refresh_alert_area(self):
         """
-        Clears and redraws a designated alert region in the top left corner
-        with all active alerts (those whose expiration time hasn't passed).
+        Updates the persistent alert window (stored in self.alert_win) with all active alerts.
+        This method updates only the alert region without reinitializing the entire screen.
         """
         current_time = time.time()
-        # remove expired
+        # remove expired alerts from the queue
         self.alert_queue = [(msg, exp) for msg, exp in self.alert_queue if exp > current_time]
 
-        # find dimensions
-        if hasattr(self, "stdscr") and self.stdscr:
-            h, w = self.stdscr.getmaxyx()
-        else:
-            h, w = curses.LINES, curses.COLS
-
-        # height (5 line limit)
-        alert_area_height = min(len(self.alert_queue) + 2, 5)
-
-        # alert window in top left
-        alert_win = curses.newwin(alert_area_height, w, 0, 0)
-        alert_win.clear()
-        alert_win.box()
-        for i, (msg, exp) in enumerate(self.alert_queue):
-            try:
-                alert_win.addstr(i + 1, 2, msg[:w - 4])
-            except curses.error:
-                pass
-        alert_win.refresh()
-
-        self.stdscr.touchwin()
-        self.stdscr.refresh()
+        if self.alert_win:
+            # get the dimensions of the persistent alert window
+            h, w = self.alert_win.getmaxyx()
+            # clear only the alert window
+            self.alert_win.erase()
+            self.alert_win.box()
+            # display each alert line
+            for i, (msg, exp) in enumerate(self.alert_queue):
+                try:
+                    self.alert_win.addstr(i + 1, 2, msg[:w - 4])
+                except curses.error:
+                    pass  # if the message doesn't fit
+            self.alert_win.refresh()
 
     def display_alert_popup(self, alert_data: dict):
         """
@@ -1095,6 +1086,7 @@ class BaseSubmenu:
                 self.utils_menu(submenu_win)
             submenu_win.clear()
             submenu_win.refresh()
+            self.refresh_alert_area()
         self.tool.ui_instance.unregister_active_submenu()
         self.logger.debug("Active submenu unregistered in __call__ exit.")
 
