@@ -997,7 +997,6 @@ class BaseSubmenu:
         """
         Displays an alert as a modal popup that the user can dismiss.
         """
-        # Build the alert message.
         if 'ssid' in alert_data and 'bssid' in alert_data:
             alert_msg = f"ALERT: Found network '{alert_data.get('ssid')}' (BSSID: {alert_data.get('bssid')})."
         elif 'message' in alert_data:
@@ -1005,22 +1004,23 @@ class BaseSubmenu:
         else:
             alert_msg = "ALERT: Unspecified notification received."
 
-        # Get the current screen dimensions.
-        h, w = self.tool.ui_instance.session.attached_pane.window.getmaxyx()
-        # Set the popup dimensions.
+        # stdscr or fallback to lines/cols
+        if hasattr(self, "stdscr") and self.stdscr:
+            h, w = self.stdscr.getmaxyx()
+        else:
+            h, w = curses.LINES, curses.COLS
+
         popup_h = 5
         popup_w = min(len(alert_msg) + 4, w - 4)
         start_y = (h - popup_h) // 2
         start_x = (w - popup_w) // 2
 
-        # Create and display the popup window.
         popup_win = curses.newwin(popup_h, popup_w, start_y, start_x)
         popup_win.clear()
         popup_win.box()
         popup_win.addstr(2, 2, alert_msg[:popup_w - 4])
         popup_win.refresh()
-        # Wait for the user to dismiss the popup or for a timeout.
-        popup_win.timeout(5000)  # 5-second timeout.
+        popup_win.timeout(5000)  # wait for keypress
         popup_win.getch()
         popup_win.clear()
         popup_win.refresh()
@@ -1040,7 +1040,7 @@ class BaseSubmenu:
         curses.curs_set(0)
         self.tool.selected_preset = None
         self.tool.preset_description = None
-        self.logger.debug("Submenu __call__: Active submenu registered.")
+        self.stdscr = stdscr  # for popups
         self.tool.reload_config(self)
         h, w = stdscr.getmaxyx()
         submenu_win = curses.newwin(h, w, 0, 0)
@@ -1049,7 +1049,6 @@ class BaseSubmenu:
         submenu_win.refresh()
         base_menu_items = ["Launch Scan", "Utils"]
         title = getattr(self.tool, "name", "Menu")
-
         while True:
             selection = self.show_main_menu(submenu_win, base_menu_items, title)
             if selection.lower() == "back":
@@ -1060,8 +1059,9 @@ class BaseSubmenu:
                 self.utils_menu(submenu_win)
             submenu_win.clear()
             submenu_win.refresh()
-        self.logger.debug("Submenu __call__: Unregistering active submenu.")
         self.tool.ui_instance.unregister_active_submenu()
+        self.logger.debug("Active submenu unregistered in __call__ exit.")
+
 
 def display_debug_info(win, debug_lines: list) -> None:
     """
