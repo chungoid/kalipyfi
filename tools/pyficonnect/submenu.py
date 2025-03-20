@@ -405,11 +405,10 @@ class PyfyConnectSubmenu(BaseSubmenu):
         """
         Launches the PyfiConnect submenu using curses.
         Main options include:
-          - Start Scanning
-          - Manage Connections
+          - Scan (shows on/off)
+          - Manage
           - Utils
           - Back
-        A label is dynamically inserted to show the background scan state.
         """
         curses.curs_set(0)
         self.stdscr = stdscr
@@ -423,7 +422,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
         submenu_win.refresh()
 
         while True:
-            # menu list with scanner label on/off
+            # menu list with scanner state label on/off
             scan_state = "on" if self.tool.scanner_running else "off"
             base_menu = [
                 f"Scan ({scan_state})",
@@ -433,10 +432,12 @@ class PyfyConnectSubmenu(BaseSubmenu):
             selection = self.show_main_menu(submenu_win, base_menu, "PyfiConnect")
             if selection.lower() == "back":
                 break
-            elif selection == "Scan":
-                self.launch_background_scan(submenu_win)
             elif selection.startswith("Scan"):
-                if not self.tool.scanner_running:
+                # if scan is running, stop it; otherwise, start it.
+                if self.tool.scanner_running:
+                    self.tool.stop_background_scan()
+                    self.add_alert("Background scan stopped", duration=2)
+                else:
                     self.launch_background_scan(submenu_win)
             elif selection == "Manage":
                 self.connection_menu(submenu_win)
@@ -445,6 +446,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
             submenu_win.clear()
             submenu_win.refresh()
         self.tool.ui_instance.unregister_active_submenu()
+
 
 
 

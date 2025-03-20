@@ -49,21 +49,14 @@ class BaseSubmenu:
     def draw_menu(self, parent_win, title: str, menu_items: List[str]) -> Any:
         parent_win.clear()
         h, w = parent_win.getmaxyx()
-
-        # define alert window size
-        alert_width = w // 3
-        # width and leave margin
-        available_width = w - alert_width - 1
-
         box_height = len(menu_items) + 4
         content_width = max(len(title), *(len(item) for item in menu_items))
-        box_width = min(content_width + 4, available_width)
-
-        # vertical centering
+        # Limit box width to available width with some margin
+        box_width = min(content_width + 4, w - 2)
         start_y = (h - box_height) // 2
-        start_x = alert_width + 1  # starting right after the alert window
-
-        menu_win = curses.newwin(box_height, box_width, start_y, start_x)
+        start_x = (w - box_width) // 2
+        # Use a derived window so that the absolute screen isn’t affected
+        menu_win = parent_win.derwin(box_height, box_width, start_y, start_x)
         menu_win.keypad(True)
         menu_win.box()
         menu_win.addstr(1, (box_width - len(title)) // 2, title, curses.A_BOLD)
@@ -1082,14 +1075,21 @@ class BaseSubmenu:
         self.tool.preset_description = None
         self.tool.reload_config(self)
         self.stdscr = stdscr
-        self.setup_alert_window(stdscr)
         h, w = stdscr.getmaxyx()
-        submenu_win = curses.newwin(h, w, 0, 0)
+
+        # Setup the alert window on the left (one-third of the screen)
+        self.setup_alert_window(stdscr)
+        alert_width = w // 3
+
+        # Create a submenu window that occupies the rest of the screen
+        submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()
+
         base_menu_items = ["Launch Scan", "Utils"]
         title = getattr(self.tool, "name", "Menu")
+
         while True:
             selection = self.show_main_menu(submenu_win, base_menu_items, title)
             if selection.lower() == "back":
@@ -1098,9 +1098,11 @@ class BaseSubmenu:
                 self.launch_scan(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
+            # Only clear the submenu window (not affecting the alert window)
             submenu_win.clear()
             submenu_win.refresh()
-            self.refresh_alert_area()
+            self.refresh_alert_area()  # update alerts as needed
+
         self.tool.ui_instance.unregister_active_submenu()
         self.logger.debug("Active submenu unregistered in __call__ exit.")
 

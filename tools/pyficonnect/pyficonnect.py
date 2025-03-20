@@ -219,3 +219,8 @@ class PyfiConnectTool(Tool, ABC):
     def start_background_scan(self):
         self.scanner_running = True
         threading.Thread(target=self.background_scan_loop, daemon=True).start()
+
+    def stop_background_scan(self):
+        self.scanner_running = False
+        self.logger.info("Background scan stopped.")
+
