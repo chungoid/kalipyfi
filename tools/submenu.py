@@ -110,11 +110,13 @@ class BaseSubmenu:
     def setup_alert_window(self, stdscr):
         """
         Create a persistent alert window using the main stdscr.
+        The alert window will use the full available height and one-third of the available width.
         This should be called from __call__ when curses is properly initialized.
         """
         h, w = stdscr.getmaxyx()
-        alert_height = 3
-        self.alert_win = curses.newwin(alert_height, w, 0, 0)
+        alert_height = h
+        alert_width = w // 4  # use one-third of the width
+        self.alert_win = curses.newwin(alert_height, alert_width, 0, 0)
         self.alert_win.nodelay(True)
 
     def add_alert(self, alert_msg: str, duration: float = 3):
