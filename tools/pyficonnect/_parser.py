@@ -11,12 +11,15 @@ logger = logging.getLogger(__name__)
 ##### ALERT FORMATTING #####
 ############################
 
-def _alert_nearby_from_db(alert_data: dict):
-    ssid = alert_data.get("ssid")
+def _alert_nearby_from_db(alert_data: dict) -> str:
+    ssid = alert_data.get("ssid", "Unknown")
     timestamp = alert_data.get("timestamp")
+    if timestamp is None:
+        timestamp = time.time()
     time_passed = time.time() - timestamp
-    formatted_message = f"Network Found: {ssid} ({time_passed:.2f}s)"
+    formatted_message = f"Network Found: {ssid} ({time_passed:.2f}s ago)"
     return formatted_message
+
 
 def get_pyficonnect_networks_from_db(basedir) -> list:
     """
