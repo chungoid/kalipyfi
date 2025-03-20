@@ -23,6 +23,7 @@ class BaseSubmenu:
         self.debug_win = None
         self.BACK_OPTION = "back"
 
+
     def create_debug_window(self, stdscr, height: int = 4) -> any:
         max_y, max_x = stdscr.getmaxyx()
         debug_win = stdscr.derwin(height, max_x, max_y - height, 0)
@@ -1035,8 +1036,8 @@ class BaseSubmenu:
         curses.curs_set(0)
         self.tool.selected_preset = None
         self.tool.preset_description = None
-        self.stdscr = stdscr  # for popups
         self.tool.reload_config(self)
+        self.stdscr = stdscr
         h, w = stdscr.getmaxyx()
         submenu_win = curses.newwin(h, w, 0, 0)
         submenu_win.keypad(True)

@@ -218,6 +218,7 @@ class HcxToolSubmenu(BaseSubmenu):
           - Back
         """
         curses.curs_set(0)
+        self.stdscr = stdscr
         self.reset_connection_values()
 
         h, w = stdscr.getmaxyx()
