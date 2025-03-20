@@ -1026,7 +1026,7 @@ class BaseSubmenu:
             selection = self.draw_paginated_menu(submenu_win, title, full_menu)
             if selection.lower() == "back":
                 return "back"
-            elif selection.startswith("Toggle Scrolling"):
+            elif selection.startswith("Scrolling"):
                 toggle_message = {"action": "COPY_MODE", "copy_mode_action": "toggle"}
                 toggle_response = client.send(toggle_message)
                 if toggle_response.get("status", "").startswith("COPY_MODE"):
@@ -1042,7 +1042,7 @@ class BaseSubmenu:
                     submenu_win.refresh()
                     curses.napms(1500)
                 continue
-            elif selection.startswith("Toggle Alert Popups"):
+            elif selection.startswith("Alerts"):
                 # toggle the alert popup state
                 new_state = self.toggle_alert_popups()  # change state
                 submenu_win.clear()

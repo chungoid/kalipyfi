@@ -433,12 +433,12 @@ class PyfyConnectSubmenu(BaseSubmenu):
             selection = self.show_main_menu(submenu_win, base_menu, "PyfiConnect")
             if selection.lower() == "back":
                 break
-            elif selection == "Scanning":
+            elif selection == "Scan":
                 self.launch_background_scan(submenu_win)
-            elif selection.startswith("Scanning"):
+            elif selection.startswith("Scan"):
                 if not self.tool.scanner_running:
                     self.launch_background_scan(submenu_win)
-            elif selection == "Manage Connections":
+            elif selection == "Manage":
                 self.connection_menu(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
