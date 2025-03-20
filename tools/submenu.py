@@ -995,33 +995,39 @@ class BaseSubmenu:
     ##########################################
     def display_alert_popup(self, alert_data: dict):
         """
-        Displays an alert as a modal popup that the user can dismiss.
+        Displays an alert message as a non-blocking popup in the top left corner.
+        The popup appears at a fixed position and automatically clears after 3 seconds.
         """
+        # Build the alert message.
         if 'ssid' in alert_data and 'bssid' in alert_data:
-            alert_msg = f"ALERT: Found network '{alert_data.get('ssid')}' (BSSID: {alert_data.get('bssid')})."
+            alert_msg = f"ALERT: {alert_data.get('ssid')} ({alert_data.get('bssid')})"
         elif 'message' in alert_data:
             alert_msg = f"ALERT: {alert_data.get('message')}"
         else:
-            alert_msg = "ALERT: Unspecified notification received."
+            alert_msg = "ALERT: Unspecified notification."
 
-        # stdscr or fallback to lines/cols
         if hasattr(self, "stdscr") and self.stdscr:
-            h, w = self.stdscr.getmaxyx()
+            screen_h, screen_w = self.stdscr.getmaxyx()
         else:
-            h, w = curses.LINES, curses.COLS
+            screen_h, screen_w = curses.LINES, curses.COLS
 
-        popup_h = 5
-        popup_w = min(len(alert_msg) + 4, w - 4)
-        start_y = (h - popup_h) // 2
-        start_x = (w - popup_w) // 2
+        # popup dimensions
+        popup_h = 3
+        popup_w = min(len(alert_msg) + 4, screen_w // 2)  # width
+        pos_y, pos_x = 0, 0  # top left
 
-        popup_win = curses.newwin(popup_h, popup_w, start_y, start_x)
+        # create window for popups
+        popup_win = curses.newwin(popup_h, popup_w, pos_y, pos_x)
         popup_win.clear()
         popup_win.box()
-        popup_win.addstr(2, 2, alert_msg[:popup_w - 4])
+        try:
+            popup_win.addstr(1, 2, alert_msg[:popup_w - 4])
+        except curses.error:
+            pass
         popup_win.refresh()
-        popup_win.timeout(5000)  # wait for keypress
-        popup_win.getch()
+
+        # dismiss after 3s
+        curses.napms(3000)
         popup_win.clear()
         popup_win.refresh()
 
