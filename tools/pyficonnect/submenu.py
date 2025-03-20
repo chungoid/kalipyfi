@@ -272,55 +272,37 @@ class PyfyConnectSubmenu(BaseSubmenu):
         Initiates the background scan process for matching networks from the database.
         Forces the user to select an interface (resetting previous selections), loads the
         database networks, and starts the background scan thread.
-        After execution, the user is prompted to either retry or return to the main menu.
+        This version simply starts the scan and returns to the main menu without waiting for user input.
         """
-        while True:
-            # reset prior attribute selections to none
-            parent_win.erase()
-            parent_win.refresh()
-            self.reset_connection_values()
+        parent_win.erase()
+        parent_win.refresh()
+        self.reset_connection_values()
 
-            # prompt interface selection
-            selected_iface = self.select_interface(parent_win)
-            parent_win.erase()
-            parent_win.refresh()
-            if not selected_iface:
-                self.logger.debug("No interface selected; aborting background scan.")
-                break
-            self.tool.selected_interface = selected_iface
+        # prompt for interface
+        selected_iface = self.select_interface(parent_win)
+        parent_win.erase()
+        parent_win.refresh()
+        if not selected_iface:
+            self.logger.debug("No interface selected; aborting background scan.")
+            return
+        self.tool.selected_interface = selected_iface
 
-            # load database networks (SSID, BSSID, key) into memory
-            self.tool.load_db_networks()
+        # load database ssid/bssid
+        self.tool.load_db_networks()
 
-            # start the background scanning thread if not already running
-            if not self.tool.scanner_running:
-                self.tool.start_background_scan()
-                parent_win.erase()
-                parent_win.refresh()
-                parent_win.addstr(
-                    0, 0,
-                    f"Background scan initiated on {self.tool.selected_interface}. Alerts will display when a network is found."
-                )
-            else:
-                parent_win.erase()
-                parent_win.refresh()
-                parent_win.addstr(0, 0, "Background scan is already running.")
-
-            parent_win.refresh()
-            curses.napms(2000)
-
-            parent_win.erase()
-            parent_win.refresh()
-            parent_win.addstr(0, 0, "Press any key to return to the main menu, or 0 to retry background scan.")
-            parent_win.refresh()
-            key = parent_win.getch()
+        # start scan
+        if not self.tool.scanner_running:
             try:
-                if chr(key) == "0":
-                    continue  # retry scan
-                else:
-                    break  # return to main menu
-            except Exception:
-                break
+                self.tool.start_background_scan()
+            except Exception as e:
+                parent_win.erase()
+                parent_win.addstr(0, 0, f"Error starting background scan: {e}")
+                parent_win.refresh()
+                curses.napms(2000)
+                return
+
+        # Immediately return to the main menu.
+        return
 
     ###########################
     ##### SUBMENU NESTING #####
@@ -419,18 +401,18 @@ class PyfyConnectSubmenu(BaseSubmenu):
                 return None
             return False
 
-
     def __call__(self, stdscr) -> None:
         """
         Launches the PyfiConnect submenu using curses.
         Main options include:
           - Start Scanning
-          - Connections (manages manual, auto, and disconnect)
+          - Manage Connections
           - Utils
           - Back
+        A label is dynamically inserted to show the background scan state.
         """
         curses.curs_set(0)
-        self.stdscr = stdscr
+        self.stdscr = stdscr  # Save the curses stdscr for popup functions
         self.reset_connection_values()
 
         h, w = stdscr.getmaxyx()
@@ -439,18 +421,29 @@ class PyfyConnectSubmenu(BaseSubmenu):
         submenu_win.clear()
         submenu_win.refresh()
 
-        base_menu = ["Start Scanning", "Manage Connections", "Utils"]
         while True:
+            # menu list with scanner label on/off
+            scan_state = "on" if self.tool.scanner_running else "off"
+            base_menu = [
+                f"Scanning ({scan_state})",
+                "Manage Connections",
+                "Utils"
+            ]
             selection = self.show_main_menu(submenu_win, base_menu, "PyfiConnect")
             if selection.lower() == "back":
                 break
-            elif selection == "Start Scanning":
+            elif selection == "Scanning":
                 self.launch_background_scan(submenu_win)
+            elif selection.startswith("Scanning"):
+                if not self.tool.scanner_running:
+                    self.launch_background_scan(submenu_win)
             elif selection == "Manage Connections":
                 self.connection_menu(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
             submenu_win.clear()
             submenu_win.refresh()
+        self.tool.ui_instance.unregister_active_submenu()
+
 
 
