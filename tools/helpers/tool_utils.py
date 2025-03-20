@@ -267,6 +267,8 @@ def parse_nmcli_ssid_bssid(output: str) -> list:
         if len(parts) >= 2:
             ssid, bssid = parts[0], parts[1]
             results.append({"ssid": ssid, "bssid": bssid})
+            logger.debug(f"parsed ssid: {ssid} & parsed bssid:{bssid}")
+    logger.debug(f"parsed results: {results}")
     return results
 
 def get_interface_mode(interface: str, logger: logging.Logger) -> str:

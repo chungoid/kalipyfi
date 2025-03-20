@@ -76,6 +76,8 @@ class Tool:
         # debug instancing
         self.logger.info(f"Initialized tool: {self.name} with ui instance: {self.ui_instance} (id: {id(self.ui_instance)})")
 
+        self.client = IPCClient()
+
     ##############################################
     ##### SUBMENU AND CONFIG/INITIALIZATION ######
     ##############################################
@@ -142,7 +144,7 @@ class Tool:
             "arguments": ["-c", grouped_cmd]
         }
 
-        client = IPCClient()
+        #client = IPCClient()
 
         ipc_message = {
             "action": "SEND_SCAN",
@@ -154,7 +156,7 @@ class Tool:
             "callback_socket": self.callback_socket,
         }
 
-        response = client.send(ipc_message)
+        response = self.client.send(ipc_message)
 
         if isinstance(response, dict) and response.get("status", "").startswith("SEND_SCAN_OK"):
             pane_id = response.get("pane_id")

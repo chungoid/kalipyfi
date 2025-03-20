@@ -211,16 +211,13 @@ class PyfiConnectTool(Tool, ABC):
                 text=True
             )
             from tools.helpers.tool_utils import parse_nmcli_ssid_bssid
-            self.logger.debug(f"background scan result: {output}")
+            self.logger.debug(f"nmcli raw output: {output}")
             return parse_nmcli_ssid_bssid(output)
         except Exception as e:
             self.logger.error("Background scan error: %s", e)
             return []
 
     def send_network_found_alert(self, alert_data):
-        """
-        Uses the IPC client to send a 'NETWORK_FOUND' message.
-        """
-        client = IPCClient()  # uses published sock file.. instancing is fine
-        response = client.send(alert_data)
-        self.logger.debug("Network found alert sent: %s, response: %s", alert_data, response)
+        self.logger.debug(f"Sending alert via IPC: {alert_data}")
+        response = self.client.send(alert_data)
+        self.logger.debug(f"IPC response for alert: {response}")
