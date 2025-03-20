@@ -114,6 +114,36 @@ class BaseSubmenu:
             self.logger.info(
                 f"Alert (popup disabled): {alert_data.get('ssid', 'Unknown SSID')} on BSSID {alert_data.get('bssid', 'Unknown BSSID')}")
 
+    def display_alert_popup(self, alert_data: dict):
+        """
+        Displays a transient alert message in the top-left corner without blocking menu input.
+        The message does not include the BSSID to keep it short. It clears itself after 3 seconds.
+        """
+        # alert ssid
+        if 'ssid' in alert_data:
+            alert_msg = f"ALERT: {alert_data.get('ssid')}"
+        elif 'message' in alert_data:
+            alert_msg = f"ALERT: {alert_data.get('message')}"
+        else:
+            alert_msg = "ALERT: Notification received."
+
+        # get dimensions from main stdscr
+        if hasattr(self, "stdscr") and self.stdscr:
+            h, w = self.stdscr.getmaxyx()
+        else:
+            h, w = curses.LINES, curses.COLS
+
+        # draw alert
+        try:
+            self.stdscr.addstr(0, 0, alert_msg[:w - 1], curses.A_REVERSE)
+            self.stdscr.refresh()
+            curses.napms(3000)
+            self.stdscr.move(0, 0)
+            self.stdscr.clrtoeol()
+            self.stdscr.refresh()
+        except Exception as e:
+            self.logger.error("Error displaying alert popup: " + str(e))
+
     #############################
     ##### MAIN MENU OPTIONS #####
     #############################
@@ -989,47 +1019,6 @@ class BaseSubmenu:
                 continue
             else:
                 return selection
-
-    ##########################################
-    ##### GLOBAL UI INSTANCE TOOL ALERTS #####
-    ##########################################
-    def display_alert_popup(self, alert_data: dict):
-        """
-        Displays an alert message as a non-blocking popup in the top left corner.
-        The popup appears at a fixed position and automatically clears after 3 seconds.
-        """
-        # Build the alert message.
-        if 'ssid' in alert_data and 'bssid' in alert_data:
-            alert_msg = f"ALERT: {alert_data.get('ssid')} ({alert_data.get('bssid')})"
-        elif 'message' in alert_data:
-            alert_msg = f"ALERT: {alert_data.get('message')}"
-        else:
-            alert_msg = "ALERT: Unspecified notification."
-
-        if hasattr(self, "stdscr") and self.stdscr:
-            screen_h, screen_w = self.stdscr.getmaxyx()
-        else:
-            screen_h, screen_w = curses.LINES, curses.COLS
-
-        # popup dimensions
-        popup_h = 3
-        popup_w = min(len(alert_msg) + 4, screen_w // 2)  # width
-        pos_y, pos_x = 0, 0  # top left
-
-        # create window for popups
-        popup_win = curses.newwin(popup_h, popup_w, pos_y, pos_x)
-        popup_win.clear()
-        popup_win.box()
-        try:
-            popup_win.addstr(1, 2, alert_msg[:popup_w - 4])
-        except curses.error:
-            pass
-        popup_win.refresh()
-
-        # dismiss after 3s
-        curses.napms(3000)
-        popup_win.clear()
-        popup_win.refresh()
 
     ##########################
     ##### HELPER METHODS #####
