@@ -35,14 +35,12 @@ class PyfyConnectSubmenu(BaseSubmenu):
                     formatted_messages.append(f"{ssid}")
             else:
                 formatted_messages.append(str(alert))
-        final_message = "\n ".join(formatted_messages)
+        final_message = "\n".join(formatted_messages)
         self.display_alert_popup(final_message)
 
     def display_alert_popup(self, alert_msg: str):
-        """
-        Instead of a modal popup that blocks input, simply adds the alert message
-        string to the alert queue so that it is drawn in the designated area.
-        """
+        # Clear the alert queue so that we don't accumulate duplicate groups of alerts.
+        self.alert_queue.clear()
         self.add_alert(alert_msg, duration=3)
 
 
