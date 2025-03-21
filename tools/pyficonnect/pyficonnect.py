@@ -213,14 +213,14 @@ class PyfiConnectTool(Tool, ABC):
 
     def start_background_scan_async(self):
         self.scanner_running = True
-        # Use the standalone function 'background_monitor'
         thread = threading.Thread(
-            target=PyfiConnectTool.background_monitor,
-            args=(self.monitor_netlink_events(),),  # Pass the coroutine instance
+            target=self.background_monitor,
+            args=(self.monitor_netlink_events(),),
             daemon=True
         )
         thread.start()
         self.logger.info("Background netlink event monitoring started in dedicated thread.")
+
 
     def scan_networks_pyroute2(self, interface):
         """
