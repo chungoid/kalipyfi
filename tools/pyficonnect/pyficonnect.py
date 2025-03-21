@@ -14,6 +14,7 @@ from scapy.sendrecv import sniff
 from config.constants import BASE_DIR
 from database.db_manager import get_db_connection
 from tools.pyficonnect.db import init_pyfyconnect_schema, safe_sync_pyfyconnect_from_hcxtool
+from tools.pyficonnect.scapymanager import ScapyManager
 from tools.pyficonnect.submenu import PyfyConnectSubmenu
 from tools.tools import Tool
 from utils.tool_registry import register_tool
@@ -53,6 +54,8 @@ class PyfiConnectTool(Tool, ABC):
         self.db_networks = None
         self.scanner_running = False
         self.alerted_networks = {}
+        self.scapy_manager = ScapyManager.get_instance()
+        self.scapy_manager.register_alert_callback(self.handle_alert)
 
     def submenu(self, stdscr) -> None:
         """
@@ -156,108 +159,3 @@ class PyfiConnectTool(Tool, ABC):
             self.logger.info(f"Disconnected {self.selected_interface} using nmcli")
         except Exception as e:
             self.logger.error(f"Error disconnecting using nmcli: {e}")
-
-    ##################################################
-    ##### AUTO-SCAN IN BACKGROUND FOR DB MATCHES #####
-    ##################################################
-
-    def load_db_networks(self):
-        """
-        Loads all rows from the pyficonnect table into a dictionary keyed by normalized BSSID.
-        """
-        from tools.pyficonnect._parser import get_pyficonnect_networks_from_db, format_pyficonnect_networks
-        rows = get_pyficonnect_networks_from_db(BASE_DIR)
-        self.db_networks = format_pyficonnect_networks(rows)
-        self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
-
-    def scapy_packet_handler(self, pkt):
-        from tools.helpers.tool_utils import normalize_mac
-        if pkt.haslayer(Dot11) and pkt.type == 0 and pkt.subtype == 8:
-            try:
-                ssid = pkt.info.decode('utf-8', errors='ignore')
-            except Exception:
-                ssid = "<unknown>"
-            if not ssid:
-                ssid = "<hidden>"
-            bssid = normalize_mac(pkt.addr2)
-            if self.db_networks and bssid in self.db_networks:
-                if bssid not in self.alerted_networks:
-                    self.logger.info(f"Scapy scan detected - SSID: {ssid} - BSSID: {bssid}")
-                    alert_data = {
-                        "action": "NETWORK_FOUND",
-                        "tool": self.name,
-                        "ssid": ssid,
-                        "bssid": bssid,
-                        "timestamp": time.time()
-                    }
-                    self.alerted_networks[bssid] = True
-                    self.send_network_found_alert(alert_data)
-
-    def scan_networks_scapy(self, interface: str, dwell_time: float = 0.2) -> None:
-        """
-        Rotates through all channels (2.4 GHz and 5 GHz) and uses Scapy to sniff for beacon frames.
-        dwell_time: number of seconds to stay on each channel.
-        """
-        from config.constants import ALL_CHANNELS
-        for channel in ALL_CHANNELS:
-            try:
-                subprocess.check_call(
-                    ["iw", "dev", interface, "set", "channel", str(channel)],
-                    stderr=subprocess.DEVNULL
-                )
-                self.logger.info("Switched %s to channel %s", interface, channel)
-            except subprocess.CalledProcessError as e:
-                self.logger.error("Error switching %s to channel %s: %s", interface, channel, e)
-                continue
-
-            try:
-                sniff(iface=interface, prn=self.scapy_packet_handler, timeout=dwell_time, store=0)
-            except Exception as e:
-                self.logger.error("Error during sniffing on channel %s: %s", channel, e)
-                time.sleep(0.1)
-
-    def start_background_scan_scapy(self):
-        """
-        Starts a background thread that continuously rotates through channels and scans using Scapy.
-        It first checks that the interface is in monitor mode and switches it if necessary.
-        Exceptions during scanning are caught and logged so they don't affect the UI.
-        """
-        from tools.helpers.tool_utils import get_interface_mode, switch_interface_to_monitor
-        current_mode = get_interface_mode(self.selected_interface, self.logger)
-        if current_mode != "monitor":
-            self.logger.info("Interface %s is in %s mode; switching to monitor mode.", self.selected_interface,
-                             current_mode)
-            if not switch_interface_to_monitor(self.selected_interface, self.logger):
-                self.logger.error("Failed to switch interface %s to monitor mode. Aborting background scan.",
-                                  self.selected_interface)
-                return
-
-        self.scanner_running = True
-
-        def background_scan():
-            while self.scanner_running:
-                try:
-                    self.scan_networks_scapy(self.selected_interface, dwell_time=0.2)
-                except Exception as e:
-                    self.logger.error("Unhandled error in background scan: %s", e)
-                time.sleep(1)
-
-        threading.Thread(target=background_scan, daemon=True).start()
-        self.logger.info("Scapy-based rotating background scanning started.")
-
-    def stop_background_scan_scapy(self):
-        """
-        Stops the Scapy-based background scanning.
-        """
-        self.scanner_running = False
-        self.logger.info("Scapy-based background scanning stopped.")
-
-    def send_network_found_alert(self, alert_data):
-        """
-        Sends a network found alert via IPC.
-        """
-        self.logger.debug("Sending network found alert via IPC: %s", alert_data)
-        self.send_alert_payload("NETWORK_FOUND", alert_data)
-        response = self.client.send(alert_data)
-        self.logger.debug("IPC response for network alert: %s", response)
-

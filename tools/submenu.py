@@ -2,7 +2,6 @@ import curses
 import logging
 import socket
 import time
-
 import yaml
 from pathlib import Path
 from typing import List, Any, Union
@@ -26,7 +25,6 @@ class BaseSubmenu:
         self.alerts_enabled = True
         self.debug_win = None
         self.BACK_OPTION = "back"
-
 
     def create_debug_window(self, stdscr, height: int = 4) -> any:
         max_y, max_x = stdscr.getmaxyx()
@@ -104,22 +102,16 @@ class BaseSubmenu:
     def toggle_alerts(self):
         """
         Toggles the state of alerts and immediately refreshes the alert display.
-        When enabled, it fetches all alerts for this tool from the UI manager and updates the alert window.
+        When enabled, it displays alerts stored in the local alert queue.
         When disabled, it clears the alert window.
         """
         self.alerts_enabled = not self.alerts_enabled
         state = "enabled" if self.alerts_enabled else "disabled"
         self.logger.info(f"Alerts have been {state}.")
 
-        ui = self.tool.ui_instance  # Reference to UIManager
-
         if self.alerts_enabled:
-            # get current alerts
-            alerts = ui.alerts.get(self.tool.name, [])
-            # update alert display
-            self.display_alert(alerts)
+            self.display_alert(self.alert_queue)
         else:
-            # clear window
             if self.alert_win:
                 self.alert_win.erase()
                 self.alert_win.box()
@@ -127,15 +119,24 @@ class BaseSubmenu:
 
         return state
 
+    def handle_alert(self, alert_data):
+        """
+        Callback method that gets called by ScapyManager when a network alert is generated.
+        It could update the submenu's alert queue or refresh the display.
+        """
+        self.logger.info("Received alert: %s", alert_data)
+        self.alert_queue.append(alert_data)
+        self.display_alert(self.alert_queue)
+
     def setup_alert_window(self, stdscr):
         """
-        Create a persistent alert window using the main stdscr.
+        Creates a persistent alert window using the main stdscr.
         The alert window will use the full available height and one-third of the available width.
-        This should be called from __call__ when curses is properly initialized.
+        This should be called when curses is properly initialized.
         """
         h, w = stdscr.getmaxyx()
         alert_height = h
-        alert_width = w // 3  # use one-third of the width
+        alert_width = w // 3  # Use one-third of the width.
         self.alert_win = curses.newwin(alert_height, alert_width, 0, 0)
         self.alert_win.box()
         self.alert_win.nodelay(True)
@@ -144,40 +145,58 @@ class BaseSubmenu:
     def add_alert(self, alert_msg: str, duration: float = 3):
         """
         Appends an alert message to the alert queue with a set duration.
+        The alert_queue is expected to hold tuples of (message, expiration_time).
         """
         expiration = time.time() + duration
         self.alert_queue.append((alert_msg, expiration))
         self.update_alert_window(alert_msg)
 
-    def update_alert_window(self, alert_msg: str):
-        if self.alert_win:
-            h, w = self.alert_win.getmaxyx()
-            self.alert_win.erase()
-            self.alert_win.box()
-            lines = alert_msg.splitlines() or [alert_msg]
-            if len(lines) > (h - 2):
-                lines = lines[-(h - 2):]
-            for row, line in enumerate(lines, start=1):
-                try:
-                    self.alert_win.addstr(row, 2, line[:w - 4])
-                except curses.error:
-                    pass
-            self.alert_win.refresh()
-
-    def display_alert(self, alerts: List[dict]):
+    def update_alert_window(self, new_message: str):
         """
-        Expects a list of alert data dictionaries.
-        For each alert, recalculates the elapsed time if a timestamp exists, and updates the display.
+        Updates the alert window to display the current set of alert messages.
+        This method first cleans up expired alerts.
+        """
+        if not self.alert_win:
+            return
+
+        current_time = time.time()
+        self.alert_queue = [(msg, exp) for (msg, exp) in self.alert_queue if exp > current_time]
+
+        combined_alerts = "\n".join(msg for msg, _ in self.alert_queue)
+
+        h, w = self.alert_win.getmaxyx()
+        self.alert_win.erase()
+        self.alert_win.box()
+        lines = combined_alerts.splitlines() or [combined_alerts]
+        if len(lines) > (h - 2):
+            lines = lines[-(h - 2):]
+        for row, line in enumerate(lines, start=1):
+            try:
+                self.alert_win.addstr(row, 2, line[:w - 4])
+            except curses.error:
+                pass
+        self.alert_win.refresh()
+
+    def display_alert(self, alerts: list):
+        """
+        Expects a list of alert items. If the alerts come as dictionaries from the global scanner,
+        formats them based on the NETWORK_FOUND action; if they are tuples (as added by add_alert),
+        extracts the message. The method then updates the alert window.
         """
         formatted_messages = []
         for alert in alerts:
-            if alert.get("action") == "NETWORK_FOUND":
-                ssid = alert.get("ssid", "Unknown")
-                if "timestamp" in alert:
-                    time_passed = time.time() - alert["timestamp"]
-                    formatted_messages.append(f"{ssid} ({time_passed:.0f}s)")
+            if isinstance(alert, dict):
+                if alert.get("action") == "NETWORK_FOUND":
+                    ssid = alert.get("ssid", "Unknown")
+                    if "timestamp" in alert:
+                        time_passed = time.time() - alert["timestamp"]
+                        formatted_messages.append(f"{ssid} ({time_passed:.0f}s)")
+                    else:
+                        self.logger.warning("No timestamp found for alert: %s", alert)
                 else:
-                    self.logger.warning(f"no timestamp found for {alert}")
+                    formatted_messages.append(str(alert))
+            elif isinstance(alert, tuple):
+                formatted_messages.append(str(alert[0]))
             else:
                 formatted_messages.append(str(alert))
         final_message = "\n".join(formatted_messages)
