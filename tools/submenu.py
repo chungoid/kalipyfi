@@ -119,15 +119,6 @@ class BaseSubmenu:
 
         return state
 
-    def handle_alert(self, alert_data):
-        """
-        Callback method that gets called by ScapyManager when a network alert is generated.
-        It could update the submenu's alert queue or refresh the display.
-        """
-        self.logger.info("Received alert: %s", alert_data)
-        self.alert_queue.append(alert_data)
-        self.display_alert(self.alert_queue)
-
     def setup_alert_window(self, stdscr):
         """
         Creates a persistent alert window using the main stdscr.
@@ -142,32 +133,52 @@ class BaseSubmenu:
         self.alert_win.nodelay(True)
         self.alert_win.refresh()
 
+    def handle_alert(self, alert_data):
+        """
+        Callback method to process alerts from the global ScapyManager.
+        Converts the incoming alert into a unified dictionary format and adds it to the alert queue.
+        """
+        self.logger.info("Received alert: %s", alert_data)
+        if isinstance(alert_data, dict) and alert_data.get("action") == "NETWORK_FOUND":
+            message = f"{alert_data.get('ssid', 'Unknown')} ({int(time.time() - alert_data.get('timestamp', time.time()))}s)"
+            alert = {
+                "action": alert_data["action"],
+                "message": message,
+                "expiration": time.time() + 120  # keep for 2m
+            }
+        else:
+            alert = {"message": str(alert_data), "expiration": time.time() + 120}
+        self.alert_queue.append(alert)
+        self.display_alert(self.alert_queue)
+
+
     def add_alert(self, alert_msg: str, duration: float = 3):
         """
-        Appends an alert message to the alert queue with a set duration.
-        The alert_queue is expected to hold tuples of (message, expiration_time).
+        Appends an alert message (as a dict) to the alert queue with a set expiration time.
         """
         expiration = time.time() + duration
-        self.alert_queue.append((alert_msg, expiration))
-        self.update_alert_window(alert_msg)
+        alert = {"message": alert_msg, "expiration": expiration}
+        self.alert_queue.append(alert)
+        self.update_alert_window()
 
-    def update_alert_window(self, new_message: str):
-        """
-        Updates the alert window to display the current set of alert messages.
-        This method first cleans up expired alerts.
-        """
+    def update_alert_window(self):
         if not self.alert_win:
             return
 
+        # remove expired
         current_time = time.time()
-        self.alert_queue = [(msg, exp) for (msg, exp) in self.alert_queue if exp > current_time]
+        self.alert_queue = [alert for alert in self.alert_queue if alert.get("expiration", 0) > current_time]
 
-        combined_alerts = "\n".join(msg for msg, _ in self.alert_queue)
+        # combine
+        messages = [alert.get("message", "") for alert in self.alert_queue]
 
+        combined_alerts = "\n".join(messages)
+
+        # update
         h, w = self.alert_win.getmaxyx()
         self.alert_win.erase()
         self.alert_win.box()
-        lines = combined_alerts.splitlines() or [combined_alerts]
+        lines = combined_alerts.splitlines()
         if len(lines) > (h - 2):
             lines = lines[-(h - 2):]
         for row, line in enumerate(lines, start=1):
@@ -179,28 +190,44 @@ class BaseSubmenu:
 
     def display_alert(self, alerts: list):
         """
-        Expects a list of alert items. If the alerts come as dictionaries from the global scanner,
-        formats them based on the NETWORK_FOUND action; if they are tuples (as added by add_alert),
-        extracts the message. The method then updates the alert window.
+        Processes a list of alert items. Expects each alert to be a dict.
+        If an alert is of type NETWORK_FOUND (from the global scanner), formats it;
+        otherwise, it assumes the dict has a "message" key.
+        Then updates the alert window.
         """
         formatted_messages = []
         for alert in alerts:
-            if isinstance(alert, dict):
-                if alert.get("action") == "NETWORK_FOUND":
-                    ssid = alert.get("ssid", "Unknown")
-                    if "timestamp" in alert:
-                        time_passed = time.time() - alert["timestamp"]
-                        formatted_messages.append(f"{ssid} ({time_passed:.0f}s)")
-                    else:
-                        self.logger.warning("No timestamp found for alert: %s", alert)
+            # check if its from global scanner
+            if isinstance(alert, dict) and alert.get("action") == "NETWORK_FOUND":
+                ssid = alert.get("ssid", "Unknown")
+                if "timestamp" in alert:
+                    time_passed = time.time() - alert["timestamp"]
+                    formatted_messages.append(f"{ssid} ({time_passed:.0f}s)")
                 else:
-                    formatted_messages.append(str(alert))
-            elif isinstance(alert, tuple):
-                formatted_messages.append(str(alert[0]))
+                    self.logger.warning("No timestamp found for alert: %s", alert)
+            elif isinstance(alert, dict) and "message" in alert:
+                formatted_messages.append(alert["message"])
             else:
                 formatted_messages.append(str(alert))
         final_message = "\n".join(formatted_messages)
-        self.update_alert_window(final_message)
+        self._update_alert_window_from_message(final_message)
+
+    def _update_alert_window_from_message(self, message: str):
+        if not self.alert_win:
+            return
+
+        h, w = self.alert_win.getmaxyx()
+        self.alert_win.erase()
+        self.alert_win.box()
+        lines = message.splitlines() or [message]
+        if len(lines) > (h - 2):
+            lines = lines[-(h - 2):]
+        for row, line in enumerate(lines, start=1):
+            try:
+                self.alert_win.addstr(row, 2, line[:w - 4])
+            except curses.error:
+                pass
+        self.alert_win.refresh()
 
     #############################
     ##### MAIN MENU OPTIONS #####

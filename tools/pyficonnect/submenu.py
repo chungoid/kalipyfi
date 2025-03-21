@@ -13,8 +13,8 @@ class PyfyConnectSubmenu(BaseSubmenu):
         Initialize the submenu for NetConnectTool.
         """
         super().__init__(tool_instance)
-        self.logger = logging.getLogger("NetConnectToolSubmenu")
-        self.logger.debug("NetConnectToolSubmenu initialized.")
+        self.logger = logging.getLogger("PyfyConnectSubmenu")
+        self.logger.debug("PyfyConnectSubmenu initialized.")
         self.scapy_manager = ScapyManager.get_instance()
         self.scapy_manager.register_alert_callback(self.handle_alert)
 
