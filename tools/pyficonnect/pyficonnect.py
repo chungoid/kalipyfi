@@ -169,60 +169,29 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     async def monitor_netlink_events(self):
-        """
-        Monitors netlink events using pyroute2's IPRoute and triggers a scan when events occur.
-        Uses a hybrid approach: logs and processes netlink events, and if more than a fallback
-        interval has passed, it triggers a full scan.
-        """
         ipr = IPRoute()
         try:
             ipr.bind()
             self.logger.info("Netlink socket bound; starting event monitoring loop.")
             last_scan = time.time()
             while self.scanner_running:
-                try:
-                    self.logger.debug("Waiting for netlink events...")
-                    events = await asyncio.to_thread(ipr.get)
-                    if events:
-                        self.logger.debug(f"Received {len(events)} netlink event(s).")
-                        for idx, event in enumerate(events, start=1):
-                            self.logger.debug(f"Event {idx}: {event}")
-                    else:
-                        self.logger.debug("No netlink events received in this iteration.")
-                except Exception as e:
-                    self.logger.error("Error while retrieving netlink events: %s", e)
+                self.logger.debug("Awaiting netlink events...")
+                events = await asyncio.to_thread(ipr.get)
+                if events:
+                    self.logger.debug(f"Received {len(events)} netlink event(s).")
+                    for idx, event in enumerate(events, start=1):
+                        self.logger.debug(f"Event {idx}: {event}")
+                else:
+                    self.logger.debug("No netlink events received in this iteration.")
 
-                # Trigger fallback periodic scan every 10 seconds
+                # Fallback: trigger a scan every 10 seconds
                 if time.time() - last_scan >= 10:
                     last_scan = time.time()
                     self.logger.info("Fallback periodic scan triggered.")
-                    try:
-                        networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
-                        self.logger.debug(f"Scan returned networks: {networks}")
-                        from tools.helpers.tool_utils import normalize_mac
-                        for net in networks:
-                            cli_bssid = net.get("bssid")
-                            norm_cli_bssid = normalize_mac(cli_bssid)
-                            self.logger.debug(f"Normalized BSSID: {norm_cli_bssid}")
-                            if norm_cli_bssid in self.db_networks:
-                                current_time = time.time()
-                                alert_data = {
-                                    "action": "NETWORK_FOUND",
-                                    "tool": self.name,
-                                    "ssid": self.db_networks[norm_cli_bssid]["ssid"],
-                                    "bssid": norm_cli_bssid,
-                                    "key": self.db_networks[norm_cli_bssid].get("key"),
-                                    "timestamp": current_time,
-                                }
-                                self.logger.info(f"Alert generated: {alert_data}")
-                                self.send_network_found_alert(alert_data)
-                            else:
-                                self.logger.debug(f"BSSID {norm_cli_bssid} not found in DB networks.")
-                    except Exception as e:
-                        self.logger.error("Error during fallback scan: %s", e)
+                    networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
+                    self.logger.debug(f"Scan returned networks: {networks}")
+                    # Process each network as needed...
                 await asyncio.sleep(0.1)
-        except Exception as e:
-            self.logger.error("Unexpected error in netlink monitoring loop: %s", e)
         finally:
             ipr.close()
             self.logger.info("Netlink event monitoring loop terminated.")
@@ -230,12 +199,14 @@ class PyfiConnectTool(Tool, ABC):
     def scan_networks_pyroute2(self, interface):
         """
         Uses pyroute2's IW module to scan for networks on the specified interface.
-        This method converts the interface name (e.g., 'wlan4') to its index,
-        forces a fresh scan (flush_cache=True), logs raw results, and returns a list
-        of dictionaries in the form:
+        Forces a fresh scan (flush_cache=True) and parses each AP's attributes
+        to extract the BSSID and SSID (which is stored inside the information elements).
+
+        Returns a list of dictionaries like:
           [{"ssid": "MyHomeWiFi", "bssid": "AA:BB:CC:DD:EE:FF"}, ...]
         """
-        # Convert the interface name to its ifindex using IPRoute.
+        # Convert the interface name to an ifindex using IPRoute.
+        from pyroute2 import IPRoute
         ipr = IPRoute()
         try:
             indices = ipr.link_lookup(ifname=interface)
@@ -250,22 +221,42 @@ class PyfiConnectTool(Tool, ABC):
         finally:
             ipr.close()
 
-        # Use the IW module to trigger a scan.
+        # Create an IW instance and perform the scan.
+        from pyroute2 import IW
         iw = IW()
         try:
             self.logger.info(f"Initiating scan on interface {interface} (ifindex {ifindex}).")
-            # Use flush_cache=True to force a fresh scan of all available APs.
+            # Flush the scan cache so that we get current results.
             results = iw.scan(ifindex, flush_cache=True)
             self.logger.debug(f"Raw scan results: {results}")
             networks = []
             for ap in results:
-                ssid = ap.get("ssid", "Unknown")
-                bssid = ap.get("bssid")
-                self.logger.debug(f"Found AP - SSID: {ssid}, BSSID: {bssid}")
+                ssid = "Unknown"
+                bssid = None
+                attrs = ap.get("attrs", [])
+                for attr in attrs:
+                    key, value = attr[0], attr[1]
+                    self.logger.debug(f"Attribute key: {key!r}, value: {value!r}")
+                    # Check for the BSSID.
+                    if key in ("NL80211_BSS_BSSID", "NL80211_ATTR_BSS_BSSID"):
+                        bssid = value
+                    # Check for the information elements where the SSID is stored.
+                    elif key in ("NL80211_BSS_INFORMATION_ELEMENTS", "NL80211_ATTR_BSS_INFORMATION_ELEMENTS"):
+                        if isinstance(value, dict) and "SSID" in value:
+                            raw_ssid = value["SSID"]
+                            if raw_ssid:
+                                try:
+                                    ssid = raw_ssid.decode("utf-8", errors="replace")
+                                except Exception as e:
+                                    self.logger.error("Error decoding SSID: %s", e)
+                                    ssid = "Unknown"
+                            else:
+                                ssid = "Hidden"
                 networks.append({
                     "ssid": ssid,
                     "bssid": bssid
                 })
+                self.logger.info("Found AP - SSID: %s, BSSID: %s", ssid, bssid)
             self.logger.info(f"Scan complete. Found {len(networks)} networks on {interface}.")
             return networks
         except Exception as e:
