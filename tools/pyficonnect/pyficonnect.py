@@ -171,7 +171,7 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     def scapy_packet_handler(self, pkt):
-        # Only process 802.11 beacon frames (type 0, subtype 8)
+        # Only process 802.11 beacon frames
         from tools.helpers.tool_utils import normalize_mac
         if pkt.haslayer(Dot11) and pkt.type == 0 and pkt.subtype == 8:
             try:
@@ -196,22 +196,34 @@ class PyfiConnectTool(Tool, ABC):
                     self.alerted_networks[bssid] = True
                     self.send_network_found_alert(alert_data)
 
-    def scan_networks_scapy(self, interface: str, duration: int = 10) -> None:
+    def scan_networks_scapy(self, interface: str, dwell_time: int = 1) -> None:
         """
-        Uses Scapy to sniff for beacon frames on the given interface.
-        This method runs for a specified duration (in seconds).
+        Rotates through all channels (2.4 GHz and 5 GHz) and uses Scapy to sniff for beacon frames.
+        dwell_time: number of seconds to stay on each channel.
         """
-        self.logger.info("Starting Scapy-based scan on interface %s for %d seconds", interface, duration)
-        sniff(iface=interface, prn=self.scapy_packet_handler, timeout=duration, store=0)
+        from config.constants import ALL_CHANNELS
+        for channel in ALL_CHANNELS:
+            try:
+                # Switch the interface to the target channel.
+                subprocess.check_call(["iw", "dev", interface, "set", "channel", str(channel)],
+                                    stderr=subprocess.DEVNULL)
+                print(f"Switched {interface} to channel {channel}")
+            except subprocess.CalledProcessError as e:
+                print(f"Error switching {interface} to channel {channel}: {e}")
+                continue
 
-    def start_background_scan_scapy(self):
+            # Sniff for beacon frames on this channel.
+            sniff(iface=interface, prn=self.scapy_packet_handler, timeout=dwell_time, store=0)
+
+    def start_background_scan_rotating(self):
         """
-        Starts a background thread that continuously calls the Scapy-based scan.
-        First, it checks if the selected interface is in monitor mode.
-        If not, it switches the interface to monitor mode before starting the scan.
+        Starts a background thread that continuously rotates through channels,
+        scanning with Scapy on each channel for a short period.
+        Before starting, it checks if the selected interface is in monitor mode,
+        switching it if necessary.
         """
-        # Check if the interface is in monitor mode
-        from tools.helpers.tool_utils import get_interface_mode, switch_interface_to_monitor
+        from tools.helpers.tool_utils import switch_interface_to_monitor, get_interface_mode
+        # Check if interface is already in monitor mode (using your helper)
         current_mode = get_interface_mode(self.selected_interface, self.logger)
         if current_mode != "monitor":
             self.logger.info("Interface %s is in %s mode; switching to monitor mode.", self.selected_interface,
@@ -225,15 +237,12 @@ class PyfiConnectTool(Tool, ABC):
 
         def background_scan():
             while self.scanner_running:
-                try:
-                    self.scan_networks_scapy(self.selected_interface, duration=5)
-                except Exception as e:
-                    self.logger.error("Error during Scapy scan: %s", e)
-                # Small delay between scans (adjust as needed)
+                self.scan_networks_scapy(self.selected_interface, dwell_time=1)
+                # Optionally, add a delay between full rotations
                 time.sleep(1)
 
         threading.Thread(target=background_scan, daemon=True).start()
-        self.logger.info("Scapy-based background scanning started.")
+        self.logger.info("Scapy-based rotating background scanning started.")
 
     def stop_background_scan_scapy(self):
         """

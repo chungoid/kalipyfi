@@ -24,7 +24,6 @@ TOOL_PATHS = {
     "nmap": TOOLS_DIR / "nmap",
 }
 
-
 ########################
 ##### IPC PROTOCOL #####
 ########################
@@ -69,4 +68,9 @@ IPC_CONSTANTS = {
         "SCAN_COMPLETE": "SCAN_COMPLETE",
     }
 }
-
+##########################
+##### DOT11 CHANNELS #####
+##########################
+CHANNELS_24GHZ = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+CHANNELS_5GHZ = [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 149, 153, 157, 161, 165]
+ALL_CHANNELS = CHANNELS_24GHZ + CHANNELS_5GHZ
