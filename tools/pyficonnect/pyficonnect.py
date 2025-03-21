@@ -119,6 +119,22 @@ class PyfiConnectTool(Tool, ABC):
             self.logger.error(f"Error activating connection: {e}")
             return
 
+    def profile_exists(self, con_name: str) -> bool:
+        """
+        Check if a NetworkManager connection profile with the given name already exists.
+        """
+        try:
+            output = subprocess.check_output(
+                ["nmcli", "-g", "NAME", "connection", "show"],
+                text=True
+            )
+            # split where a line is a profile name
+            existing_profiles = [line.strip() for line in output.splitlines() if line.strip()]
+            return con_name in existing_profiles
+        except Exception as e:
+            self.logger.error(f"Error checking if profile exists: {e}")
+            return False
+
     def disconnect(self) -> None:
         """
         Disconnects from the network using nmcli.
@@ -137,22 +153,6 @@ class PyfiConnectTool(Tool, ABC):
         except Exception as e:
             self.logger.error(f"Error disconnecting using nmcli: {e}")
 
-    def profile_exists(self, con_name: str) -> bool:
-        """
-        Check if a connection profile with the given name already exists.
-        """
-        try:
-            output = subprocess.check_output(
-                ["nmcli", "-g", "NAME", "connection", "show"],
-                text=True
-            )
-            # split where a line is a profile name
-            existing_profiles = [line.strip() for line in output.splitlines() if line.strip()]
-            return con_name in existing_profiles
-        except Exception as e:
-            self.logger.error(f"Error checking if profile exists: {e}")
-            return False
-
     ##################################################
     ##### AUTO-SCAN IN BACKGROUND FOR DB MATCHES #####
     ##################################################
@@ -168,44 +168,35 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     def background_scan_loop(self):
-        alert_threshold = 120
+        """
+        Scan for available networks by creating a background process and
+        if any networks match the bssid of a network in the database:
+
+        1) NETWORK_FOUND action is sent to IPC
+        2) AlertData instance is created
+        3) Alert is displayed in the UI
+
+        :return: None
+        """
 
         while self.scanner_running:
             available_networks = self.scan_networks_cli(self.selected_interface)
-            from tools.helpers.tool_utils import normalize_mac  # ensure consistent formatting
-
-            # Log the current state of db_networks for comparison
-            self.logger.debug(f"DB networks for comparison: {list(self.db_networks.keys())}")
+            from tools.helpers.tool_utils import normalize_mac
 
             for net in available_networks:
                 cli_bssid = net.get("bssid")
                 norm_cli_bssid = normalize_mac(cli_bssid)
-                self.logger.debug(f"Scanned network BSSID: raw='{cli_bssid}' normalized='{norm_cli_bssid}'")
-
                 if norm_cli_bssid in self.db_networks:
                     current_time = time.time()
-                    last_alert = self.alerted_networks.get(norm_cli_bssid)
-                    if last_alert and (current_time - last_alert) < alert_threshold:
-                        self.logger.debug(
-                            f"Already alerted for network {norm_cli_bssid} within threshold, skipping alert."
-                        )
-                        continue  # Skip sending alert if within threshold
-
-                    # Build alert_data and include the timestamp
                     alert_data = {
                         "action": "NETWORK_FOUND",
                         "tool": self.name,
                         "ssid": self.db_networks[norm_cli_bssid]["ssid"],
                         "bssid": norm_cli_bssid,
                         "key": self.db_networks[norm_cli_bssid].get("key"),
-                        "timestamp": current_time,  # include timestamp so that the formatter can use it
+                        "timestamp": current_time,
                     }
-                    self.logger.debug(f"Match found! Alert data: {alert_data}")
                     self.send_network_found_alert(alert_data)
-                    # Record that we alerted this network at the current time
-                    self.alerted_networks[norm_cli_bssid] = current_time
-                else:
-                    self.logger.debug(f"No match for scanned BSSID: {norm_cli_bssid}")
             time.sleep(10)
 
     def scan_networks_cli(self, interface):

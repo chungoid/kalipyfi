@@ -23,7 +23,7 @@ class BaseSubmenu:
         self.tool.ui_instance.register_active_submenu(self)
         self.alert_queue = []
         self.alert_win = None
-        self.alert_popups_enabled = True
+        self.alerts_enabled = True
         self.debug_win = None
         self.BACK_OPTION = "back"
 
@@ -101,19 +101,19 @@ class BaseSubmenu:
                 if 1 <= selection <= len(page_items):
                     return page_items[selection - 1]
 
-    def toggle_alert_popups(self):
+    def toggle_alerts(self):
         """
-        Toggles the state of alert popups and immediately refreshes the alert display.
+        Toggles the state of alerts and immediately refreshes the alert display.
         When enabled, it fetches all alerts for this tool from the UI manager and updates the alert window.
         When disabled, it clears the alert window.
         """
-        self.alert_popups_enabled = not self.alert_popups_enabled
-        state = "enabled" if self.alert_popups_enabled else "disabled"
-        self.logger.info(f"Alert popups have been {state}.")
+        self.alerts_enabled = not self.alerts_enabled
+        state = "enabled" if self.alerts_enabled else "disabled"
+        self.logger.info(f"Alerts have been {state}.")
 
         ui = self.tool.ui_instance  # Reference to UIManager
 
-        if self.alert_popups_enabled:
+        if self.alerts_enabled:
             # get current alerts
             alerts = ui.alerts.get(self.tool.name, [])
             # update alert display
@@ -137,7 +137,7 @@ class BaseSubmenu:
         alert_height = h
         alert_width = w // 3  # use one-third of the width
         self.alert_win = curses.newwin(alert_height, alert_width, 0, 0)
-        self.alert_win.box()  # draw the border by default
+        self.alert_win.box()
         self.alert_win.nodelay(True)
         self.alert_win.refresh()
 
@@ -1019,7 +1019,7 @@ class BaseSubmenu:
             toggle_scrolling_label = f"Scrolling ({'on' if scrolling_state else 'off'})"
 
             # prepare label
-            toggle_alert_label = f"Alerts ({'on' if self.alert_popups_enabled else 'off'})"
+            toggle_alert_label = f"Alerts ({'on' if self.alerts_enabled else 'off'})"
 
             # build full menu
             full_menu = base_menu_items.copy()
@@ -1052,11 +1052,9 @@ class BaseSubmenu:
                 continue
             elif selection.startswith("Alerts"):
                 # toggle the alert popup state
-                new_state = self.toggle_alert_popups()  # change state
+                new_state = self.toggle_alerts()  # change state
                 submenu_win.clear()
-                submenu_win.addstr(0, 0, f"Alert popups now {new_state}!")
                 submenu_win.refresh()
-                curses.napms(1500)
                 continue
             else:
                 return selection
@@ -1104,7 +1102,8 @@ class BaseSubmenu:
             # Only clear the submenu window (not affecting the alert window)
             submenu_win.clear()
             submenu_win.refresh()
-            self.update_alert_window()  # update alerts as needed
+            alerts = self.tool.ui_instance.alerts.get(self.tool.name, [])
+            self.display_alert(alerts)
 
         self.tool.ui_instance.unregister_active_submenu()
         self.logger.debug("Active submenu unregistered in __call__ exit.")
