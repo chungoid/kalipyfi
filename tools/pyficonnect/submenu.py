@@ -21,17 +21,22 @@ class PyfyConnectSubmenu(BaseSubmenu):
     ###################################
     def display_alert(self, alerts: List[dict]):
         """
-        Expects a list of alert data dictionaries. This method can filter or
-        format alerts based on their 'timestamp' or any other keys.
+        Expects a list of alert data dictionaries.
+        For each alert, recalculates the elapsed time if a timestamp exists, and updates the display.
         """
-        recent_alerts = [alert for alert in alerts if time.time() - alert.get("timestamp", time.time()) < 120]
-        for alert in recent_alerts:
+        formatted_messages = []
+        for alert in alerts:
             if alert.get("action") == "NETWORK_FOUND":
-                from tools.pyficonnect._parser import _alert_nearby_from_db
-                formatted_message = _alert_nearby_from_db(alert)
-                self.display_alert_popup(formatted_message)
+                ssid = alert.get("ssid", "Unknown Network")
+                if "timestamp" in alert:
+                    time_passed = time.time() - alert["timestamp"]
+                    formatted_messages.append(f"Network Found: {ssid} ({time_passed:.2f} s ago)")
+                else:
+                    formatted_messages.append(f"Network Found: {ssid}")
             else:
-                self.logger.debug(alert)
+                formatted_messages.append(str(alert))
+        final_message = "\n".join(formatted_messages)
+        self.display_alert_popup(final_message)
 
     def display_alert_popup(self, alert_msg: str):
         """
