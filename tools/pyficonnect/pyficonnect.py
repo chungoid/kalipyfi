@@ -169,7 +169,6 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     async def monitor_netlink_events(self):
-        from pyroute2 import IPRoute
         ipr = IPRoute()
         try:
             ipr.bind()
@@ -177,7 +176,12 @@ class PyfiConnectTool(Tool, ABC):
             last_scan = time.time()
             while self.scanner_running:
                 self.logger.debug("Awaiting netlink events...")
-                events = await asyncio.to_thread(ipr.get)
+                try:
+                    # Use wait_for to add a timeout (e.g. 1 second)
+                    events = await asyncio.wait_for(asyncio.to_thread(ipr.get), timeout=1)
+                except asyncio.TimeoutError:
+                    events = None
+
                 if events:
                     self.logger.debug(f"Received {len(events)} netlink event(s).")
                     for idx, event in enumerate(events, start=1):
@@ -192,7 +196,7 @@ class PyfiConnectTool(Tool, ABC):
                     self.logger.debug("Calling scan_networks_pyroute2 with interface: %s", self.selected_interface)
                     networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
                     self.logger.debug("Scan returned networks: %s", networks)
-                    # Process each network as needed...
+                    # (Process networks as needed...)
 
                 await asyncio.sleep(0.1)
         finally:
