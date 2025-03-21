@@ -133,26 +133,26 @@ class BaseSubmenu:
         self.refresh_alert_area()
 
     def refresh_alert_area(self):
-        """
-        Updates the persistent alert window (stored in self.alert_win) with all active alerts.
-        This method updates only the alert region without reinitializing the entire screen.
-        """
         current_time = time.time()
         # remove expired alerts from the queue
         self.alert_queue = [(msg, exp) for msg, exp in self.alert_queue if exp > current_time]
 
         if self.alert_win:
-            # get the dimensions of the persistent alert window
             h, w = self.alert_win.getmaxyx()
-            # clear only the alert window
             self.alert_win.erase()
             self.alert_win.box()
-            # display each alert line
-            for i, (msg, exp) in enumerate(self.alert_queue):
-                try:
-                    self.alert_win.addstr(i + 1, 2, msg[:w - 4])
-                except curses.error:
-                    pass  # if the message doesn't fit
+            row = 1
+            for msg, exp in self.alert_queue:
+                # split alerts into individual lines
+                lines = msg.splitlines() or [msg]
+                for line in lines:
+                    # keep from going off bottom of pane
+                    if row < h - 1:
+                        try:
+                            self.alert_win.addstr(row, 2, line[:w - 4])
+                        except curses.error:
+                            pass
+                        row += 1
             self.alert_win.refresh()
 
     def display_alert_popup(self, alert_msg: str):
