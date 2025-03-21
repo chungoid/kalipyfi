@@ -27,15 +27,15 @@ class PyfyConnectSubmenu(BaseSubmenu):
         formatted_messages = []
         for alert in alerts:
             if alert.get("action") == "NETWORK_FOUND":
-                ssid = alert.get("ssid", "Unknown Network")
+                ssid = alert.get("ssid", "Unknown")
                 if "timestamp" in alert:
                     time_passed = time.time() - alert["timestamp"]
-                    formatted_messages.append(f"Network Found: {ssid} ({time_passed:.2f} s ago)")
+                    formatted_messages.append(f"{ssid} ({time_passed:.0f} s ago)")
                 else:
-                    formatted_messages.append(f"Network Found: {ssid}")
+                    formatted_messages.append(f"{ssid}")
             else:
                 formatted_messages.append(str(alert))
-        final_message = "\n".join(formatted_messages)
+        final_message = "\n ".join(formatted_messages)
         self.display_alert_popup(final_message)
 
     def display_alert_popup(self, alert_msg: str):
