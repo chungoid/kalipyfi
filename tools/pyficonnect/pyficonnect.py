@@ -180,9 +180,7 @@ class PyfiConnectTool(Tool, ABC):
             if not ssid:
                 ssid = "<hidden>"
             bssid = normalize_mac(pkt.addr2)
-            # check db
             if self.db_networks and bssid in self.db_networks:
-                # avoid duplicates
                 if bssid not in self.alerted_networks:
                     self.logger.info(f"Scapy scan detected - SSID: {ssid} - BSSID: {bssid}")
                     alert_data = {
@@ -203,7 +201,6 @@ class PyfiConnectTool(Tool, ABC):
         from config.constants import ALL_CHANNELS
         for channel in ALL_CHANNELS:
             try:
-                # Switch the interface to the target channel.
                 subprocess.check_call(
                     ["iw", "dev", interface, "set", "channel", str(channel)],
                     stderr=subprocess.DEVNULL
@@ -214,11 +211,9 @@ class PyfiConnectTool(Tool, ABC):
                 continue
 
             try:
-                # Sniff for beacon frames on this channel.
                 sniff(iface=interface, prn=self.scapy_packet_handler, timeout=dwell_time, store=0)
             except Exception as e:
                 self.logger.error("Error during sniffing on channel %s: %s", channel, e)
-                # Optionally, add a small delay here to let the interface stabilize
                 time.sleep(0.1)
 
     def start_background_scan_scapy(self):
@@ -245,7 +240,6 @@ class PyfiConnectTool(Tool, ABC):
                     self.scan_networks_scapy(self.selected_interface, dwell_time=0.2)
                 except Exception as e:
                     self.logger.error("Unhandled error in background scan: %s", e)
-                # Short delay between full rotations.
                 time.sleep(1)
 
         threading.Thread(target=background_scan, daemon=True).start()
