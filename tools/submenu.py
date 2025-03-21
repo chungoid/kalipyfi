@@ -130,7 +130,7 @@ class BaseSubmenu:
         """
         expiration = time.time() + duration
         self.alert_queue.append((alert_msg, expiration))
-        self.update_alert_window()
+        self.update_alert_window(alert_msg)
 
     def update_alert_window(self, alert_msg: str):
         if self.alert_win:
