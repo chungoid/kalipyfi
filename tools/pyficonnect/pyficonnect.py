@@ -229,7 +229,7 @@ class PyfiConnectTool(Tool, ABC):
         finally:
             ipr.close()
 
-    def start_background_scan(self):
+    def start_background_scan_async(self):
         """
         Starts the asynchronous netlink event monitoring for background scanning.
         Assumes that an asyncio event loop is already running.
@@ -238,7 +238,7 @@ class PyfiConnectTool(Tool, ABC):
         asyncio.create_task(self.monitor_netlink_events())
         self.logger.info("Background netlink event monitoring started.")
 
-    def stop_background_scan(self):
+    def stop_background_scan_async(self):
         """
         Stops the background scanning by setting the scanner_running flag to False.
         """
