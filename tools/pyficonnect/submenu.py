@@ -275,39 +275,46 @@ class PyfyConnectSubmenu(BaseSubmenu):
 
     def launch_background_scan(self, parent_win) -> None:
         """
-        Initiates the background scan process for matching networks from the database.
-        Forces the user to select an interface (resetting previous selections), loads the
-        database networks, and starts the background scan thread.
-        This version simply starts the scan and returns to the main menu without waiting for user input.
+        Initiates the background scan process for matching networks from the database
+        using the global ScapyManager. Forces the user to select an interface, then starts
+        the global scanning thread if not already running, and returns immediately to the main menu.
         """
         parent_win.erase()
         parent_win.refresh()
         self.reset_connection_values()
 
-        # prompt for interface
+        # Prompt for interface
         selected_iface = self.select_interface(parent_win)
         parent_win.erase()
         parent_win.refresh()
         if not selected_iface:
             self.logger.debug("No interface selected; aborting background scan.")
             return
+
         self.tool.selected_interface = selected_iface
 
-        # load database ssid/bssid
-        self.tool.load_db_networks()
+        # global ScapyManager instance
+        from tools.pyficonnect.scapymanager import ScapyManager
+        scapymanager = ScapyManager.get_instance()
+        scapymanager.load_db_networks()
 
-        # start scan
-        if not self.tool.scanner_running:
+        # start
+        if not scapymanager.scanner_running:
             try:
-                self.tool.start_background_scan_scapy()
+                scapymanager.start_scanning(selected_iface, dwell_time=0.2)
             except Exception as e:
                 parent_win.erase()
                 parent_win.addstr(0, 0, f"Error starting background scan: {e}")
                 parent_win.refresh()
                 curses.napms(2000)
                 return
+        else:
+            self.logger.info("Global background scanning is already running.")
 
-        # Immediately return to the main menu.
+        parent_win.erase()
+        parent_win.addstr(0, 0, "Background scan started. Alerts will appear as networks are found.")
+        parent_win.refresh()
+        curses.napms(1500)
         return
 
     ###########################
