@@ -169,13 +169,11 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     async def monitor_netlink_events(self):
-        """
-        Monitors netlink events using pyroute2's IPRoute and triggers a scan when events occur.
-        """
         ipr = IPRoute()
         try:
             ipr.bind()
-            self.logger.info("Netlink socket bound; starting event monitoring loop.")
+            self.logger.info("Netlink socket bound; starting hybrid event monitoring loop.")
+            last_scan = time.time()
             while self.scanner_running:
                 self.logger.debug("Awaiting netlink events...")
                 events = await asyncio.to_thread(ipr.get)
@@ -185,25 +183,29 @@ class PyfiConnectTool(Tool, ABC):
                 else:
                     self.logger.debug("No netlink events received in this iteration.")
 
-                networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
-                self.logger.debug(f"Scan returned networks: {networks}")
-                from tools.helpers.tool_utils import normalize_mac
-                for net in networks:
-                    cli_bssid = net.get("bssid")
-                    norm_cli_bssid = normalize_mac(cli_bssid)
-                    self.logger.debug(f"Normalized BSSID: {norm_cli_bssid}")
-                    if norm_cli_bssid in self.db_networks:
-                        current_time = time.time()
-                        alert_data = {
-                            "action": "NETWORK_FOUND",
-                            "tool": self.name,
-                            "ssid": self.db_networks[norm_cli_bssid]["ssid"],
-                            "bssid": norm_cli_bssid,
-                            "key": self.db_networks[norm_cli_bssid].get("key"),
-                            "timestamp": current_time,
-                        }
-                        self.logger.info(f"Alert generated: {alert_data}")
-                        self.send_network_found_alert(alert_data)
+                # trigger a scan if more than 10 seconds have passed
+                if time.time() - last_scan >= 10:
+                    last_scan = time.time()
+                    self.logger.info("Fallback periodic scan triggered.")
+                    networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
+                    self.logger.debug(f"Scan returned networks: {networks}")
+                    from tools.helpers.tool_utils import normalize_mac
+                    for net in networks:
+                        cli_bssid = net.get("bssid")
+                        norm_cli_bssid = normalize_mac(cli_bssid)
+                        self.logger.debug(f"Normalized BSSID: {norm_cli_bssid}")
+                        if norm_cli_bssid in self.db_networks:
+                            current_time = time.time()
+                            alert_data = {
+                                "action": "NETWORK_FOUND",
+                                "tool": self.name,
+                                "ssid": self.db_networks[norm_cli_bssid]["ssid"],
+                                "bssid": norm_cli_bssid,
+                                "key": self.db_networks[norm_cli_bssid].get("key"),
+                                "timestamp": current_time,
+                            }
+                            self.logger.info(f"Alert generated: {alert_data}")
+                            self.send_network_found_alert(alert_data)
                 await asyncio.sleep(0.1)
         finally:
             ipr.close()
