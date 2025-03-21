@@ -171,10 +171,8 @@ class PyfiConnectTool(Tool, ABC):
     def scan_networks_pyroute2(self, interface):
         """
         Uses pyroute2's IW module to trigger a fresh scan on the specified interface.
-        It then parses each AP’s attributes (converting the attr list into a dict)
-        to extract the BSSID and the SSID from the information elements.
-
-        Returns a list of dicts:
+        It converts the raw attribute list into a dictionary to extract the BSSID and SSID.
+        Returns a list of dictionaries like:
           [{"ssid": "MyHomeWiFi", "bssid": "AA:BB:CC:DD:EE:FF"}, ...]
         """
         from pyroute2 import IPRoute
@@ -195,30 +193,26 @@ class PyfiConnectTool(Tool, ABC):
         from pyroute2 import IW
         iw = IW()
         try:
-            self.logger.info("Initiating scan on interface %s (ifindex %s)", interface, ifindex)
-            # flush_cache=True ensures a fresh scan
+            self.logger.info("Initiating scan on interface %s (ifindex %s).", interface, ifindex)
             results = iw.scan(ifindex, flush_cache=True)
             self.logger.debug("Raw scan results: %s", results)
             networks = []
             for ap in results:
-                # Convert the list of attributes to a dict for easier lookup.
+                # Convert the list of attributes into a dictionary
                 ap_attrs = {}
                 for attr in ap.get("attrs", []):
-                    # Each attr is assumed to be a pair: (key, value)
                     key, value = attr[0], attr[1]
                     ap_attrs[key] = value
                     self.logger.debug("Parsed attribute: %r = %r", key, value)
 
-                # Extract BSSID – sometimes stored as "NL80211_BSS_BSSID"
                 bssid = ap_attrs.get("NL80211_BSS_BSSID")
-                # Extract SSID from the information elements
+                # Try to extract SSID from the information elements
                 ie = ap_attrs.get("NL80211_BSS_INFORMATION_ELEMENTS", {})
                 raw_ssid = ie.get("SSID") if isinstance(ie, dict) else None
                 if raw_ssid is None:
                     ssid = "Unknown"
                 elif isinstance(raw_ssid, bytes):
                     try:
-                        # decode, using replacement for any decode errors
                         ssid = raw_ssid.decode("utf-8", errors="replace")
                     except Exception as e:
                         self.logger.error("Error decoding SSID: %s", e)
@@ -227,15 +221,10 @@ class PyfiConnectTool(Tool, ABC):
                     ssid = raw_ssid
                 else:
                     ssid = "Unknown"
-
-                # If the SSID is empty bytes or an empty string, label it as Hidden.
                 if not ssid:
                     ssid = "Hidden"
 
-                networks.append({
-                    "ssid": ssid,
-                    "bssid": bssid
-                })
+                networks.append({"ssid": ssid, "bssid": bssid})
                 self.logger.info("Found AP - SSID: %s, BSSID: %s", ssid, bssid)
             self.logger.info("Scan complete. Found %d networks on %s.", len(networks), interface)
             return networks
@@ -250,9 +239,9 @@ class PyfiConnectTool(Tool, ABC):
 
     async def monitor_netlink_events(self):
         """
-        Opens an IPRoute netlink socket, binds it, and then continuously waits for
-        netlink events. If no event is received within 1 second, it logs a timeout.
-        Every 10 seconds it triggers a fallback scan using scan_networks_pyroute2.
+        Opens an IPRoute netlink socket, binds it, and continuously waits for events.
+        If no event is received within 1 second, logs a timeout.
+        Every 10 seconds a fallback scan is triggered using scan_networks_pyroute2.
         """
         self.logger.debug("Monitoring network events")
         from pyroute2 import IPRoute
@@ -262,10 +251,7 @@ class PyfiConnectTool(Tool, ABC):
             self.logger.info("Netlink socket bound; starting event monitoring loop.")
             last_scan = time.time()
             while self.scanner_running:
-                iteration_start = time.time()
                 self.logger.debug("Starting new iteration of netlink event monitoring loop.")
-
-                # Wait for netlink events with a 1-second timeout
                 try:
                     self.logger.debug("Waiting for netlink events with a 1-second timeout.")
                     events = await asyncio.wait_for(asyncio.to_thread(ipr.get), timeout=1)
@@ -284,10 +270,9 @@ class PyfiConnectTool(Tool, ABC):
                 else:
                     self.logger.debug("No netlink events received this iteration.")
 
-                # Check for fallback scan every 10 seconds
-                elapsed_since_last_scan = time.time() - last_scan
-                self.logger.debug("Elapsed time since last fallback scan: %.2f seconds.", elapsed_since_last_scan)
-                if elapsed_since_last_scan >= 10:
+                elapsed = time.time() - last_scan
+                self.logger.debug("Elapsed time since last fallback scan: %.2f seconds.", elapsed)
+                if elapsed >= 10:
                     last_scan = time.time()
                     self.logger.info("Fallback periodic scan triggered.")
                     try:
@@ -296,7 +281,6 @@ class PyfiConnectTool(Tool, ABC):
                         self.logger.info("Fallback scan returned %d network(s).", len(networks))
                     except Exception as e:
                         self.logger.error("Error during fallback scan: %s", e)
-
                 self.logger.debug("Sleeping for 0.1 seconds before next iteration.")
                 await asyncio.sleep(0.1)
         finally:
