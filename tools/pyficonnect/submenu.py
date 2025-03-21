@@ -4,6 +4,7 @@ from typing import List, Tuple, Any
 
 # local
 from tools.submenu import BaseSubmenu
+from tools.pyficonnect.scapymanager import ScapyManager
 
 
 class PyfyConnectSubmenu(BaseSubmenu):
@@ -14,6 +15,8 @@ class PyfyConnectSubmenu(BaseSubmenu):
         super().__init__(tool_instance)
         self.logger = logging.getLogger("NetConnectToolSubmenu")
         self.logger.debug("NetConnectToolSubmenu initialized.")
+        self.scapy_manager = ScapyManager.get_instance()
+        self.scapy_manager.register_alert_callback(self.handle_alert)
 
     ###########################
     ##### TOOL SCAN LOGIC #####

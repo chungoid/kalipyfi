@@ -1,20 +1,14 @@
-import asyncio
 import subprocess
 import logging
-import threading
-import time
 from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from scapy.layers.dot11 import Dot11
-from scapy.sendrecv import sniff
 
 # locals
 from config.constants import BASE_DIR
 from database.db_manager import get_db_connection
 from tools.pyficonnect.db import init_pyfyconnect_schema, safe_sync_pyfyconnect_from_hcxtool
-from tools.pyficonnect.scapymanager import ScapyManager
 from tools.pyficonnect.submenu import PyfyConnectSubmenu
 from tools.tools import Tool
 from utils.tool_registry import register_tool
@@ -54,8 +48,7 @@ class PyfiConnectTool(Tool, ABC):
         self.db_networks = None
         self.scanner_running = False
         self.alerted_networks = {}
-        self.scapy_manager = ScapyManager.get_instance()
-        self.scapy_manager.register_alert_callback(self.handle_alert)
+
 
     def submenu(self, stdscr) -> None:
         """
