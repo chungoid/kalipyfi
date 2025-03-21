@@ -200,7 +200,7 @@ class PyfiConnectTool(Tool, ABC):
         """
         Uses pyroute2's IW module to scan for networks on the specified interface.
         Forces a fresh scan (flush_cache=True) and parses each AP's attributes
-        to extract the BSSID and SSID (which is stored inside the information elements).
+        to extract the BSSID and SSID.
 
         Returns a list of dictionaries like:
           [{"ssid": "MyHomeWiFi", "bssid": "AA:BB:CC:DD:EE:FF"}, ...]
@@ -214,7 +214,7 @@ class PyfiConnectTool(Tool, ABC):
                 self.logger.error("No interface found with name %s", interface)
                 return []
             ifindex = indices[0]
-            self.logger.debug(f"Interface {interface} has ifindex: {ifindex}")
+            self.logger.debug("Interface %s has ifindex: %s", interface, ifindex)
         except Exception as e:
             self.logger.error("Error looking up interface %s: %s", interface, e)
             return []
@@ -225,10 +225,9 @@ class PyfiConnectTool(Tool, ABC):
         from pyroute2 import IW
         iw = IW()
         try:
-            self.logger.info(f"Initiating scan on interface {interface} (ifindex {ifindex}).")
-            # Flush the scan cache so that we get current results.
+            self.logger.info("Initiating scan on interface %s (ifindex %s).", interface, ifindex)
             results = iw.scan(ifindex, flush_cache=True)
-            self.logger.debug(f"Raw scan results: {results}")
+            self.logger.debug("Raw scan results: %s", results)
             networks = []
             for ap in results:
                 ssid = "Unknown"
@@ -236,20 +235,25 @@ class PyfiConnectTool(Tool, ABC):
                 attrs = ap.get("attrs", [])
                 for attr in attrs:
                     key, value = attr[0], attr[1]
-                    self.logger.debug(f"Attribute key: {key!r}, value: {value!r}")
-                    # Check for the BSSID.
+                    self.logger.debug("Attribute key: %r, value: %r", key, value)
+                    # If the key indicates the BSSID, save it.
                     if key in ("NL80211_BSS_BSSID", "NL80211_ATTR_BSS_BSSID"):
                         bssid = value
-                    # Check for the information elements where the SSID is stored.
+                    # If the key indicates information elements, extract SSID.
                     elif key in ("NL80211_BSS_INFORMATION_ELEMENTS", "NL80211_ATTR_BSS_INFORMATION_ELEMENTS"):
+                        # If value is a dict and contains an "SSID" key.
                         if isinstance(value, dict) and "SSID" in value:
                             raw_ssid = value["SSID"]
                             if raw_ssid:
-                                try:
-                                    ssid = raw_ssid.decode("utf-8", errors="replace")
-                                except Exception as e:
-                                    self.logger.error("Error decoding SSID: %s", e)
-                                    ssid = "Unknown"
+                                # If raw_ssid is bytes, decode it; if already a string, use it directly.
+                                if isinstance(raw_ssid, bytes):
+                                    try:
+                                        ssid = raw_ssid.decode("utf-8", errors="replace")
+                                    except Exception as e:
+                                        self.logger.error("Error decoding SSID: %s", e)
+                                        ssid = "Unknown"
+                                elif isinstance(raw_ssid, str):
+                                    ssid = raw_ssid
                             else:
                                 ssid = "Hidden"
                 networks.append({
@@ -257,7 +261,7 @@ class PyfiConnectTool(Tool, ABC):
                     "bssid": bssid
                 })
                 self.logger.info("Found AP - SSID: %s, BSSID: %s", ssid, bssid)
-            self.logger.info(f"Scan complete. Found {len(networks)} networks on {interface}.")
+            self.logger.info("Scan complete. Found %d networks on %s.", len(networks), interface)
             return networks
         except Exception as e:
             self.logger.error("Error scanning using pyroute2 on %s: %s", interface, e)
