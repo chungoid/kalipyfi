@@ -366,19 +366,24 @@ class UIManager:
             return
 
         tool_name = alert_data["tool"]
-        # initialize the list for this tool if necessary
-        #if tool_name not in self.alerts:
-            #self.alerts[tool_name] = []
 
-        # append the new alert data
+        # ensure self.alerts is a dictionary
+        if self.alerts is None:
+            self.alerts = {}
+
+        # initialize list for this tool
+        if tool_name not in self.alerts:
+            self.alerts[tool_name] = []
+
         self.alerts[tool_name].append(alert_data)
 
         if self.active_submenu and hasattr(self.active_submenu, "display_alert"):
-            self.logger.debug(f"UIManager: Delegating all alerts for {tool_name} to active submenu: {self.active_submenu}")
-            # pass the full list of alerts for that tool
+            self.logger.debug(f"UIManager: Delegating alerts for {tool_name} to active submenu: {self.active_submenu}")
+            # Pass the entire list of alerts for the tool.
             self.active_submenu.display_alert(self.alerts[tool_name])
         else:
-            self.logger.info(f"UIManager: No active submenu to display alerts for {tool_name}. Alerts: {self.alerts[tool_name]}")
+            self.logger.info(
+                f"UIManager: No active submenu to display alerts for {tool_name}. Alerts: {self.alerts[tool_name]}")
 
     def swap_scan(self, tool_name: str, dedicated_pane_id: str, new_title: str) -> None:
         """
