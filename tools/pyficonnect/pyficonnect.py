@@ -170,10 +170,8 @@ class PyfiConnectTool(Tool, ABC):
 
     def scan_networks_pyroute2(self, interface):
         """
-        Uses pyroute2's IW module to trigger a fresh scan on the specified interface.
-        It converts the raw attribute list into a dictionary to extract the BSSID and SSID.
-        Returns a list of dictionaries like:
-          [{"ssid": "MyHomeWiFi", "bssid": "AA:BB:CC:DD:EE:FF"}, ...]
+        Performs a scan on the specified wireless interface using pyroute2.
+        Returns a list of dictionaries with keys 'ssid' and 'bssid'.
         """
         from pyroute2 import IPRoute
         ipr = IPRoute()
@@ -206,7 +204,6 @@ class PyfiConnectTool(Tool, ABC):
                     self.logger.debug("Parsed attribute: %r = %r", key, value)
 
                 bssid = ap_attrs.get("NL80211_BSS_BSSID")
-                # Try to extract SSID from the information elements
                 ie = ap_attrs.get("NL80211_BSS_INFORMATION_ELEMENTS", {})
                 raw_ssid = ie.get("SSID") if isinstance(ie, dict) else None
                 if raw_ssid is None:
@@ -225,6 +222,7 @@ class PyfiConnectTool(Tool, ABC):
                     ssid = "Hidden"
 
                 networks.append({"ssid": ssid, "bssid": bssid})
+                self.logger.debug(f"Scanned AP: SSID={ssid}, BSSID={bssid}")
                 self.logger.info("Found AP - SSID: %s, BSSID: %s", ssid, bssid)
             self.logger.info("Scan complete. Found %d networks on %s.", len(networks), interface)
             return networks
@@ -239,9 +237,8 @@ class PyfiConnectTool(Tool, ABC):
 
     async def monitor_netlink_events(self):
         """
-        Opens an IPRoute netlink socket, binds it, and continuously waits for events.
-        If no event is received within 1 second, logs a timeout.
-        Every 10 seconds a fallback scan is triggered using scan_networks_pyroute2.
+        Opens an IPRoute netlink socket and continuously waits for events.
+        If no event is received within 1 second, logs a timeout and triggers a fallback scan every 10 seconds.
         """
         self.logger.debug("Monitoring network events")
         from pyroute2 import IPRoute
@@ -276,9 +273,13 @@ class PyfiConnectTool(Tool, ABC):
                     last_scan = time.time()
                     self.logger.info("Fallback periodic scan triggered.")
                     try:
-                        self.logger.debug("Calling scan_networks_pyroute2 with interface: %s", self.selected_interface)
-                        networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
-                        self.logger.info("Fallback scan returned %d network(s).", len(networks))
+                        if not self.selected_interface:
+                            self.logger.error("No interface selected for fallback scan.")
+                        else:
+                            self.logger.debug("Calling scan_networks_pyroute2 with interface: %s", self.selected_interface)
+                            networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
+                            self.logger.info("Fallback scan returned %d network(s).", len(networks))
+                            # Here you could compare against self.db_networks and trigger alerts if needed.
                     except Exception as e:
                         self.logger.error("Error during fallback scan: %s", e)
                 self.logger.debug("Sleeping for 0.1 seconds before next iteration.")
@@ -288,6 +289,9 @@ class PyfiConnectTool(Tool, ABC):
             self.logger.info("Netlink event monitoring loop terminated.")
 
     def start_background_scan_async(self):
+        """
+        Starts the asynchronous netlink event monitoring in a dedicated thread.
+        """
         self.scanner_running = True
         thread = threading.Thread(
             target=self.background_monitor,
@@ -297,21 +301,24 @@ class PyfiConnectTool(Tool, ABC):
         thread.start()
         self.logger.info("Background netlink event monitoring started in dedicated thread.")
 
-
     @staticmethod
     def background_monitor(coro):
-        """Run an async coroutine in a dedicated thread."""
+        """
+        Runs an asynchronous coroutine in a dedicated thread.
+        """
         asyncio.run(coro)
-
 
     def stop_background_scan_async(self):
         """
-        Stops the background scanning by setting the scanner_running flag to False.
+        Stops the background netlink event monitoring.
         """
         self.scanner_running = False
         self.logger.info("Background netlink event monitoring stopped.")
 
     def send_network_found_alert(self, alert_data):
+        """
+        Sends an alert via IPC when a network is found.
+        """
         self.logger.debug(f"Sending alert via IPC: {alert_data}")
         self.send_alert_payload("NETWORK_FOUND", alert_data)
         response = self.client.send(alert_data)
