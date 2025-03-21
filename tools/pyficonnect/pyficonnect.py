@@ -173,8 +173,7 @@ class PyfiConnectTool(Tool, ABC):
         Uses pyroute2's IW module to trigger a fresh scan on the specified interface.
         Returns a list of dictionaries in the form:
           [{"ssid": <ssid>, "bssid": <bssid>}, ...]
-        This version explicitly checks if the raw SSID is empty (or all zero bytes)
-        and converts the BSSID to a string if needed.
+        This version explicitly iterates over the attributes to extract BSSID and SSID.
         """
         from pyroute2 import IPRoute, IW
 
@@ -197,51 +196,51 @@ class PyfiConnectTool(Tool, ABC):
         try:
             self.logger.info("Initiating scan on interface %s (ifindex %s).", interface, ifindex)
             results = iw.scan(ifindex, flush_cache=True)
-            # Dump the entire raw scan data for debugging
             self.logger.debug("Full raw scan result from iw.scan(): %r", results)
             if not results:
                 self.logger.error("No results returned from iw.scan() for interface %s", interface)
 
             for idx, ap in enumerate(results, start=1):
-                # Convert attributes list to a dict
-                ap_attrs = {}
+                # Initialize defaults for this AP.
+                bssid = None
+                raw_ssid = None
+
+                # Iterate over the attributes list to find our keys.
                 for attr in ap.get("attrs", []):
                     key, value = attr[0], attr[1]
-                    ap_attrs[key] = value
-                    self.logger.debug("AP %d: Parsed attribute: %r = %r", idx, key, value)
+                    self.logger.debug("AP %d: Found attribute: %r = %r", idx, key, value)
+                    if key == "NL80211_BSS_BSSID":
+                        bssid = value  # bssid may already be a colon-separated string.
+                    # Check for SSID within the IE structure:
+                    if key == "NL80211_BSS_INFORMATION_ELEMENTS":
+                        if isinstance(value, dict):
+                            raw_ssid = value.get("SSID")
+                        elif isinstance(value, list):
+                            # If list, look for a tuple with "SSID" as key.
+                            for item in value:
+                                if isinstance(item, tuple) and item[0] == "SSID":
+                                    raw_ssid = item[1]
+                                    break
 
-                # Process BSSID first
-                bssid = ap_attrs.get("NL80211_BSS_BSSID")
-                self.logger.debug("AP %d: Raw bssid: %r", idx, bssid)
-                if bssid is not None and not isinstance(bssid, str):
+                # Process bssid: if it's bytes, decode it.
+                if bssid is not None and isinstance(bssid, bytes):
                     try:
-                        bssid = bssid.decode("utf-8", errors="replace") \
-                            if isinstance(bssid, bytes) else str(bssid)
+                        bssid = bssid.decode("utf-8", errors="replace")
                     except Exception as e:
-                        self.logger.error("AP %d: Error decoding bssid: %s", idx, e)
+                        self.logger.error("AP %d: Error decoding BSSID: %s", idx, e)
                         bssid = None
 
-                # Process SSID from information elements
-                ie = ap_attrs.get("NL80211_BSS_INFORMATION_ELEMENTS")
-                raw_ssid = None
-                if isinstance(ie, dict):
-                    raw_ssid = ie.get("SSID")
-                elif isinstance(ie, list):
-                    # If IE is a list of tuples, search for the one with key "SSID"
-                    for item in ie:
-                        if isinstance(item, tuple) and item[0] == "SSID":
-                            raw_ssid = item[1]
-                            break
-                self.logger.debug("AP %d: Raw SSID data: %r", idx, raw_ssid)
-                # Check if raw_ssid is valid (strip zero bytes if bytes)
+                # Process SSID: if raw_ssid is bytes, strip any zero padding and decode.
                 if raw_ssid is None:
                     ssid = "Unknown"
                 elif isinstance(raw_ssid, bytes):
-                    if not raw_ssid.strip(b'\x00'):
+                    # Strip zero bytes and whitespace.
+                    stripped = raw_ssid.strip(b'\x00').strip()
+                    if not stripped:
                         ssid = "Unknown"
                     else:
                         try:
-                            ssid = raw_ssid.decode("utf-8", errors="replace")
+                            ssid = stripped.decode("utf-8", errors="replace")
                         except Exception as e:
                             self.logger.error("AP %d: Error decoding SSID: %s", idx, e)
                             ssid = "Unknown"
