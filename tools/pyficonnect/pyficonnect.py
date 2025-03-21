@@ -213,9 +213,10 @@ class PyfiConnectTool(Tool, ABC):
 
     def start_background_scan_async(self):
         self.scanner_running = True
+        # Use the standalone function 'background_monitor'
         thread = threading.Thread(
-            target=self.background_monitor,
-            args=(self.monitor_netlink_events(),),
+            target=PyfiConnectTool.background_monitor,
+            args=(self.monitor_netlink_events(),),  # Pass the coroutine instance
             daemon=True
         )
         thread.start()
@@ -297,7 +298,7 @@ class PyfiConnectTool(Tool, ABC):
             except Exception as ex:
                 self.logger.debug("Error closing IW instance: %s", ex)
 
-
+    @staticmethod
     def background_monitor(coro):
         """Run an async coroutine in a dedicated thread."""
         asyncio.run(coro)
