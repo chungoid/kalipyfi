@@ -173,10 +173,12 @@ class PyfiConnectTool(Tool, ABC):
         Uses pyroute2's IW module to trigger a fresh scan on the specified interface.
         Returns a list of dictionaries in the form:
           [{"ssid": <ssid>, "bssid": <bssid>}, ...]
-        This version explicitly iterates over the attributes to extract BSSID and SSID.
+        This version explicitly iterates over the attributes in each AP and checks
+        both the INFORMATION_ELEMENTS and BEACON_IES for the SSID.
         """
         from pyroute2 import IPRoute, IW
 
+        # Look up interface index
         ipr = IPRoute()
         try:
             indices = ipr.link_lookup(ifname=interface)
@@ -201,28 +203,39 @@ class PyfiConnectTool(Tool, ABC):
                 self.logger.error("No results returned from iw.scan() for interface %s", interface)
 
             for idx, ap in enumerate(results, start=1):
-                # Initialize defaults for this AP.
                 bssid = None
                 raw_ssid = None
 
-                # Iterate over the attributes list to find our keys.
+                # Iterate over all attributes in the AP's "attrs" list
                 for attr in ap.get("attrs", []):
                     key, value = attr[0], attr[1]
                     self.logger.debug("AP %d: Found attribute: %r = %r", idx, key, value)
                     if key == "NL80211_BSS_BSSID":
-                        bssid = value  # bssid may already be a colon-separated string.
-                    # Check for SSID within the IE structure:
-                    if key == "NL80211_BSS_INFORMATION_ELEMENTS":
+                        bssid = value
+                    elif key == "NL80211_BSS_INFORMATION_ELEMENTS":
                         if isinstance(value, dict):
-                            raw_ssid = value.get("SSID")
+                            candidate = value.get("SSID")
+                            if candidate is not None:
+                                raw_ssid = candidate
                         elif isinstance(value, list):
-                            # If list, look for a tuple with "SSID" as key.
                             for item in value:
                                 if isinstance(item, tuple) and item[0] == "SSID":
                                     raw_ssid = item[1]
                                     break
+                    elif key == "NL80211_BSS_BEACON_IES":
+                        # If we haven't already set an SSID, try the beacon IE key
+                        if raw_ssid is None:
+                            if isinstance(value, dict):
+                                candidate = value.get("SSID")
+                                if candidate is not None:
+                                    raw_ssid = candidate
+                            elif isinstance(value, list):
+                                for item in value:
+                                    if isinstance(item, tuple) and item[0] == "SSID":
+                                        raw_ssid = item[1]
+                                        break
 
-                # Process bssid: if it's bytes, decode it.
+                # Process the BSSID: if it's bytes, decode it
                 if bssid is not None and isinstance(bssid, bytes):
                     try:
                         bssid = bssid.decode("utf-8", errors="replace")
@@ -230,11 +243,11 @@ class PyfiConnectTool(Tool, ABC):
                         self.logger.error("AP %d: Error decoding BSSID: %s", idx, e)
                         bssid = None
 
-                # Process SSID: if raw_ssid is bytes, strip any zero padding and decode.
+                # Process the SSID
                 if raw_ssid is None:
                     ssid = "Unknown"
                 elif isinstance(raw_ssid, bytes):
-                    # Strip zero bytes and whitespace.
+                    # Remove any zero bytes and whitespace
                     stripped = raw_ssid.strip(b'\x00').strip()
                     if not stripped:
                         ssid = "Unknown"
@@ -251,6 +264,7 @@ class PyfiConnectTool(Tool, ABC):
                 networks.append(network)
                 self.logger.debug("AP %d: Scanned network: %s", idx, network)
                 self.logger.info("AP %d: Found network - SSID: %s, BSSID: %s", idx, ssid, bssid)
+
             if not networks:
                 self.logger.error("Fallback scan on interface %s returned no networks.", interface)
             else:
