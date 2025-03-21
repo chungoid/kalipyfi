@@ -171,18 +171,19 @@ class PyfiConnectTool(Tool, ABC):
     async def monitor_netlink_events(self):
         """
         Monitors netlink events using pyroute2's IPRoute and triggers a scan when events occur.
-        This event-driven approach lets you react immediately when a relevant change happens.
         """
         ipr = IPRoute()
         try:
             ipr.bind()
+            self.logger.info("Netlink socket bound; starting event monitoring loop.")
             while self.scanner_running:
+                self.logger.debug("Awaiting netlink events...")
                 events = await asyncio.to_thread(ipr.get)
                 if events:
                     for event in events:
                         self.logger.debug(f"Netlink event: {event}")
                 else:
-                    self.logger.debug("No netlink events received in this cycle.")
+                    self.logger.debug("No netlink events received in this iteration.")
 
                 networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
                 self.logger.debug(f"Scan returned networks: {networks}")
@@ -206,6 +207,7 @@ class PyfiConnectTool(Tool, ABC):
                 await asyncio.sleep(0.1)
         finally:
             ipr.close()
+            self.logger.info("Netlink event monitoring loop terminated.")
 
     def scan_networks_pyroute2(self, interface):
         """
