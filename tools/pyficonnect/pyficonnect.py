@@ -169,6 +169,7 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     async def monitor_netlink_events(self):
+        self.logger.debug("Monitoring network events")
         ipr = IPRoute()
         try:
             ipr.bind()
