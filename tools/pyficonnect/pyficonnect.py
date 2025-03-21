@@ -215,7 +215,7 @@ class PyfiConnectTool(Tool, ABC):
             # Sniff for beacon frames on this channel.
             sniff(iface=interface, prn=self.scapy_packet_handler, timeout=dwell_time, store=0)
 
-    def start_background_scan_rotating(self):
+    def start_background_scan_scapy(self):
         """
         Starts a background thread that continuously rotates through channels,
         scanning with Scapy on each channel for a short period.
