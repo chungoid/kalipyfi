@@ -6,7 +6,9 @@ import time
 from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
-from pyroute2 import IPRoute, IW
+
+from scapy.layers.dot11 import Dot11
+from scapy.sendrecv import sniff
 
 # locals
 from config.constants import BASE_DIR
@@ -168,156 +170,76 @@ class PyfiConnectTool(Tool, ABC):
         self.db_networks = format_pyficonnect_networks(rows)
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
-    def scan_networks_pyroute2(self, interface):
-        """
-        Uses pyroute2's IW module to trigger a fresh scan on the specified interface.
-        Returns a list of dictionaries in the form:
-          [{"ssid": <ssid>, "bssid": <bssid>}, ...]
-        This version explicitly iterates over the attributes in each AP and checks
-        both the INFORMATION_ELEMENTS and BEACON_IES for the SSID.
-        """
-        from pyroute2 import IPRoute, IW
-
-        # Look up interface index
-        ipr = IPRoute()
-        try:
-            indices = ipr.link_lookup(ifname=interface)
-            if not indices:
-                self.logger.error("No interface found with name %s", interface)
-                return []
-            ifindex = indices[0]
-            self.logger.debug("Interface %s has ifindex: %s", interface, ifindex)
-        except Exception as e:
-            self.logger.error("Error looking up interface %s: %s", interface, e)
-            return []
-        finally:
-            ipr.close()
-
-        iw = IW()
-        networks = []
-        try:
-            self.logger.info("Initiating scan on interface %s (ifindex %s).", interface, ifindex)
-            results = iw.scan(ifindex, flush_cache=True)
-            self.logger.debug("Full raw scan result from iw.scan(): %r", results)
-            if not results:
-                self.logger.error("No results returned from iw.scan() for interface %s", interface)
-
-            for idx, ap in enumerate(results, start=1):
-                bssid = None
-                raw_ssid = None
-
-                # Iterate over all attributes in the AP's "attrs" list
-                for attr in ap.get("attrs", []):
-                    key, value = attr[0], attr[1]
-                    self.logger.debug("AP %d: Found attribute: %r = %r", idx, key, value)
-                    if key == "NL80211_BSS_BSSID":
-                        bssid = value
-                    elif key == "NL80211_BSS_INFORMATION_ELEMENTS":
-                        if isinstance(value, dict):
-                            candidate = value.get("SSID")
-                            if candidate is not None:
-                                raw_ssid = candidate
-                        elif isinstance(value, list):
-                            for item in value:
-                                if isinstance(item, tuple) and item[0] == "SSID":
-                                    raw_ssid = item[1]
-                                    break
-                    elif key == "NL80211_BSS_BEACON_IES":
-                        # If we haven't already set an SSID, try the beacon IE key
-                        if raw_ssid is None:
-                            if isinstance(value, dict):
-                                candidate = value.get("SSID")
-                                if candidate is not None:
-                                    raw_ssid = candidate
-                            elif isinstance(value, list):
-                                for item in value:
-                                    if isinstance(item, tuple) and item[0] == "SSID":
-                                        raw_ssid = item[1]
-                                        break
-
-                # Process the BSSID: if it's bytes, decode it
-                if bssid is not None and isinstance(bssid, bytes):
-                    try:
-                        bssid = bssid.decode("utf-8", errors="replace")
-                    except Exception as e:
-                        self.logger.error("AP %d: Error decoding BSSID: %s", idx, e)
-                        bssid = None
-
-                # Process the SSID
-                if raw_ssid is None:
-                    ssid = "Unknown"
-                elif isinstance(raw_ssid, bytes):
-                    # Remove any zero bytes and whitespace
-                    stripped = raw_ssid.strip(b'\x00').strip()
-                    if not stripped:
-                        ssid = "Unknown"
-                    else:
-                        try:
-                            ssid = stripped.decode("utf-8", errors="replace")
-                        except Exception as e:
-                            self.logger.error("AP %d: Error decoding SSID: %s", idx, e)
-                            ssid = "Unknown"
-                else:
-                    ssid = str(raw_ssid)
-
-                network = {"ssid": ssid, "bssid": bssid}
-                networks.append(network)
-                self.logger.debug("AP %d: Scanned network: %s", idx, network)
-                self.logger.info("AP %d: Found network - SSID: %s, BSSID: %s", idx, ssid, bssid)
-
-            if not networks:
-                self.logger.error("Fallback scan on interface %s returned no networks.", interface)
-            else:
-                self.logger.info("Fallback scan complete. Found %d networks on %s.", len(networks), interface)
-            return networks
-        except Exception as e:
-            self.logger.error("Error during fallback scan on interface %s: %s", interface, e)
-            return []
-        finally:
+    def scapy_packet_handler(self, pkt):
+        # Only process 802.11 beacon frames (type 0, subtype 8)
+        if pkt.haslayer(Dot11) and pkt.type == 0 and pkt.subtype == 8:
             try:
-                iw.close()
-            except Exception as ex:
-                self.logger.debug("Error closing IW instance: %s", ex)
+                ssid = pkt.info.decode('utf-8', errors='ignore')
+            except Exception:
+                ssid = "<unknown>"
+            if not ssid:
+                ssid = "<hidden>"
+            bssid = pkt.addr2
+            self.logger.info(f"Scapy scan detected - SSID: {ssid} - BSSID: {bssid}")
+            # Optionally check if the BSSID is in your database (self.db_networks)
+            if self.db_networks and bssid in self.db_networks:
+                # Avoid sending duplicate alerts for the same BSSID.
+                if bssid not in self.alerted_networks:
+                    alert_data = {
+                        "action": "NETWORK_FOUND",
+                        "tool": self.name,
+                        "ssid": ssid,
+                        "bssid": bssid,
+                        "timestamp": time.time()
+                    }
+                    self.alerted_networks[bssid] = True
+                    self.send_network_found_alert(alert_data)
 
-    def start_fallback_scan_loop(self):
+    def scan_networks_scapy(self, interface: str, duration: int = 10) -> None:
         """
-        A synchronous loop that performs a fallback scan every 10 seconds.
-        Runs on its own thread.
+        Uses Scapy to sniff for beacon frames on the given interface.
+        This method runs for a specified duration (in seconds).
         """
-        self.logger.info("Synchronous fallback scan loop started on interface: %s", self.selected_interface)
-        while self.scanner_running:
-            if not self.selected_interface:
-                self.logger.error("No interface selected for fallback scan.")
-                break
-            self.logger.info("Executing fallback scan on interface: %s", self.selected_interface)
-            networks = self.scan_networks_pyroute2(self.selected_interface)
-            self.logger.info("Fallback scan returned %d networks: %s", len(networks), networks)
-            time.sleep(10)  # Adjust scan interval as needed
-        self.logger.info("Synchronous fallback scan loop terminated.")
+        self.logger.info("Starting Scapy-based scan on interface %s for %d seconds", interface, duration)
+        sniff(iface=interface, prn=self.scapy_packet_handler, timeout=duration, store=0)
 
-    def start_fallback_scan_loop_in_thread(self):
+    def start_background_scan_scapy(self):
         """
-        Starts the fallback scan loop in a separate background thread.
+        Starts a background thread that continuously calls the Scapy-based scan.
+        First, it checks if the selected interface is in monitor mode.
+        If not, it switches the interface to monitor mode before starting the scan.
         """
-        if not self.scanner_running:
-            self.scanner_running = True
-            self.scan_thread = threading.Thread(target=self.start_fallback_scan_loop, daemon=True)
-            self.scan_thread.start()
-            self.logger.info("Fallback scan loop started in background thread.")
-        else:
-            self.logger.info("Fallback scan loop already running.")
+        # Check if the interface is in monitor mode
+        from tools.helpers.tool_utils import get_interface_mode, switch_interface_to_monitor
+        current_mode = get_interface_mode(self.selected_interface, self.logger)
+        if current_mode != "monitor":
+            self.logger.info("Interface %s is in %s mode; switching to monitor mode.", self.selected_interface,
+                             current_mode)
+            if not switch_interface_to_monitor(self.selected_interface, self.logger):
+                self.logger.error("Failed to switch interface %s to monitor mode. Aborting background scan.",
+                                  self.selected_interface)
+                return
 
-    def stop_fallback_scan_loop_thread(self):
+        self.scanner_running = True
+
+        def background_scan():
+            while self.scanner_running:
+                try:
+                    self.scan_networks_scapy(self.selected_interface, duration=5)
+                except Exception as e:
+                    self.logger.error("Error during Scapy scan: %s", e)
+                # Small delay between scans (adjust as needed)
+                time.sleep(1)
+
+        threading.Thread(target=background_scan, daemon=True).start()
+        self.logger.info("Scapy-based background scanning started.")
+
+    def stop_background_scan_scapy(self):
         """
-        Signals the fallback scan loop to stop and waits briefly for the thread to terminate.
+        Stops the Scapy-based background scanning.
         """
-        if self.scanner_running:
-            self.scanner_running = False
-            if self.scan_thread:
-                self.scan_thread.join(timeout=2)
-            self.logger.info("Fallback scan loop stopped.")
-        else:
-            self.logger.info("Fallback scan loop is not running.")
+        self.scanner_running = False
+        self.logger.info("Scapy-based background scanning stopped.")
 
     def send_network_found_alert(self, alert_data):
         """

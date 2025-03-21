@@ -317,6 +317,26 @@ def switch_interface_to_managed(interface: str, logger: logging.Logger) -> bool:
         logger.error(f"Error switching interface {interface} to managed mode: {e}")
     return False
 
+def switch_interface_to_monitor(interface: str, logger: logging.Logger) -> bool:
+    """
+    Attempts to switch the specified interface to monitor mode.
+    The typical sequence is:
+      1. Bring the interface down.
+      2. Change its mode to monitor.
+      3. Bring the interface up.
+    Returns True if successful, False otherwise.
+    """
+    try:
+        subprocess.check_call(["ip", "link", "set", interface, "down"], stderr=subprocess.DEVNULL)
+        subprocess.check_call(["iw", "dev", interface, "set", "type", "monitor"], stderr=subprocess.DEVNULL)
+        subprocess.check_call(["ip", "link", "set", interface, "up"], stderr=subprocess.DEVNULL)
+        logger.info(f"Interface {interface} switched to monitor mode.")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error switching interface {interface} to monitor mode: {e}")
+    return False
+
+
 def normalize_mac(mac: str) -> str:
     """
     Normalizes a MAC address to the format aa:bb:cc:dd:ee:ff.

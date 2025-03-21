@@ -44,3 +44,4 @@ xyzservices==2025.1.0
 
 pyroute2~=0.8.1
 openai~=1.65.4
+scapy~=2.6.1
