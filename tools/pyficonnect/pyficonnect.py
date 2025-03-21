@@ -172,9 +172,12 @@ class PyfiConnectTool(Tool, ABC):
         """
         Uses pyroute2's IW module to trigger a fresh scan on the specified interface.
         Returns a list of dictionaries in the form:
-            [{"ssid": <ssid>, "bssid": <bssid>}, ...]
-        Logs the full raw scan data.
+          [{"ssid": <ssid>, "bssid": <bssid>}, ...]
+        This version explicitly checks if the raw SSID is empty (or all zero bytes)
+        and converts the BSSID to a string if needed.
         """
+        from pyroute2 import IPRoute, IW
+
         ipr = IPRoute()
         try:
             indices = ipr.link_lookup(ifname=interface)
@@ -194,32 +197,57 @@ class PyfiConnectTool(Tool, ABC):
         try:
             self.logger.info("Initiating scan on interface %s (ifindex %s).", interface, ifindex)
             results = iw.scan(ifindex, flush_cache=True)
+            # Dump the entire raw scan data for debugging
             self.logger.debug("Full raw scan result from iw.scan(): %r", results)
             if not results:
                 self.logger.error("No results returned from iw.scan() for interface %s", interface)
+
             for idx, ap in enumerate(results, start=1):
+                # Convert attributes list to a dict
                 ap_attrs = {}
                 for attr in ap.get("attrs", []):
                     key, value = attr[0], attr[1]
                     ap_attrs[key] = value
                     self.logger.debug("AP %d: Parsed attribute: %r = %r", idx, key, value)
+
+                # Process BSSID first
                 bssid = ap_attrs.get("NL80211_BSS_BSSID")
-                ie = ap_attrs.get("NL80211_BSS_INFORMATION_ELEMENTS", {})
-                raw_ssid = ie.get("SSID") if isinstance(ie, dict) else None
+                self.logger.debug("AP %d: Raw bssid: %r", idx, bssid)
+                if bssid is not None and not isinstance(bssid, str):
+                    try:
+                        bssid = bssid.decode("utf-8", errors="replace") \
+                            if isinstance(bssid, bytes) else str(bssid)
+                    except Exception as e:
+                        self.logger.error("AP %d: Error decoding bssid: %s", idx, e)
+                        bssid = None
+
+                # Process SSID from information elements
+                ie = ap_attrs.get("NL80211_BSS_INFORMATION_ELEMENTS")
+                raw_ssid = None
+                if isinstance(ie, dict):
+                    raw_ssid = ie.get("SSID")
+                elif isinstance(ie, list):
+                    # If IE is a list of tuples, search for the one with key "SSID"
+                    for item in ie:
+                        if isinstance(item, tuple) and item[0] == "SSID":
+                            raw_ssid = item[1]
+                            break
+                self.logger.debug("AP %d: Raw SSID data: %r", idx, raw_ssid)
+                # Check if raw_ssid is valid (strip zero bytes if bytes)
                 if raw_ssid is None:
                     ssid = "Unknown"
                 elif isinstance(raw_ssid, bytes):
-                    try:
-                        ssid = raw_ssid.decode("utf-8", errors="replace")
-                    except Exception as e:
-                        self.logger.error("AP %d: Error decoding SSID: %s", idx, e)
+                    if not raw_ssid.strip(b'\x00'):
                         ssid = "Unknown"
-                elif isinstance(raw_ssid, str):
-                    ssid = raw_ssid
+                    else:
+                        try:
+                            ssid = raw_ssid.decode("utf-8", errors="replace")
+                        except Exception as e:
+                            self.logger.error("AP %d: Error decoding SSID: %s", idx, e)
+                            ssid = "Unknown"
                 else:
-                    ssid = "Unknown"
-                if not ssid:
-                    ssid = "Hidden"
+                    ssid = str(raw_ssid)
+
                 network = {"ssid": ssid, "bssid": bssid}
                 networks.append(network)
                 self.logger.debug("AP %d: Scanned network: %s", idx, network)
