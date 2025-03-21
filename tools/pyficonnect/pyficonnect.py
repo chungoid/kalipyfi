@@ -169,6 +169,7 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     async def monitor_netlink_events(self):
+        from pyroute2 import IPRoute
         ipr = IPRoute()
         try:
             ipr.bind()
@@ -188,9 +189,11 @@ class PyfiConnectTool(Tool, ABC):
                 if time.time() - last_scan >= 10:
                     last_scan = time.time()
                     self.logger.info("Fallback periodic scan triggered.")
+                    self.logger.debug("Calling scan_networks_pyroute2 with interface: %s", self.selected_interface)
                     networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
-                    self.logger.debug(f"Scan returned networks: {networks}")
+                    self.logger.debug("Scan returned networks: %s", networks)
                     # Process each network as needed...
+
                 await asyncio.sleep(0.1)
         finally:
             ipr.close()
@@ -277,8 +280,6 @@ class PyfiConnectTool(Tool, ABC):
         Starts the asynchronous netlink event monitoring for background scanning.
         Ensures an event loop is available and then creates the task.
         """
-        self.logger.info(f"Starting background scan on interface: {self.selected_interface}")
-        self.logger.info(f"Loaded DB networks: {list(self.db_networks.keys())}")
         self.scanner_running = True
         try:
             loop = asyncio.get_running_loop()
