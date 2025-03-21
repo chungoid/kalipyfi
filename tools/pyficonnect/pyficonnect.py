@@ -6,7 +6,7 @@ import time
 from abc import ABC
 from pathlib import Path
 from typing import Optional, Dict, Any
-from pyroute2 import IW, IPRoute
+from pyroute2 import IPRoute
 
 # locals
 from config.constants import BASE_DIR
@@ -175,11 +175,19 @@ class PyfiConnectTool(Tool, ABC):
             self.logger.info("Netlink socket bound; starting event monitoring loop.")
             last_scan = time.time()
             while self.scanner_running:
-                self.logger.debug("Awaiting netlink events...")
+                iteration_start = time.time()
+                self.logger.debug("Starting new iteration of netlink event monitoring loop.")
+
+                # Wrap the blocking get call with a timeout
                 try:
-                    # Use wait_for to add a timeout (e.g. 1 second)
+                    self.logger.debug("Waiting for netlink events with a 1-second timeout.")
                     events = await asyncio.wait_for(asyncio.to_thread(ipr.get), timeout=1)
+                    self.logger.debug("ipr.get() completed.")
                 except asyncio.TimeoutError:
+                    self.logger.debug("Timeout reached; no netlink events in this iteration.")
+                    events = None
+                except Exception as e:
+                    self.logger.error("Error during ipr.get(): %s", e)
                     events = None
 
                 if events:
@@ -187,17 +195,22 @@ class PyfiConnectTool(Tool, ABC):
                     for idx, event in enumerate(events, start=1):
                         self.logger.debug(f"Event {idx}: {event}")
                 else:
-                    self.logger.debug("No netlink events received in this iteration.")
+                    self.logger.debug("No netlink events received this iteration.")
 
-                # Fallback: trigger a scan every 10 seconds
-                if time.time() - last_scan >= 10:
+                # Check if it’s time for a fallback scan (every 10 seconds)
+                elapsed_since_last_scan = time.time() - last_scan
+                self.logger.debug(f"Elapsed time since last fallback scan: {elapsed_since_last_scan:.2f} seconds.")
+                if elapsed_since_last_scan >= 10:
                     last_scan = time.time()
                     self.logger.info("Fallback periodic scan triggered.")
-                    self.logger.debug("Calling scan_networks_pyroute2 with interface: %s", self.selected_interface)
-                    networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
-                    self.logger.debug("Scan returned networks: %s", networks)
-                    # (Process networks as needed...)
+                    try:
+                        self.logger.debug("Calling scan_networks_pyroute2 with interface: %s", self.selected_interface)
+                        networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
+                        self.logger.info("Fallback scan returned %d network(s).", len(networks))
+                    except Exception as e:
+                        self.logger.error("Error during fallback scan: %s", e)
 
+                self.logger.debug("Sleeping for 0.1 seconds before next iteration.")
                 await asyncio.sleep(0.1)
         finally:
             ipr.close()
