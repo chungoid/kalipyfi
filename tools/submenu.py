@@ -190,25 +190,25 @@ class BaseSubmenu:
 
     def display_alert(self, alerts: list):
         """
-        Processes a list of alert items. Expects each alert to be a dict.
-        If an alert is of type NETWORK_FOUND (from the global scanner), formats it;
-        otherwise, it assumes the dict has a "message" key.
-        Then updates the alert window.
+        Processes a list of alerts and formats them for display.
+        Alerts may be:
+          - full alert dicts from ScapyManager (with 'action' and 'timestamp')
+          - display dicts with 'message' and 'expiration'
         """
         formatted_messages = []
         for alert in alerts:
-            # check if its from global scanner
-            if isinstance(alert, dict) and alert.get("action") == "NETWORK_FOUND":
-                ssid = alert.get("ssid", "Unknown")
-                if "timestamp" in alert:
+            if isinstance(alert, dict):
+                if alert.get("action") == "NETWORK_FOUND" and "ssid" in alert and "timestamp" in alert:
+                    ssid = alert["ssid"]
                     time_passed = time.time() - alert["timestamp"]
-                    formatted_messages.append(f"{ssid} ({time_passed:.0f}s)")
+                    formatted_messages.append(f"{ssid} ({int(time_passed)}s)")
+                elif "message" in alert:
+                    formatted_messages.append(alert["message"])
                 else:
-                    self.logger.warning("No timestamp found for alert: %s", alert)
-            elif isinstance(alert, dict) and "message" in alert:
-                formatted_messages.append(alert["message"])
+                    self.logger.warning("Unrecognized alert format: %s", alert)
             else:
                 formatted_messages.append(str(alert))
+
         final_message = "\n".join(formatted_messages)
         self._update_alert_window_from_message(final_message)
 
