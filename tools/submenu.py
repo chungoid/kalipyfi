@@ -154,16 +154,14 @@ class BaseSubmenu:
             h, w = self.alert_win.getmaxyx()
             self.alert_win.erase()
             self.alert_win.box()
-            # split if new-lines
             lines = alert_msg.splitlines() or [alert_msg]
-            row = 1
-            for line in lines:
-                if row < h - 1:
-                    try:
-                        self.alert_win.addstr(row, 2, line[:w - 4])
-                    except curses.error:
-                        pass
-                    row += 1
+            if len(lines) > (h - 2):
+                lines = lines[-(h - 2):]
+            for row, line in enumerate(lines, start=1):
+                try:
+                    self.alert_win.addstr(row, 2, line[:w - 4])
+                except curses.error:
+                    pass
             self.alert_win.refresh()
 
     def display_alert(self, alerts: List[dict]):
