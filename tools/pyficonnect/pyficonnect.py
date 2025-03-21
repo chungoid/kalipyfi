@@ -171,7 +171,6 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     def scapy_packet_handler(self, pkt):
-        # Only process 802.11 beacon frames
         from tools.helpers.tool_utils import normalize_mac
         if pkt.haslayer(Dot11) and pkt.type == 0 and pkt.subtype == 8:
             try:
@@ -182,9 +181,9 @@ class PyfiConnectTool(Tool, ABC):
                 ssid = "<hidden>"
             bssid = normalize_mac(pkt.addr2)
             self.logger.info(f"Scapy scan detected - SSID: {ssid} - BSSID: {bssid}")
-            # Optionally check if the BSSID is in your database (self.db_networks)
+            # check db
             if self.db_networks and bssid in self.db_networks:
-                # Avoid sending duplicate alerts for the same BSSID.
+                # avoid duplicates
                 if bssid not in self.alerted_networks:
                     alert_data = {
                         "action": "NETWORK_FOUND",
@@ -207,12 +206,9 @@ class PyfiConnectTool(Tool, ABC):
                 # Switch the interface to the target channel.
                 subprocess.check_call(["iw", "dev", interface, "set", "channel", str(channel)],
                                     stderr=subprocess.DEVNULL)
-                print(f"Switched {interface} to channel {channel}")
             except subprocess.CalledProcessError as e:
-                print(f"Error switching {interface} to channel {channel}: {e}")
                 continue
 
-            # Sniff for beacon frames on this channel.
             sniff(iface=interface, prn=self.scapy_packet_handler, timeout=dwell_time, store=0)
 
     def start_background_scan_scapy(self):
