@@ -180,11 +180,11 @@ class PyfiConnectTool(Tool, ABC):
             if not ssid:
                 ssid = "<hidden>"
             bssid = normalize_mac(pkt.addr2)
-            self.logger.info(f"Scapy scan detected - SSID: {ssid} - BSSID: {bssid}")
             # check db
             if self.db_networks and bssid in self.db_networks:
                 # avoid duplicates
                 if bssid not in self.alerted_networks:
+                    self.logger.info(f"Scapy scan detected - SSID: {ssid} - BSSID: {bssid}")
                     alert_data = {
                         "action": "NETWORK_FOUND",
                         "tool": self.name,
@@ -195,7 +195,7 @@ class PyfiConnectTool(Tool, ABC):
                     self.alerted_networks[bssid] = True
                     self.send_network_found_alert(alert_data)
 
-    def scan_networks_scapy(self, interface: str, dwell_time: float = .2) -> None:
+    def scan_networks_scapy(self, interface: str, dwell_time: float = 0.2) -> None:
         """
         Rotates through all channels (2.4 GHz and 5 GHz) and uses Scapy to sniff for beacon frames.
         dwell_time: number of seconds to stay on each channel.
@@ -203,23 +203,31 @@ class PyfiConnectTool(Tool, ABC):
         from config.constants import ALL_CHANNELS
         for channel in ALL_CHANNELS:
             try:
-                # switch channel
-                subprocess.check_call(["iw", "dev", interface, "set", "channel", str(channel)],
-                                    stderr=subprocess.DEVNULL)
+                # Switch the interface to the target channel.
+                subprocess.check_call(
+                    ["iw", "dev", interface, "set", "channel", str(channel)],
+                    stderr=subprocess.DEVNULL
+                )
+                self.logger.info("Switched %s to channel %s", interface, channel)
             except subprocess.CalledProcessError as e:
+                self.logger.error("Error switching %s to channel %s: %s", interface, channel, e)
                 continue
 
-            sniff(iface=interface, prn=self.scapy_packet_handler, timeout=dwell_time, store=0)
+            try:
+                # Sniff for beacon frames on this channel.
+                sniff(iface=interface, prn=self.scapy_packet_handler, timeout=dwell_time, store=0)
+            except Exception as e:
+                self.logger.error("Error during sniffing on channel %s: %s", channel, e)
+                # Optionally, add a small delay here to let the interface stabilize
+                time.sleep(0.1)
 
     def start_background_scan_scapy(self):
         """
-        Starts a background thread that continuously rotates through channels,
-        scanning with Scapy on each channel for a short period.
-        Before starting, it checks if the selected interface is in monitor mode,
-        switching it if necessary.
+        Starts a background thread that continuously rotates through channels and scans using Scapy.
+        It first checks that the interface is in monitor mode and switches it if necessary.
+        Exceptions during scanning are caught and logged so they don't affect the UI.
         """
-        from tools.helpers.tool_utils import switch_interface_to_monitor, get_interface_mode
-        # Check if interface is already in monitor mode (using your helper)
+        from tools.helpers.tool_utils import get_interface_mode, switch_interface_to_monitor
         current_mode = get_interface_mode(self.selected_interface, self.logger)
         if current_mode != "monitor":
             self.logger.info("Interface %s is in %s mode; switching to monitor mode.", self.selected_interface,
@@ -233,7 +241,11 @@ class PyfiConnectTool(Tool, ABC):
 
         def background_scan():
             while self.scanner_running:
-                self.scan_networks_scapy(self.selected_interface, dwell_time=.2)
+                try:
+                    self.scan_networks_scapy(self.selected_interface, dwell_time=0.2)
+                except Exception as e:
+                    self.logger.error("Unhandled error in background scan: %s", e)
+                # Short delay between full rotations.
                 time.sleep(1)
 
         threading.Thread(target=background_scan, daemon=True).start()
