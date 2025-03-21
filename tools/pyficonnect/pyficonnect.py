@@ -157,6 +157,16 @@ class PyfiConnectTool(Tool, ABC):
     ##################################################
     ##### AUTO-SCAN IN BACKGROUND FOR DB MATCHES #####
     ##################################################
+
+    def load_db_networks(self):
+        """
+        Loads all rows from the pyficonnect table into a dictionary keyed by normalized BSSID.
+        """
+        from tools.pyficonnect._parser import get_pyficonnect_networks_from_db, format_pyficonnect_networks
+        rows = get_pyficonnect_networks_from_db(BASE_DIR)
+        self.db_networks = format_pyficonnect_networks(rows)
+        self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
+
     def scan_networks_pyroute2(self, interface):
         """
         Uses pyroute2's IW module to scan for networks on the specified interface.
@@ -190,13 +200,14 @@ class PyfiConnectTool(Tool, ABC):
         """
         ipr = IPRoute()
         try:
-            ipr.bind()  # open the netlink socket
+            ipr.bind()  # Open the netlink socket
             while self.scanner_running:
-                # await netlink events in a thread so we don't block the event loop
+                # Await netlink events in a thread so we don't block the event loop
                 events = await asyncio.to_thread(ipr.get)
                 self.logger.debug(f"Netlink events received: {events}")
 
-                # each event, trigger a fresh scan
+                # For each event, trigger a fresh scan.
+                # (You can add filtering logic here if you only care about certain events.)
                 networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
                 from tools.helpers.tool_utils import normalize_mac
                 for net in networks:
@@ -213,7 +224,7 @@ class PyfiConnectTool(Tool, ABC):
                             "timestamp": current_time,
                         }
                         self.send_network_found_alert(alert_data)
-                # incase rapid fire events
+                # A short delay prevents a tight loop in case events fire in rapid succession.
                 await asyncio.sleep(0.1)
         finally:
             ipr.close()
