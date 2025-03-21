@@ -195,7 +195,7 @@ class PyfiConnectTool(Tool, ABC):
                     self.alerted_networks[bssid] = True
                     self.send_network_found_alert(alert_data)
 
-    def scan_networks_scapy(self, interface: str, dwell_time: int = 1) -> None:
+    def scan_networks_scapy(self, interface: str, dwell_time: float = .2) -> None:
         """
         Rotates through all channels (2.4 GHz and 5 GHz) and uses Scapy to sniff for beacon frames.
         dwell_time: number of seconds to stay on each channel.
@@ -203,7 +203,7 @@ class PyfiConnectTool(Tool, ABC):
         from config.constants import ALL_CHANNELS
         for channel in ALL_CHANNELS:
             try:
-                # Switch the interface to the target channel.
+                # switch channel
                 subprocess.check_call(["iw", "dev", interface, "set", "channel", str(channel)],
                                     stderr=subprocess.DEVNULL)
             except subprocess.CalledProcessError as e:
@@ -233,8 +233,7 @@ class PyfiConnectTool(Tool, ABC):
 
         def background_scan():
             while self.scanner_running:
-                self.scan_networks_scapy(self.selected_interface, dwell_time=1)
-                # Optionally, add a delay between full rotations
+                self.scan_networks_scapy(self.selected_interface, dwell_time=.2)
                 time.sleep(1)
 
         threading.Thread(target=background_scan, daemon=True).start()
