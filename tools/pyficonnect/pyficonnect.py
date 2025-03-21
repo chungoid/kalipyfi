@@ -172,6 +172,7 @@ class PyfiConnectTool(Tool, ABC):
 
     def scapy_packet_handler(self, pkt):
         # Only process 802.11 beacon frames (type 0, subtype 8)
+        from tools.helpers.tool_utils import normalize_mac
         if pkt.haslayer(Dot11) and pkt.type == 0 and pkt.subtype == 8:
             try:
                 ssid = pkt.info.decode('utf-8', errors='ignore')
@@ -179,7 +180,7 @@ class PyfiConnectTool(Tool, ABC):
                 ssid = "<unknown>"
             if not ssid:
                 ssid = "<hidden>"
-            bssid = pkt.addr2
+            bssid = normalize_mac(pkt.addr2)
             self.logger.info(f"Scapy scan detected - SSID: {ssid} - BSSID: {bssid}")
             # Optionally check if the BSSID is in your database (self.db_networks)
             if self.db_networks and bssid in self.db_networks:
