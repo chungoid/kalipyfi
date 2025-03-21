@@ -168,6 +168,45 @@ class PyfiConnectTool(Tool, ABC):
         self.db_networks = format_pyficonnect_networks(rows)
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
+    async def monitor_netlink_events(self):
+        """
+        Monitors netlink events using pyroute2's IPRoute and triggers a scan when events occur.
+        This event-driven approach lets you react immediately when a relevant change happens.
+        """
+        ipr = IPRoute()
+        try:
+            ipr.bind()
+            while self.scanner_running:
+                events = await asyncio.to_thread(ipr.get)
+                if events:
+                    for event in events:
+                        self.logger.debug(f"Netlink event: {event}")
+                else:
+                    self.logger.debug("No netlink events received in this cycle.")
+
+                networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
+                self.logger.debug(f"Scan returned networks: {networks}")
+                from tools.helpers.tool_utils import normalize_mac
+                for net in networks:
+                    cli_bssid = net.get("bssid")
+                    norm_cli_bssid = normalize_mac(cli_bssid)
+                    self.logger.debug(f"Normalized BSSID: {norm_cli_bssid}")
+                    if norm_cli_bssid in self.db_networks:
+                        current_time = time.time()
+                        alert_data = {
+                            "action": "NETWORK_FOUND",
+                            "tool": self.name,
+                            "ssid": self.db_networks[norm_cli_bssid]["ssid"],
+                            "bssid": norm_cli_bssid,
+                            "key": self.db_networks[norm_cli_bssid].get("key"),
+                            "timestamp": current_time,
+                        }
+                        self.logger.info(f"Alert generated: {alert_data}")
+                        self.send_network_found_alert(alert_data)
+                await asyncio.sleep(0.1)
+        finally:
+            ipr.close()
+
     def scan_networks_pyroute2(self, interface):
         """
         Uses pyroute2's IW module to scan for networks on the specified interface.
@@ -177,6 +216,7 @@ class PyfiConnectTool(Tool, ABC):
         iw = IW()
         try:
             results = iw.scan(interface)
+            self.logger.debug(f"Raw scan results: {results}")
             networks = []
             for ap in results:
                 networks.append({
@@ -194,38 +234,6 @@ class PyfiConnectTool(Tool, ABC):
             except Exception:
                 pass
 
-    async def monitor_netlink_events(self):
-        """
-        Monitors netlink events using pyroute2's IPRoute and triggers a scan when events occur.
-        This event-driven approach lets you react immediately when a relevant change happens.
-        """
-        ipr = IPRoute()
-        try:
-            ipr.bind()
-            while self.scanner_running:
-                events = await asyncio.to_thread(ipr.get)
-                self.logger.debug(f"Netlink events received: {events}")
-
-                networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
-                from tools.helpers.tool_utils import normalize_mac
-                for net in networks:
-                    cli_bssid = net.get("bssid")
-                    norm_cli_bssid = normalize_mac(cli_bssid)
-                    if norm_cli_bssid in self.db_networks:
-                        current_time = time.time()
-                        alert_data = {
-                            "action": "NETWORK_FOUND",
-                            "tool": self.name,
-                            "ssid": self.db_networks[norm_cli_bssid]["ssid"],
-                            "bssid": norm_cli_bssid,
-                            "key": self.db_networks[norm_cli_bssid].get("key"),
-                            "timestamp": current_time,
-                        }
-                        self.send_network_found_alert(alert_data)
-                await asyncio.sleep(0.1)
-        finally:
-            ipr.close()
-
     @staticmethod
     def ensure_event_loop():
         try:
@@ -238,8 +246,15 @@ class PyfiConnectTool(Tool, ABC):
             return new_loop
 
     def start_background_scan_async(self):
+        self.logger.info(f"Starting background scan on interface: {self.selected_interface}")
+        self.logger.info(f"Loaded DB networks: {list(self.db_networks.keys())}")
         self.scanner_running = True
-        loop = self.ensure_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            threading.Thread(target=loop.run_forever, daemon=True).start()
         loop.create_task(self.monitor_netlink_events())
         self.logger.info("Background netlink event monitoring started.")
 
