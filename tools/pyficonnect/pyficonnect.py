@@ -196,7 +196,8 @@ class PyfiConnectTool(Tool, ABC):
         try:
             self.logger.info("Initiating scan on interface %s (ifindex %s).", interface, ifindex)
             results = iw.scan(ifindex, flush_cache=True)
-            self.logger.debug("Raw scan results: %s", results)
+            # Dump the entire scan result to the logs
+            self.logger.debug("Full raw scan result from iw.scan(): %r", results)
             if not results:
                 self.logger.error("No results returned from iw.scan() for interface %s", interface)
             for idx, ap in enumerate(results, start=1):
