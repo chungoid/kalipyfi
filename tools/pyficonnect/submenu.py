@@ -30,7 +30,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
                 ssid = alert.get("ssid", "Unknown")
                 if "timestamp" in alert:
                     time_passed = time.time() - alert["timestamp"]
-                    formatted_messages.append(f"{ssid} ({time_passed:.0f} s ago)")
+                    formatted_messages.append(f"{ssid} ({time_passed:.0f}s)")
                 else:
                     formatted_messages.append(f"{ssid}")
             else:
