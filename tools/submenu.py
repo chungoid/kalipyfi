@@ -130,29 +130,23 @@ class BaseSubmenu:
         """
         expiration = time.time() + duration
         self.alert_queue.append((alert_msg, expiration))
-        self.refresh_alert_area()
+        self.update_alert_window()
 
-    def refresh_alert_area(self):
-        current_time = time.time()
-        # remove expired alerts from the queue
-        self.alert_queue = [(msg, exp) for msg, exp in self.alert_queue if exp > current_time]
-
+    def update_alert_window(self, alert_msg: str):
         if self.alert_win:
             h, w = self.alert_win.getmaxyx()
             self.alert_win.erase()
             self.alert_win.box()
+            # split if new-lines
+            lines = alert_msg.splitlines() or [alert_msg]
             row = 1
-            for msg, exp in self.alert_queue:
-                # split alerts into individual lines
-                lines = msg.splitlines() or [msg]
-                for line in lines:
-                    # keep from going off bottom of pane
-                    if row < h - 1:
-                        try:
-                            self.alert_win.addstr(row, 2, line[:w - 4])
-                        except curses.error:
-                            pass
-                        row += 1
+            for line in lines:
+                if row < h - 1:
+                    try:
+                        self.alert_win.addstr(row, 2, line[:w - 4])
+                    except curses.error:
+                        pass
+                    row += 1
             self.alert_win.refresh()
 
     def display_alert_popup(self, alert_msg: str):
@@ -1095,7 +1089,7 @@ class BaseSubmenu:
             # Only clear the submenu window (not affecting the alert window)
             submenu_win.clear()
             submenu_win.refresh()
-            self.refresh_alert_area()  # update alerts as needed
+            self.update_alert_window()  # update alerts as needed
 
         self.tool.ui_instance.unregister_active_submenu()
         self.logger.debug("Active submenu unregistered in __call__ exit.")

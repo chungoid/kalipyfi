@@ -36,7 +36,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
             else:
                 formatted_messages.append(str(alert))
         final_message = "\n".join(formatted_messages)
-        self.display_alert_popup(final_message)
+        self.update_alert_window(final_message)
 
     def display_alert_popup(self, alert_msg: str):
         # Clear the alert queue so that we don't accumulate duplicate groups of alerts.
