@@ -16,34 +16,6 @@ class PyfyConnectSubmenu(BaseSubmenu):
         self.logger = logging.getLogger("NetConnectToolSubmenu")
         self.logger.debug("NetConnectToolSubmenu initialized.")
 
-    ###################################
-    ##### ALERT DISPLAY OVERRIDES #####
-    ###################################
-    def display_alert(self, alerts: List[dict]):
-        """
-        Expects a list of alert data dictionaries.
-        For each alert, recalculates the elapsed time if a timestamp exists, and updates the display.
-        """
-        formatted_messages = []
-        for alert in alerts:
-            if alert.get("action") == "NETWORK_FOUND":
-                ssid = alert.get("ssid", "Unknown")
-                if "timestamp" in alert:
-                    time_passed = time.time() - alert["timestamp"]
-                    formatted_messages.append(f"{ssid} ({time_passed:.0f}s)")
-                else:
-                    formatted_messages.append(f"{ssid}")
-            else:
-                formatted_messages.append(str(alert))
-        final_message = "\n".join(formatted_messages)
-        self.update_alert_window(final_message)
-
-    def display_alert_popup(self, alert_msg: str):
-        # Clear the alert queue so that we don't accumulate duplicate groups of alerts.
-        self.alert_queue.clear()
-        self.add_alert(alert_msg, duration=3)
-
-
     ###########################
     ##### TOOL SCAN LOGIC #####
     ###########################

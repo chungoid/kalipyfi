@@ -149,26 +149,24 @@ class BaseSubmenu:
                     row += 1
             self.alert_win.refresh()
 
-    def display_alert_popup(self, alert_msg: str):
+    def display_alert(self, alerts: List[dict]):
         """
-        override in subclass to display alert popups. Use _parser to
-        format the alert_data instance dict based on the alert action.
-        ie; format alerts based on type with separate parsers helper functions.
+        Expects a list of alert data dictionaries.
+        For each alert, recalculates the elapsed time if a timestamp exists, and updates the display.
         """
-        pass
-
-    def display_alert(self, alert_data: dict):
-        """
-        override in subclass to display alert popups. Use _parser to
-        format the alert_data instance dict based on the alert action.
-        ie; format alerts based on type with separate parsers helper functions.
-
-        send formatters returned string to self.display_alert_popup(alert_msg: str)
-        for display in alert window.
-        """
-        # check if alerts enabled (toggled on)
-        pass
-
+        formatted_messages = []
+        for alert in alerts:
+            if alert.get("action") == "NETWORK_FOUND":
+                ssid = alert.get("ssid", "Unknown")
+                if "timestamp" in alert:
+                    time_passed = time.time() - alert["timestamp"]
+                    formatted_messages.append(f"{ssid} ({time_passed:.0f}s)")
+                else:
+                    self.logger.warning(f"no timestamp found for {alert}")
+            else:
+                formatted_messages.append(str(alert))
+        final_message = "\n".join(formatted_messages)
+        self.update_alert_window(final_message)
 
     #############################
     ##### MAIN MENU OPTIONS #####
