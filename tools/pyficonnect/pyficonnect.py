@@ -172,8 +172,8 @@ class PyfiConnectTool(Tool, ABC):
         """
         Uses pyroute2's IW module to trigger a fresh scan on the specified interface.
         Returns a list of dictionaries in the form:
-          [{"ssid": <ssid>, "bssid": <bssid>}, ...]
-        It also logs the entire raw scan data.
+            [{"ssid": <ssid>, "bssid": <bssid>}, ...]
+        Logs the full raw scan data.
         """
         ipr = IPRoute()
         try:
@@ -194,12 +194,10 @@ class PyfiConnectTool(Tool, ABC):
         try:
             self.logger.info("Initiating scan on interface %s (ifindex %s).", interface, ifindex)
             results = iw.scan(ifindex, flush_cache=True)
-            # Dump the entire raw scan result to the logs
             self.logger.debug("Full raw scan result from iw.scan(): %r", results)
             if not results:
                 self.logger.error("No results returned from iw.scan() for interface %s", interface)
             for idx, ap in enumerate(results, start=1):
-                # Parse attributes into a dictionary
                 ap_attrs = {}
                 for attr in ap.get("attrs", []):
                     key, value = attr[0], attr[1]
@@ -242,32 +240,43 @@ class PyfiConnectTool(Tool, ABC):
 
     def start_fallback_scan_loop(self):
         """
-        Starts a synchronous fallback scan loop that runs every 10 seconds.
-        This loop simply calls scan_networks_pyroute2 on the selected interface,
-        logs the raw output and parsed results, then sleeps for the interval.
+        A synchronous loop that performs a fallback scan every 10 seconds.
+        Runs on its own thread.
         """
-        self.scanner_running = True
-        self.logger.info("Starting synchronous fallback scan loop on interface: %s", self.selected_interface)
-        try:
-            while self.scanner_running:
-                if not self.selected_interface:
-                    self.logger.error("No interface selected for fallback scan.")
-                    break
-                self.logger.info("Executing synchronous fallback scan on interface: %s", self.selected_interface)
-                networks = self.scan_networks_pyroute2(self.selected_interface)
-                self.logger.info("Synchronous fallback scan returned %d networks: %s", len(networks), networks)
-                time.sleep(10)  # run every 10 seconds (adjust as needed)
-        except KeyboardInterrupt:
-            self.logger.info("Fallback scan loop interrupted by user.")
-        finally:
-            self.logger.info("Synchronous fallback scan loop terminated.")
+        self.logger.info("Synchronous fallback scan loop started on interface: %s", self.selected_interface)
+        while self.scanner_running:
+            if not self.selected_interface:
+                self.logger.error("No interface selected for fallback scan.")
+                break
+            self.logger.info("Executing fallback scan on interface: %s", self.selected_interface)
+            networks = self.scan_networks_pyroute2(self.selected_interface)
+            self.logger.info("Fallback scan returned %d networks: %s", len(networks), networks)
+            time.sleep(10)  # Adjust scan interval as needed
+        self.logger.info("Synchronous fallback scan loop terminated.")
 
-    def stop_fallback_scan_loop(self):
+    def start_fallback_scan_loop_in_thread(self):
         """
-        Stops the synchronous fallback scan loop.
+        Starts the fallback scan loop in a separate background thread.
         """
-        self.scanner_running = False
-        self.logger.info("Stopping synchronous fallback scan loop.")
+        if not self.scanner_running:
+            self.scanner_running = True
+            self.scan_thread = threading.Thread(target=self.start_fallback_scan_loop, daemon=True)
+            self.scan_thread.start()
+            self.logger.info("Fallback scan loop started in background thread.")
+        else:
+            self.logger.info("Fallback scan loop already running.")
+
+    def stop_fallback_scan_loop_thread(self):
+        """
+        Signals the fallback scan loop to stop and waits briefly for the thread to terminate.
+        """
+        if self.scanner_running:
+            self.scanner_running = False
+            if self.scan_thread:
+                self.scan_thread.join(timeout=2)
+            self.logger.info("Fallback scan loop stopped.")
+        else:
+            self.logger.info("Fallback scan loop is not running.")
 
     def send_network_found_alert(self, alert_data):
         """
@@ -277,3 +286,4 @@ class PyfiConnectTool(Tool, ABC):
         self.send_alert_payload("NETWORK_FOUND", alert_data)
         response = self.client.send(alert_data)
         self.logger.debug("IPC response for network alert: %s", response)
+

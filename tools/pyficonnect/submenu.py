@@ -296,7 +296,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
         # start scan
         if not self.tool.scanner_running:
             try:
-                self.tool.start_fallback_scan_loop()
+                self.tool.start_fallback_scan_loop_in_thread()
             except Exception as e:
                 parent_win.erase()
                 parent_win.addstr(0, 0, f"Error starting background scan: {e}")
@@ -438,7 +438,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
             elif selection.startswith("Scan"):
                 # if scan is running, stop it; otherwise, start it.
                 if self.tool.scanner_running:
-                    self.tool.stop_fallback_scan_loop()
+                    self.tool.stop_fallback_scan_loop_in_thread()
                     self.add_alert("Background scan stopped", duration=2)
                 else:
                     self.launch_background_scan(submenu_win)
