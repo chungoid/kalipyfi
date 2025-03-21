@@ -8,7 +8,7 @@ import libtmux
 import logging
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 # local
 from common.models import ScanData, InterfaceData, SessionData
@@ -29,8 +29,8 @@ class UIManager:
         self.session = self.get_or_create_session(session_name)
         self.session_data = SessionData(session_name=self.session.get("session_name"))
         self.active_submenu = None
-        self.alerts = None
-        self.start_alert_refresh_timer(interval=1)
+        # Tool Alerts: alert dict -> AlertData
+        self.alerts: Dict[str, List[dict]] = {}
         # Active scans: map pane_id -> ScanData
         self.active_scans: Dict[str, ScanData] = {}
         # Tool Interfaces: map interface name -> InterfaceData
@@ -40,6 +40,7 @@ class UIManager:
         self.tmuxp_dir = TMUXP_DIR
         # Toggles
         self.copy_mode_enabled = False # toggle tmux copy-mode to make main scan pane scrollable
+        self.start_alert_refresh_timer(interval=1)
 
 
     def _register_scan(self, window_name: str, pane_id: str, internal_name: str, tool_name: str,
