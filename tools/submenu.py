@@ -140,19 +140,17 @@ class BaseSubmenu:
         """
         self.logger.info("Received alert: %s", alert_data)
         if isinstance(alert_data, dict) and alert_data.get("action") == "NETWORK_FOUND":
-            original_timestamp = alert_data.get("timestamp", time.time())
-            elapsed = int(time.time() - original_timestamp)
-            message = f"{alert_data.get('ssid', 'Unknown')} ({elapsed}s)"
+            message = f"{alert_data.get('ssid', 'Unknown')} ({int(time.time() - alert_data.get('timestamp', time.time()))}s)"
             alert = {
                 "action": alert_data["action"],
                 "message": message,
-                "expiration": time.time() + 120,
-                "timestamp": original_timestamp
+                "expiration": time.time() + 120  # keep for 2m
             }
         else:
-            alert = {"message": str(alert_data), "expiration": time.time() + 10}
+            alert = {"message": str(alert_data), "expiration": time.time() + 120}
         self.alert_queue.append(alert)
         self.display_alert(self.alert_queue)
+
 
     def add_alert(self, alert_msg: str, duration: float = 3):
         """
@@ -192,22 +190,25 @@ class BaseSubmenu:
 
     def display_alert(self, alerts: list):
         """
-        Expects a list of alert items (as dictionaries) and formats them.
-        If an alert has a 'timestamp', it calculates the elapsed time.
+        Processes a list of alerts and formats them for display.
+        Alerts may be:
+          - full alert dicts from ScapyManager (with 'action' and 'timestamp')
+          - display dicts with 'message' and 'expiration'
         """
         formatted_messages = []
         for alert in alerts:
-            if isinstance(alert, dict) and alert.get("action") == "NETWORK_FOUND":
-                if "timestamp" in alert:
-                    elapsed = int(time.time() - alert["timestamp"])
-                    formatted_messages.append(f"{alert.get('ssid', 'Unknown')} ({elapsed}s)")
+            if isinstance(alert, dict):
+                if alert.get("action") == "NETWORK_FOUND" and "ssid" in alert and "timestamp" in alert:
+                    ssid = alert["ssid"]
+                    time_passed = time.time() - alert["timestamp"]
+                    formatted_messages.append(f"{ssid} ({int(time_passed)}s)")
+                elif "message" in alert:
+                    formatted_messages.append(alert["message"])
                 else:
-                    self.logger.warning("No timestamp found for alert: %s", alert)
-                    formatted_messages.append(alert.get("message", ""))
-            elif isinstance(alert, dict) and "message" in alert:
-                formatted_messages.append(alert["message"])
+                    self.logger.warning("Unrecognized alert format: %s", alert)
             else:
                 formatted_messages.append(str(alert))
+
         final_message = "\n".join(formatted_messages)
         self._update_alert_window_from_message(final_message)
 
