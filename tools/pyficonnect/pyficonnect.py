@@ -230,17 +230,35 @@ class PyfiConnectTool(Tool, ABC):
     def scan_networks_pyroute2(self, interface):
         """
         Uses pyroute2's IW module to scan for networks on the specified interface.
-        Returns a list of dictionaries like:
+        This method converts the interface name (e.g., 'wlan4') to its index,
+        forces a fresh scan (flush_cache=True), logs raw results, and returns a list
+        of dictionaries in the form:
           [{"ssid": "MyHomeWiFi", "bssid": "AA:BB:CC:DD:EE:FF"}, ...]
         """
+        # Convert the interface name to its ifindex using IPRoute.
+        ipr = IPRoute()
+        try:
+            indices = ipr.link_lookup(ifname=interface)
+            if not indices:
+                self.logger.error("No interface found with name %s", interface)
+                return []
+            ifindex = indices[0]
+            self.logger.debug(f"Interface {interface} has ifindex: {ifindex}")
+        except Exception as e:
+            self.logger.error("Error looking up interface %s: %s", interface, e)
+            return []
+        finally:
+            ipr.close()
+
+        # Use the IW module to trigger a scan.
         iw = IW()
         try:
-            self.logger.info(f"Initiating scan on interface {interface}.")
-            results = iw.scan(interface)
+            self.logger.info(f"Initiating scan on interface {interface} (ifindex {ifindex}).")
+            # Use flush_cache=True to force a fresh scan of all available APs.
+            results = iw.scan(ifindex, flush_cache=True)
             self.logger.debug(f"Raw scan results: {results}")
             networks = []
             for ap in results:
-                # Log each AP result
                 ssid = ap.get("ssid", "Unknown")
                 bssid = ap.get("bssid")
                 self.logger.debug(f"Found AP - SSID: {ssid}, BSSID: {bssid}")
@@ -248,7 +266,7 @@ class PyfiConnectTool(Tool, ABC):
                     "ssid": ssid,
                     "bssid": bssid
                 })
-            self.logger.info(f"Scan complete. Found {len(networks)} networks.")
+            self.logger.info(f"Scan complete. Found {len(networks)} networks on {interface}.")
             return networks
         except Exception as e:
             self.logger.error("Error scanning using pyroute2 on %s: %s", interface, e)
