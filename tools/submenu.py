@@ -103,11 +103,28 @@ class BaseSubmenu:
 
     def toggle_alert_popups(self):
         """
-        Toggles the state of alert popups.
+        Toggles the state of alert popups and immediately refreshes the alert display.
+        When enabled, it fetches all alerts for this tool from the UI manager and updates the alert window.
+        When disabled, it clears the alert window.
         """
         self.alert_popups_enabled = not self.alert_popups_enabled
         state = "enabled" if self.alert_popups_enabled else "disabled"
         self.logger.info(f"Alert popups have been {state}.")
+
+        ui = self.tool.ui_instance  # Reference to UIManager
+
+        if self.alert_popups_enabled:
+            # get current alerts
+            alerts = ui.alerts.get(self.tool.name, [])
+            # update alert display
+            self.display_alert(alerts)
+        else:
+            # clear window
+            if self.alert_win:
+                self.alert_win.erase()
+                self.alert_win.box()
+                self.alert_win.refresh()
+
         return state
 
     def setup_alert_window(self, stdscr):
