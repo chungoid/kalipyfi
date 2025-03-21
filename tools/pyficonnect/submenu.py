@@ -291,7 +291,16 @@ class PyfyConnectSubmenu(BaseSubmenu):
             self.logger.debug("No interface selected; aborting background scan.")
             return
 
+        # set iface & check for monitor & switch if not
         self.tool.selected_interface = selected_iface
+        from tools.helpers.tool_utils import get_interface_mode, switch_interface_to_monitor
+        current_mode = get_interface_mode(selected_iface, self.logger)
+        if current_mode.lower() != "monitor":
+            self.logger.info("Interface %s is in %s mode; switching to monitor mode.", selected_iface, current_mode)
+            if not switch_interface_to_monitor(selected_iface, self.logger):
+                self.logger.error("Failed to switch interface %s to monitor mode.", selected_iface)
+            else:
+                self.logger.info("Interface %s successfully switched to monitor mode.", selected_iface)
 
         # global ScapyManager instance
         from tools.pyficonnect.scapymanager import ScapyManager
