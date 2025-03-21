@@ -169,17 +169,14 @@ class PyfiConnectTool(Tool, ABC):
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     async def monitor_netlink_events(self):
-        self.logger.debug("Monitoring network events")
+        self.logger.debug("Monitoring network events")  # Should log immediately
         ipr = IPRoute()
         try:
             ipr.bind()
             self.logger.info("Netlink socket bound; starting event monitoring loop.")
             last_scan = time.time()
             while self.scanner_running:
-                iteration_start = time.time()
                 self.logger.debug("Starting new iteration of netlink event monitoring loop.")
-
-                # Wrap the blocking get call with a timeout
                 try:
                     self.logger.debug("Waiting for netlink events with a 1-second timeout.")
                     events = await asyncio.wait_for(asyncio.to_thread(ipr.get), timeout=1)
@@ -198,10 +195,8 @@ class PyfiConnectTool(Tool, ABC):
                 else:
                     self.logger.debug("No netlink events received this iteration.")
 
-                # Check if it’s time for a fallback scan (every 10 seconds)
-                elapsed_since_last_scan = time.time() - last_scan
-                self.logger.debug(f"Elapsed time since last fallback scan: {elapsed_since_last_scan:.2f} seconds.")
-                if elapsed_since_last_scan >= 10:
+                # Fallback scan every 10 seconds.
+                if time.time() - last_scan >= 10:
                     last_scan = time.time()
                     self.logger.info("Fallback periodic scan triggered.")
                     try:
@@ -211,11 +206,20 @@ class PyfiConnectTool(Tool, ABC):
                     except Exception as e:
                         self.logger.error("Error during fallback scan: %s", e)
 
-                self.logger.debug("Sleeping for 0.1 seconds before next iteration.")
                 await asyncio.sleep(0.1)
         finally:
             ipr.close()
             self.logger.info("Netlink event monitoring loop terminated.")
+
+    def start_background_scan_async(self):
+        self.scanner_running = True
+        thread = threading.Thread(
+            target=self.background_monitor,
+            args=(self.monitor_netlink_events(),),
+            daemon=True
+        )
+        thread.start()
+        self.logger.info("Background netlink event monitoring started in dedicated thread.")
 
     def scan_networks_pyroute2(self, interface):
         """
@@ -293,32 +297,11 @@ class PyfiConnectTool(Tool, ABC):
             except Exception as ex:
                 self.logger.debug("Error closing IW instance: %s", ex)
 
-    def start_background_scan_async(self):
-        """
-        Starts the asynchronous netlink event monitoring for background scanning.
-        Ensures an event loop is available and then creates the task.
-        """
-        self.scanner_running = True
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            threading.Thread(target=loop.run_forever, daemon=True).start()
-            self.logger.info("Created new event loop in background thread.")
-        loop.create_task(self.monitor_netlink_events())
-        self.logger.info("Background netlink event monitoring started.")
 
-    @staticmethod
-    def ensure_event_loop():
-        try:
-            loop = asyncio.get_running_loop()
-            return loop
-        except RuntimeError:
-            new_loop = asyncio.new_event_loop()
-            threading.Thread(target=new_loop.run_forever, daemon=True).start()
-            asyncio.set_event_loop(new_loop)
-            return new_loop
+    def background_monitor(coro):
+        """Run an async coroutine in a dedicated thread."""
+        asyncio.run(coro)
+
 
     def stop_background_scan_async(self):
         """
