@@ -1,6 +1,7 @@
 import asyncio
 import subprocess
 import logging
+import threading
 import time
 from abc import ABC
 from pathlib import Path
@@ -200,14 +201,11 @@ class PyfiConnectTool(Tool, ABC):
         """
         ipr = IPRoute()
         try:
-            ipr.bind()  # Open the netlink socket
+            ipr.bind()
             while self.scanner_running:
-                # Await netlink events in a thread so we don't block the event loop
                 events = await asyncio.to_thread(ipr.get)
                 self.logger.debug(f"Netlink events received: {events}")
 
-                # For each event, trigger a fresh scan.
-                # (You can add filtering logic here if you only care about certain events.)
                 networks = await asyncio.to_thread(self.scan_networks_pyroute2, self.selected_interface)
                 from tools.helpers.tool_utils import normalize_mac
                 for net in networks:
@@ -224,18 +222,25 @@ class PyfiConnectTool(Tool, ABC):
                             "timestamp": current_time,
                         }
                         self.send_network_found_alert(alert_data)
-                # A short delay prevents a tight loop in case events fire in rapid succession.
                 await asyncio.sleep(0.1)
         finally:
             ipr.close()
 
+    @staticmethod
+    def ensure_event_loop():
+        try:
+            loop = asyncio.get_running_loop()
+            return loop
+        except RuntimeError:
+            new_loop = asyncio.new_event_loop()
+            threading.Thread(target=new_loop.run_forever, daemon=True).start()
+            asyncio.set_event_loop(new_loop)
+            return new_loop
+
     def start_background_scan_async(self):
-        """
-        Starts the asynchronous netlink event monitoring for background scanning.
-        Assumes that an asyncio event loop is already running.
-        """
         self.scanner_running = True
-        asyncio.create_task(self.monitor_netlink_events())
+        loop = self.ensure_event_loop()
+        loop.create_task(self.monitor_netlink_events())
         self.logger.info("Background netlink event monitoring started.")
 
     def stop_background_scan_async(self):
