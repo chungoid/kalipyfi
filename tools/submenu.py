@@ -165,20 +165,28 @@ class BaseSubmenu:
         if not self.alert_win:
             return
 
-        # remove expired
         current_time = time.time()
+        # remove expired alerts
         self.alert_queue = [alert for alert in self.alert_queue if alert.get("expiration", 0) > current_time]
 
-        # combine
-        messages = [alert.get("message", "") for alert in self.alert_queue]
+        messages = []
+        for alert in self.alert_queue:
+            if alert.get("action") == "NETWORK_FOUND" and "ssid" in alert and "timestamp" in alert:
+                ssid = alert["ssid"]
+                elapsed = current_time - alert["timestamp"]
+                messages.append(f"{ssid} ({int(elapsed)}s)")
+            elif "message" in alert:
+                messages.append(alert["message"])
+            else:
+                messages.append(str(alert))
 
-        combined_alerts = "\n".join(messages)
+        final_message = "\n".join(messages)
 
-        # update
+        # Update the alert window display
         h, w = self.alert_win.getmaxyx()
         self.alert_win.erase()
         self.alert_win.box()
-        lines = combined_alerts.splitlines()
+        lines = final_message.splitlines()
         if len(lines) > (h - 2):
             lines = lines[-(h - 2):]
         for row, line in enumerate(lines, start=1):

@@ -4,6 +4,8 @@ import time
 import logging
 from scapy.layers.dot11 import Dot11
 from scapy.all import sniff
+
+# locals
 from config.constants import ALL_CHANNELS, BASE_DIR
 
 
