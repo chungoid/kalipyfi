@@ -171,17 +171,17 @@ class BaseSubmenu:
 
         messages = []
         for alert in self.alert_queue:
-            # show ssid
-            if alert.tool == "pyficonnect" and "ssid" in alert.data:
-                ssid = alert.data["ssid"]
+            # show bssid and time since alert formed
+            if alert.tool == "pyficonnect" and "bssid" in alert.data:
+                bssid = alert.data["bssid"]
                 elapsed = current_time - alert.created_at
-                messages.append(f"{ssid} ({int(elapsed)}s)")
+                messages.append(f"{bssid} ({int(elapsed)}s)")
             else:
-                # In case you have other alerts you can handle them differently
                 messages.append("Unknown alert")
 
         final_message = "\n".join(messages)
 
+        # Redraw the alert window
         h, w = self.alert_win.getmaxyx()
         self.alert_win.erase()
         self.alert_win.box()
