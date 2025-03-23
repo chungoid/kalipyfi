@@ -10,7 +10,7 @@ from datetime import datetime
 from abc import abstractmethod
 from typing import Dict, Any, List, Optional
 
-from common.models import AlertData
+
 # local
 from config.constants import BASE_DIR
 from common.process_manager import process_manager
@@ -225,6 +225,7 @@ class Tool:
         :param payload: Dict containing custom alert data
         :return: None
         """
+        from common.models import AlertData
         if "action" not in payload:
             payload["action"] = action
 

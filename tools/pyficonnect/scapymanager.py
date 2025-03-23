@@ -38,11 +38,6 @@ class ScapyManager:
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     def scapy_packet_handler(self, pkt):
-        """
-        Processes each packet captured by Scapy.
-        If the packet is a beacon frame, it checks if the BSSID exists in the loaded DB networks.
-        If so, and if this BSSID hasn't already generated an alert, it publishes an alert.
-        """
         from tools.helpers.tool_utils import normalize_mac
         if pkt.haslayer(Dot11) and pkt.type == 0 and pkt.subtype == 8:
             try:
@@ -55,10 +50,15 @@ class ScapyManager:
             if self.db_networks and bssid in self.db_networks:
                 if bssid not in self.alerted_networks:
                     self.logger.info("Detected network - SSID: %s, BSSID: %s", ssid, bssid)
-                    # Create an AlertData instance instead of a plain dict
+                    # Create a structured alert using AlertData
                     alert = AlertData(
                         tool="pyficonnect",
-                        data={"ssid": ssid, "bssid": bssid}
+                        data={
+                            "action": "NETWORK_FOUND",  # key used for filtering in the UI
+                            "ssid": ssid,
+                            "bssid": bssid,
+                            "msg": f"Detected network {ssid} on {bssid}"
+                        }
                     )
                     self.alerted_networks[bssid] = True
                     self.publish_alert(alert)

@@ -134,23 +134,35 @@ class BaseSubmenu:
         self.alert_win.refresh()
 
     def handle_alert(self, alert_data):
-        """
-        Callback method to process alerts from the global ScapyManager.
-        Converts the incoming alert into a unified dictionary format and adds it to the alert queue.
-        """
         self.logger.info("Received alert: %s", alert_data)
-        if isinstance(alert_data, dict) and alert_data.get("action") == "NETWORK_FOUND":
-            message = f"{alert_data.get('ssid', 'Unknown')} ({int(time.time() - alert_data.get('timestamp', time.time()))}s)"
-            alert = {
-                "action": alert_data["action"],
+
+        # convert to dict
+        if hasattr(alert_data, "to_dict"):
+            alert_dict = alert_data.to_dict()
+            # use created_at from data instance
+            created_at = alert_data.created_at
+        elif isinstance(alert_data, dict):
+            alert_dict = alert_data
+            created_at = alert_dict.get("timestamp", time.time())
+        else:
+            alert_dict = {"message": str(alert_data)}
+            created_at = time.time()
+
+        # structure alerts based on alert_data "action" key
+        if alert_dict.get("action") == "NETWORK_FOUND":
+            ssid = alert_dict.get("ssid", "Unknown")
+            elapsed = int(time.time() - created_at)
+            message = f"{ssid} ({elapsed}s)"
+            formatted_alert = {
+                "action": "NETWORK_FOUND",
                 "message": message,
-                "expiration": time.time() + 120  # keep for 2m
+                "expiration": time.time() + 120  # alert will stay for 2 minutes
             }
         else:
-            alert = {"message": str(alert_data), "expiration": time.time() + 120}
-        self.alert_queue.append(alert)
-        self.display_alert(self.alert_queue)
+            formatted_alert = {"message": str(alert_dict), "expiration": time.time() + 120}
 
+        self.alert_queue.append(formatted_alert)
+        self.display_alert(self.alert_queue)
 
     def add_alert(self, alert_msg: str, duration: float = 3):
         """
@@ -166,18 +178,22 @@ class BaseSubmenu:
             return
 
         current_time = time.time()
-        # remove after 120s
-        self.alert_queue = [alert for alert in self.alert_queue if current_time - alert.created_at < 120]
+        # Remove alerts older than 120 seconds using the stored 'created_at' field.
+        self.alert_queue = [
+            alert for alert in self.alert_queue
+            if current_time - alert.get("created_at", current_time) < 120
+        ]
 
         messages = []
         for alert in self.alert_queue:
-            # show bssid and time since alert formed
-            if alert.tool == "pyficonnect" and "bssid" in alert.data:
-                bssid = alert.data["bssid"]
-                elapsed = current_time - alert.created_at
+            # update window based on how alert key & format from handle_alert
+            if alert.get("action") == "NETWORK_FOUND":
+                # Extract bssid and calculate elapsed time
+                bssid = alert.get("bssid", "Unknown")
+                elapsed = current_time - alert.get("created_at", current_time)
                 messages.append(f"{bssid} ({int(elapsed)}s)")
             else:
-                messages.append("Unknown alert")
+                messages.append(alert.get("message", "Unknown alert"))
 
         final_message = "\n".join(messages)
 
