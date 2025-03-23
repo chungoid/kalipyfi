@@ -8,8 +8,8 @@ from tools.helpers.wpasec import download_from_wpasec, upload_to_wpasec
 from tools.submenu import BaseSubmenu
 
 class HcxToolSubmenu(BaseSubmenu):
-    def __init__(self, tool_instance):
-        super().__init__(tool_instance)
+    def __init__(self, tool_instance, stdscr=None):
+        super().__init__(tool_instance, stdscr)
         self.logger = logging.getLogger("HcxToolSubmenu")
         self.logger.debug("HcxToolSubmenu initialized.")
 

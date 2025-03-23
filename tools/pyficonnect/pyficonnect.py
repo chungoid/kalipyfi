@@ -54,6 +54,7 @@ class PyfiConnectTool(Tool, ABC):
         """
         Launches the nmap submenu (interactive UI) using curses.
         """
+        self.submenu_instance = PyfyConnectSubmenu(self, stdscr)
         self.submenu_instance(stdscr)
 
     def run(self, profile=None) -> None:

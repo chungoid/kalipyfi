@@ -11,8 +11,8 @@ from database.db_manager import get_db_connection
 
 
 class NmapSubmenu(BaseSubmenu):
-    def __init__(self, tool_instance):
-        super().__init__(tool_instance)
+    def __init__(self, tool_instance, stdscr=None):
+        super().__init__(tool_instance, stdscr)
         self.logger = logging.getLogger("NmapSubmenu")
         self.logger.debug("NmapSubmenu initialized.")
 

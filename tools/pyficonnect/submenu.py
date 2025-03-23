@@ -8,11 +8,8 @@ from tools.pyficonnect.scapymanager import ScapyManager
 
 
 class PyfyConnectSubmenu(BaseSubmenu):
-    def __init__(self, tool_instance):
-        """
-        Initialize the submenu for NetConnectTool.
-        """
-        super().__init__(tool_instance)
+    def __init__(self, tool_instance, stdscr=None):
+        super().__init__(tool_instance, stdscr)
         self.logger = logging.getLogger("PyfyConnectSubmenu")
         self.logger.debug("PyfyConnectSubmenu initialized.")
         self.scapy_manager = ScapyManager.get_instance()

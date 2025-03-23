@@ -12,38 +12,42 @@ from tools.helpers.tool_utils import format_scan_display
 
 
 class BaseSubmenu:
-    def __init__(self, tool_instance):
+    def __init__(self, tool_instance, stdscr=None):
         """
         Base submenu for all tools.
+        If stdscr is provided (i.e. curses is initialized), create a persistent alert window.
         """
         self.tool = tool_instance
         self.logger = logging.getLogger("BaseSubmenu")
         self.logger.debug("BaseSubmenu initialized.")
         self.tool.ui_instance.register_active_submenu(self)
+        self.init_alert_window(stdscr)
         self.alert_queue = []
-        self.alert_win = None
         self.alerts_enabled = True
         self.debug_win = None
         self.BACK_OPTION = "back"
 
-    def create_debug_window(self, stdscr, height: int = 4) -> any:
-        max_y, max_x = stdscr.getmaxyx()
-        debug_win = stdscr.derwin(height, max_x, max_y - height, 0)
-        debug_win.clear()
-        debug_win.refresh()
-        return debug_win
+    #############################################
+    ##### SHARED ALERT WINDOW FOR ALL TOOLS #####
+    #############################################
+    def init_alert_window(self, stdscr):
+        """
+        Creates a persistent alert window using stdscr.
+        The alert window occupies the full height and one-third of the width.
+        """
+        if stdscr:
+            h, w = stdscr.getmaxyx()
+            alert_width = w // 3
+            self.alert_win = curses.newwin(h, alert_width, 0, 0)
+            self.alert_win.box()
+            self.alert_win.nodelay(True)
+            self.alert_win.refresh()
+        else:
+            self.alert_win = None
 
-    def show_debug_info(self, debug_lines: list) -> None:
-        if self.debug_win is None:
-            return
-        self.debug_win.clear()
-        for idx, line in enumerate(debug_lines):
-            try:
-                self.debug_win.addstr(idx, 0, line)
-            except Exception:
-                pass
-        self.debug_win.refresh()
-
+    ###############################
+    ##### BASIC MENU CREATION #####
+    ###############################
     def draw_menu(self, parent_win, title: str, menu_items: List[str]) -> Any:
         parent_win.clear()
         h, w = parent_win.getmaxyx()
@@ -99,6 +103,9 @@ class BaseSubmenu:
                 if 1 <= selection <= len(page_items):
                     return page_items[selection - 1]
 
+    #####################################
+    ##### MENU OPTIONS & ATTRIBUTES #####
+    #####################################
     def toggle_alerts(self):
         """
         Toggles the state of alerts and immediately refreshes the alert display.
@@ -125,13 +132,16 @@ class BaseSubmenu:
         The alert window will use the full available height and one-third of the available width.
         This should be called when curses is properly initialized.
         """
-        h, w = stdscr.getmaxyx()
-        alert_height = h
-        alert_width = w // 3  # Use one-third of the width.
-        self.alert_win = curses.newwin(alert_height, alert_width, 0, 0)
-        self.alert_win.box()
-        self.alert_win.nodelay(True)
-        self.alert_win.refresh()
+        if stdscr and not hasattr(self.tool.ui_instance, "alert_win"):
+            h, w = stdscr.getmaxyx()
+            alert_height = h
+            alert_width = w // 3  # Use one-third of the width.
+            self.tool.ui_instance.alert_win = curses.newwin(alert_height, alert_width, 0, 0)
+            self.tool.ui_instance.alert_win.box()
+            self.tool.ui_instance.alert_win.nodelay(True)
+            self.tool.ui_instance.alert_win.refresh()
+        # Always set self.alert_win from the persistent UI instance.
+        self.alert_win = self.tool.ui_instance.alert_win
 
     def handle_alert(self, alert_data):
         self.logger.info("Received alert: %s", alert_data)
@@ -1122,6 +1132,24 @@ class BaseSubmenu:
             else:
                 return selection
 
+    def create_debug_window(self, stdscr, height: int = 4) -> any:
+        max_y, max_x = stdscr.getmaxyx()
+        debug_win = stdscr.derwin(height, max_x, max_y - height, 0)
+        debug_win.clear()
+        debug_win.refresh()
+        return debug_win
+
+    def show_debug_info(self, debug_lines: list) -> None:
+        if self.debug_win is None:
+            return
+        self.debug_win.clear()
+        for idx, line in enumerate(debug_lines):
+            try:
+                self.debug_win.addstr(idx, 0, line)
+            except Exception:
+                pass
+        self.debug_win.refresh()
+
     ##########################
     ##### HELPER METHODS #####
     ##########################
@@ -1135,17 +1163,17 @@ class BaseSubmenu:
 
     def __call__(self, stdscr) -> None:
         curses.curs_set(0)
+        # Optionally, if not already set in __init__, setup the alert window:
+        if not self.alert_win:
+            self.setup_alert_window(stdscr)
         self.tool.selected_preset = None
         self.tool.preset_description = None
         self.tool.reload_config(self)
         self.stdscr = stdscr
         h, w = stdscr.getmaxyx()
-
-        # Setup the alert window on the left (one-third of the screen)
-        self.setup_alert_window(stdscr)
         alert_width = w // 3
 
-        # Create a submenu window that occupies the rest of the screen
+        # Create a submenu window for tool-specific content in the remaining space.
         submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
         submenu_win.keypad(True)
         submenu_win.clear()
@@ -1162,7 +1190,7 @@ class BaseSubmenu:
                 self.launch_scan(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
-            # Only clear the submenu window (not affecting the alert window)
+            # Clear only the submenu window so that the alert window remains intact.
             submenu_win.clear()
             submenu_win.refresh()
             alerts = self.tool.ui_instance.alerts.get(self.tool.name, [])

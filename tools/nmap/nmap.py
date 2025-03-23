@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, override
 
 # locals
 from config.constants import BASE_DIR
+from tools.nmap.submenu import NmapSubmenu
 from tools.tools import Tool
 from utils.ipc_callback import shared_callback_listener
 from utils.tool_registry import register_tool
@@ -70,6 +71,7 @@ class Nmap(Tool, ABC):
         """
         Launches the nmap submenu (interactive UI) using curses.
         """
+        self.submenu_instance = NmapSubmenu(self, stdscr)
         self.submenu_instance(stdscr)
 
     def build_nmap_command(self, target: str) -> list:
