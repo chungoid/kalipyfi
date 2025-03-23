@@ -115,7 +115,7 @@ def tools_menu(stdscr):
                         raise ValueError(f"No base_dir defined for {selected_tool} in TOOL_PATHS")
                     tool_instance = tool_registry.instantiate_tool(selected_tool, base_dir=str(tool_path))
                     # Launch the tool's submenu.
-                    tool_instance.submenu(stdscr)
+                    tool_instance.submenu_instance(stdscr)
                     stdscr.clear()
                     stdscr.refresh()
                 except Exception as e:

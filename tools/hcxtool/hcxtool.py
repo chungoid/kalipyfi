@@ -4,7 +4,7 @@ from abc import ABC
 from pathlib import Path
 from typing import Optional, Any, Dict
 
-
+from tools.hcxtool.submenu import HcxToolSubmenu
 #locals
 from tools.tools import Tool
 from config.constants import BASE_DIR
@@ -33,14 +33,19 @@ class Hcxtool(Tool, ABC):
         )
 
         self.logger = logging.getLogger(self.name)
-
-        from tools.hcxtool.submenu import HcxToolSubmenu
-        self.submenu = HcxToolSubmenu(self)
+        self.submenu_instance = HcxToolSubmenu(self)
 
         # hcxtool-specific database schema (tools/hcxtool/db.py)
         conn = get_db_connection(BASE_DIR)
         init_hcxtool_schema(conn)
         conn.close()
+
+    def submenu(self, stdscr) -> None:
+        """
+        Launches the nmap submenu (interactive UI) using curses.
+        """
+        self.submenu_instance = HcxToolSubmenu(self, stdscr)
+        self.submenu_instance(stdscr)
 
     def build_command(self) -> list:
         """

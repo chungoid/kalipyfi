@@ -210,12 +210,11 @@ class HcxToolSubmenu(BaseSubmenu):
     def __call__(self, stdscr) -> None:
         curses.curs_set(0)
         self.stdscr = stdscr
-        self.reset_connection_values()
-        # create alert window in the left one-third
+        # Create (or reinitialize) the persistent alert window in the left one-third.
         self.setup_alert_window(stdscr)
         h, w = stdscr.getmaxyx()
         alert_width = w // 3
-        # create the submenu window in the remaining right two-thirds
+        # Create the submenu window in the remaining right two-thirds.
         submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
         submenu_win.keypad(True)
         submenu_win.clear()
@@ -234,8 +233,9 @@ class HcxToolSubmenu(BaseSubmenu):
                 self.view_scans(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
-            # clear only the submenu window; the alert window remains intact
+            # Clear only the submenu window so that the alert window remains visible.
             submenu_win.clear()
             submenu_win.refresh()
         self.tool.ui_instance.unregister_active_submenu()
-        self.logger.debug("Active submenu unregistered in __call__ exit.")
+        self.logger.debug("HcxToolSubmenu: Active submenu unregistered in __call__ exit.")
+
