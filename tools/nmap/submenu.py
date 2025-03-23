@@ -434,7 +434,7 @@ class NmapSubmenu(BaseSubmenu):
         self.running = False
         updater.join(timeout=1)
         self.tool.ui_instance.unregister_active_submenu()
-        self.scapy_manager.unregister_alert_callback()
+        self.scapy_manager.unregister_alert_callback(self.handle_alert)
         self.logger.debug("NmapSubmenu: Active submenu unregistered in __call__ exit.")
 
 
