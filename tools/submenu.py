@@ -23,7 +23,6 @@ class BaseSubmenu:
         self.tool.ui_instance.register_active_submenu(self)
         self.init_alert_window(stdscr)
         self.alert_queue = []
-        self.alerts_enabled = True
         self.debug_win = None
         self.BACK_OPTION = "back"
 
@@ -106,25 +105,6 @@ class BaseSubmenu:
     #####################################
     ##### MENU OPTIONS & ATTRIBUTES #####
     #####################################
-    def toggle_alerts(self):
-        """
-        Toggles the state of alerts and immediately refreshes the alert display.
-        When enabled, it displays alerts stored in the local alert queue.
-        When disabled, it clears the alert window.
-        """
-        self.alerts_enabled = not self.alerts_enabled
-        state = "enabled" if self.alerts_enabled else "disabled"
-        self.logger.info(f"Alerts have been {state}.")
-
-        if self.alerts_enabled:
-            self.display_alert(self.alert_queue)
-        else:
-            if self.alert_win:
-                self.alert_win.erase()
-                self.alert_win.box()
-                self.alert_win.refresh()
-
-        return state
 
     def setup_alert_window(self, stdscr):
         """
@@ -1091,18 +1071,13 @@ class BaseSubmenu:
                 scrolling_state = state_response.get("copy_mode_enabled", False)
             toggle_scrolling_label = f"Scrolling ({'on' if scrolling_state else 'off'})"
 
-            # prepare label
-            toggle_alert_label = f"Alerts ({'on' if self.alerts_enabled else 'off'})"
-
             # build full menu
             full_menu = base_menu_items.copy()
             try:
                 utils_index = full_menu.index("Utils")
                 full_menu.insert(utils_index + 1, toggle_scrolling_label)
-                full_menu.insert(utils_index + 2, toggle_alert_label)
             except ValueError:
                 full_menu.append(toggle_scrolling_label)
-                full_menu.append(toggle_alert_label)
 
             selection = self.draw_paginated_menu(submenu_win, title, full_menu)
             if selection.lower() == "back":
@@ -1122,12 +1097,6 @@ class BaseSubmenu:
                     submenu_win.addstr(0, 0, f"Error toggling scrolling: {error_text}")
                     submenu_win.refresh()
                     curses.napms(1500)
-                continue
-            elif selection.startswith("Alerts"):
-                # toggle the alert popup state
-                new_state = self.toggle_alerts()  # change state
-                submenu_win.clear()
-                submenu_win.refresh()
                 continue
             else:
                 return selection
