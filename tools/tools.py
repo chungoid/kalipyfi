@@ -10,8 +10,8 @@ from datetime import datetime
 from abc import abstractmethod
 from typing import Dict, Any, List, Optional
 
-
 # local
+from common.models import AlertData
 from config.constants import BASE_DIR
 from common.process_manager import process_manager
 from config.config_utils import load_yaml_config
