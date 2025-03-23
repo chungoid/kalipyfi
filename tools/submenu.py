@@ -135,7 +135,6 @@ class BaseSubmenu:
 
     def handle_alert(self, alert_data):
         self.logger.info("Received alert: %s", alert_data)
-        # Convert AlertData to a simple dict if needed.
         if hasattr(alert_data, "to_dict"):
             alert_dict = alert_data.to_dict()
             created_at = alert_data.created_at
@@ -146,7 +145,6 @@ class BaseSubmenu:
             alert_dict = {"message": str(alert_data)}
             created_at = time.time()
 
-        # Check for a NETWORK_FOUND alert in the nested 'data' dictionary.
         if alert_dict.get("data", {}).get("action") == "NETWORK_FOUND":
             ssid = alert_dict.get("data", {}).get("ssid", "Unknown")
             elapsed = int(time.time() - created_at)
@@ -165,22 +163,26 @@ class BaseSubmenu:
                 "expiration": time.time() + 120
             }
 
-        self.alert_queue.append(formatted_alert)
-        self.display_alert(self.alert_queue)
+        # Add to the global alert store instead of a local alert_queue.
+        if self.tool.name not in self.tool.ui_instance.alerts:
+            self.tool.ui_instance.alerts[self.tool.name] = []
+        self.tool.ui_instance.alerts[self.tool.name].append(formatted_alert)
+        self.display_alert(self.tool.ui_instance.alerts[self.tool.name])
 
     def update_alert_window(self):
         if not self.alert_win:
             return
 
         current_time = time.time()
-        # Remove expired alerts using 'created_at'
-        self.alert_queue = [
-            alert for alert in self.alert_queue
-            if current_time - alert.get("created_at", current_time) < 120
-        ]
+        # Get the global alerts for this tool.
+        alerts = self.tool.ui_instance.alerts.get(self.tool.name, [])
+        # Remove expired alerts.
+        alerts = [alert for alert in alerts if current_time - alert.get("created_at", current_time) < 120]
+        # Update the global store.
+        self.tool.ui_instance.alerts[self.tool.name] = alerts
 
         messages = []
-        for alert in self.alert_queue:
+        for alert in alerts:
             if alert.get("action") == "NETWORK_FOUND":
                 elapsed = int(current_time - alert.get("created_at", current_time))
                 ssid = alert.get("ssid", "Unknown")
