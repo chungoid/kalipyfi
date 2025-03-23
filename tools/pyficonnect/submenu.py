@@ -424,46 +424,57 @@ class PyfyConnectSubmenu(BaseSubmenu):
     def __call__(self, stdscr) -> None:
         curses.curs_set(0)
         self.stdscr = stdscr
-        # create alert window
+        # Create (or reuse) the persistent alert window on the left one‑third.
         self.setup_alert_window(stdscr)
         h, w = stdscr.getmaxyx()
         alert_width = w // 3
-        # create submenu options window
+        # Create the submenu window in the remaining right two‑thirds.
         submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
         submenu_win.keypad(True)
-        # avoid getch() blocking indefinitely
-        submenu_win.timeout(50)
         submenu_win.clear()
         submenu_win.refresh()
 
-        base_menu_items = ["Launch Scan", "Utils"]
-        title = getattr(self.tool, "name", "Menu")
-        # draw menu
-        self.draw_menu(submenu_win, title, base_menu_items)
+        # Start a background thread to update alerts every second.
+        self.running = True
+        import threading, time
+        def _alert_updater():
+            while self.running:
+                self.update_alert_window()
+                time.sleep(1)
 
-        last_update = time.time()
+        updater = threading.Thread(target=_alert_updater, daemon=True)
+        updater.start()
+
+        # Define the complete base menu (as you want it to appear)
+        base_menu_items = ["Scan", "Manage", "Utils"]
+        title = getattr(self.tool, "name", "PyfiConnect")
 
         while True:
-            # poll for key-press
-            key = submenu_win.getch()
-            if key != -1:
-                selection = self.show_main_menu(submenu_win, base_menu_items, title)
-                if selection.lower() == "back":
-                    break
-                elif selection == "Launch Scan":
-                    self.launch_scan(submenu_win)
-                elif selection == "Utils":
-                    self.utils_menu(submenu_win)
-                # redraw after processing
-                self.draw_menu(submenu_win, title, base_menu_items)
-            # 1s alert updates
-            if time.time() - last_update >= 1:
-                self.update_alert_window()
-                last_update = time.time()
-            # avoid busy looping
-            curses.napms(50)
+            # Draw the main menu in the submenu window.
+            submenu_win.clear()
+            submenu_win.refresh()
+            selection = self.show_main_menu(submenu_win, base_menu_items, title)
+            if selection.lower() == "back":
+                break
+            elif selection == "Scan":
+                self.launch_background_scan(submenu_win)
+            elif selection == "Manage":
+                self.connection_menu(submenu_win)
+            elif selection == "Utils":
+                self.utils_menu(submenu_win)
+            # After processing a selection, clear the submenu window.
+            submenu_win.clear()
+            submenu_win.refresh()
+
+        # Signal the alert updater thread to stop.
+        self.running = False
+        updater.join(timeout=1)
         self.tool.ui_instance.unregister_active_submenu()
-        self.logger.debug("Active submenu unregistered in __call__ exit.")
+        self.logger.debug("PyfiConnectSubmenu: Active submenu unregistered in __call__ exit.")
+
+
+
+
 
 
 

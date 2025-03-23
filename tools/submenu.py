@@ -25,6 +25,7 @@ class BaseSubmenu:
         self.alert_queue = []
         self.debug_win = None
         self.BACK_OPTION = "back"
+        self.running = True
 
     #############################################
     ##### SHARED ALERT WINDOW FOR ALL TOOLS #####
@@ -43,6 +44,12 @@ class BaseSubmenu:
             self.alert_win.refresh()
         else:
             self.alert_win = None
+
+    def _alert_updater(self):
+        import time
+        while self.running:
+            self.update_alert_window()
+            time.sleep(1)
 
     ###############################
     ##### BASIC MENU CREATION #####
