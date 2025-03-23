@@ -55,7 +55,7 @@ class BaseSubmenu:
         # Limit box width to available width with some margin
         box_width = min(content_width + 4, w - 2)
         start_y = (h - box_height) // 2
-        start_x = (w - box_width) // 2
+        start_x = 1
         # Use a derived window so that the absolute screen isn’t affected
         menu_win = parent_win.derwin(box_height, box_width, start_y, start_x)
         menu_win.keypad(True)

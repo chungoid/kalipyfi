@@ -1,5 +1,6 @@
 import curses
 import logging
+import time
 from typing import List, Tuple, Any
 
 # local
@@ -421,50 +422,50 @@ class PyfyConnectSubmenu(BaseSubmenu):
             return False
 
     def __call__(self, stdscr) -> None:
-        """
-        Launches the PyfiConnect submenu using curses.
-        Main options include:
-          - Scan (shows on/off)
-          - Manage
-          - Utils
-          - Back
-        """
         curses.curs_set(0)
         self.stdscr = stdscr
+        # create alert window
         self.setup_alert_window(stdscr)
-        self.reset_connection_values()
-
         h, w = stdscr.getmaxyx()
-        submenu_win = curses.newwin(h, w, 0, 0)
+        alert_width = w // 3
+        # create submenu options window
+        submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
         submenu_win.keypad(True)
+        # avoid getch() blocking indefinitely
+        submenu_win.timeout(50)
         submenu_win.clear()
         submenu_win.refresh()
 
+        base_menu_items = ["Launch Scan", "Utils"]
+        title = getattr(self.tool, "name", "Menu")
+        # draw menu
+        self.draw_menu(submenu_win, title, base_menu_items)
+
+        last_update = time.time()
+
         while True:
-            # menu list with scanner state label on/off
-            scan_state = "on" if self.tool.scanner_running else "off"
-            base_menu = [
-                f"Scan ({scan_state})",
-                "Manage",
-                "Utils"
-            ]
-            selection = self.show_main_menu(submenu_win, base_menu, "PyfiConnect")
-            if selection.lower() == "back":
-                break
-            elif selection.startswith("Scan"):
-                # if scan is running, stop it; otherwise, start it.
-                if self.tool.scanner_running:
-                    self.tool.stop_background_scan_scapy()
-                    self.add_alert("Background scan stopped", duration=2)
-                else:
-                    self.launch_background_scan(submenu_win)
-            elif selection == "Manage":
-                self.connection_menu(submenu_win)
-            elif selection == "Utils":
-                self.utils_menu(submenu_win)
-            submenu_win.clear()
-            submenu_win.refresh()
+            # poll for key-press
+            key = submenu_win.getch()
+            if key != -1:
+                selection = self.show_main_menu(submenu_win, base_menu_items, title)
+                if selection.lower() == "back":
+                    break
+                elif selection == "Launch Scan":
+                    self.launch_scan(submenu_win)
+                elif selection == "Utils":
+                    self.utils_menu(submenu_win)
+                # redraw after processing
+                self.draw_menu(submenu_win, title, base_menu_items)
+            # 1s alert updates
+            if time.time() - last_update >= 1:
+                self.update_alert_window()
+                last_update = time.time()
+            # avoid busy looping
+            curses.napms(50)
         self.tool.ui_instance.unregister_active_submenu()
+        self.logger.debug("Active submenu unregistered in __call__ exit.")
+
+
 
 
 
