@@ -212,10 +212,9 @@ class HcxToolSubmenu(BaseSubmenu):
         self.stdscr = stdscr
         # Create (or reinitialize) the persistent alert window in the left one-third.
         self.setup_alert_window(stdscr)
+
         h, w = stdscr.getmaxyx()
-        alert_width = w // 3
-        # Create the submenu window in the remaining right two-thirds.
-        submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
+        submenu_win = curses.newwin(h, w, 0, 0)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()

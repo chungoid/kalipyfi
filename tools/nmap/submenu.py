@@ -392,9 +392,7 @@ class NmapSubmenu(BaseSubmenu):
         self.tool.target_networks = self.tool.get_target_networks()
 
         h, w = stdscr.getmaxyx()
-        alert_width = w // 3
-        # Create the submenu window in the right two-thirds.
-        submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
+        submenu_win = curses.newwin(h, w, 0, 0)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()
