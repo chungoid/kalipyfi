@@ -308,7 +308,7 @@ class PyfyConnectSubmenu(BaseSubmenu):
         # start
         if not scapymanager.scanner_running:
             try:
-                scapymanager.start_scanning(selected_iface, dwell_time=0.5)
+                scapymanager.start_scanning(selected_iface)
             except Exception as e:
                 parent_win.erase()
                 parent_win.addstr(0, 0, f"Error starting background scan: {e}")
