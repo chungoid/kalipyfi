@@ -5,8 +5,8 @@ import logging
 from scapy.layers.dot11 import Dot11
 from scapy.all import sniff
 
-from common.models import AlertData
 # locals
+from common.models import AlertData
 from config.constants import ALL_CHANNELS, BASE_DIR
 
 

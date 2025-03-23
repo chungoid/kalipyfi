@@ -381,6 +381,9 @@ class NmapSubmenu(BaseSubmenu):
     def __call__(self, stdscr) -> None:
         curses.curs_set(0)
         self.stdscr = stdscr
+        if hasattr(self.tool.ui_instance, "alert_win"):
+            del self.tool.ui_instance.alert_win  # Force re-creation
+        # Create (or reuse) the persistent alert window on the left one‑third.
         self.setup_alert_window(stdscr)
         # Reset state variables and reload configuration.
         self.tool.selected_network = None
@@ -392,14 +395,29 @@ class NmapSubmenu(BaseSubmenu):
         self.tool.target_networks = self.tool.get_target_networks()
 
         h, w = stdscr.getmaxyx()
-        submenu_win = curses.newwin(h, w, 0, 0)
+        alert_width = w // 3
+        # Create the submenu window in the remaining right two‑thirds.
+        submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()
 
+        # Start background thread to update alerts every second.
+        self.running = True
+        import threading, time
+        def _alert_updater():
+            while self.running:
+                self.update_alert_window()
+                time.sleep(1)
+
+        updater = threading.Thread(target=_alert_updater, daemon=True)
+        updater.start()
+
         base_menu = ["Network Scan", "Host Scan", "View Scans", "Utils"]
+        title = f"{self.tool.name}"
+
         while True:
-            selection = self.show_main_menu(submenu_win, base_menu, f"{self.tool.name}")
+            selection = self.show_main_menu(submenu_win, base_menu, title)
             if selection.lower() == "back":
                 break
             elif selection == "Network Scan":
@@ -410,11 +428,15 @@ class NmapSubmenu(BaseSubmenu):
                 self.view_scans(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
-            # Clear only the submenu window; the alert window remains intact.
             submenu_win.clear()
             submenu_win.refresh()
+
+        self.running = False
+        updater.join(timeout=1)
         self.tool.ui_instance.unregister_active_submenu()
         self.logger.debug("NmapSubmenu: Active submenu unregistered in __call__ exit.")
+
+
 
 
 

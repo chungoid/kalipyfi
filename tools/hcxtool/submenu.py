@@ -210,20 +210,35 @@ class HcxToolSubmenu(BaseSubmenu):
     def __call__(self, stdscr) -> None:
         curses.curs_set(0)
         self.stdscr = stdscr
-        # Create (or reinitialize) the persistent alert window in the left one-third.
+        if hasattr(self.tool.ui_instance, "alert_win"):
+            del self.tool.ui_instance.alert_win  # Force re-creation
+        # create alert window
         self.setup_alert_window(stdscr)
-
         h, w = stdscr.getmaxyx()
-        submenu_win = curses.newwin(h, w, 0, 0)
+        alert_width = w // 3
+        # create submenu window
+        submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()
 
+        # start background thread to update alerts
+        self.running = True
+        import threading, time
+        def _alert_updater():
+            while self.running:
+                self.update_alert_window()
+                time.sleep(1)
+
+        updater = threading.Thread(target=_alert_updater, daemon=True)
+        updater.start()
+
         base_menu = ["Launch Scan", "View Scans", "Utils"]
+        title = "hcxtool"
+
+        # blocking menu loop
         while True:
-            submenu_win.clear()
-            submenu_win.refresh()
-            selection = self.show_main_menu(submenu_win, base_menu, "hcxtool")
+            selection = self.show_main_menu(submenu_win, base_menu, title)
             if selection.lower() == "back":
                 break
             elif selection == "Launch Scan":
@@ -232,9 +247,14 @@ class HcxToolSubmenu(BaseSubmenu):
                 self.view_scans(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
-            # Clear only the submenu window so that the alert window remains visible.
             submenu_win.clear()
             submenu_win.refresh()
+
+        # Stop the alert updater thread.
+        self.running = False
+        updater.join(timeout=1)
         self.tool.ui_instance.unregister_active_submenu()
-        self.logger.debug("HcxToolSubmenu: Active submenu unregistered in __call__ exit.")
+        self.logger.debug("HCXToolSubmenu: Active submenu unregistered in __call__ exit.")
+
+
 

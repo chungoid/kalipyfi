@@ -13,8 +13,8 @@ class PyfyConnectSubmenu(BaseSubmenu):
         super().__init__(tool_instance, stdscr)
         self.logger = logging.getLogger("PyfyConnectSubmenu")
         self.logger.debug("PyfyConnectSubmenu initialized.")
-        self.scapy_manager = ScapyManager.get_instance()
-        self.scapy_manager.register_alert_callback(self.handle_alert)
+        #self.scapy_manager = ScapyManager.get_instance()
+        #self.scapy_manager.register_alert_callback(self.handle_alert)
 
     ###########################
     ##### TOOL SCAN LOGIC #####
@@ -424,17 +424,20 @@ class PyfyConnectSubmenu(BaseSubmenu):
     def __call__(self, stdscr) -> None:
         curses.curs_set(0)
         self.stdscr = stdscr
-        # Create (or reuse) the persistent alert window on the left one‑third.
+        if hasattr(self.tool.ui_instance, "alert_win"):
+            del self.tool.ui_instance.alert_win  # Force re-creation
+        self.alert_queue = []  # Clear any stale alerts
+        # create persistent alert window on the left one‑third
         self.setup_alert_window(stdscr)
         h, w = stdscr.getmaxyx()
         alert_width = w // 3
-        # Create the submenu window in the remaining right two‑thirds.
+        # create the submenu window in the remaining right two‑thirds
         submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()
 
-        # Start a background thread to update alerts every second.
+        # start a background thread to update alerts every second
         self.running = True
         import threading, time
         def _alert_updater():
@@ -445,12 +448,12 @@ class PyfyConnectSubmenu(BaseSubmenu):
         updater = threading.Thread(target=_alert_updater, daemon=True)
         updater.start()
 
-        # Define the complete base menu (as you want it to appear)
+        # define the base menu
         base_menu_items = ["Scan", "Manage", "Utils"]
         title = getattr(self.tool, "name", "PyfiConnect")
 
         while True:
-            # Draw the main menu in the submenu window.
+            # draw the main menu in the submenu window
             submenu_win.clear()
             submenu_win.refresh()
             selection = self.show_main_menu(submenu_win, base_menu_items, title)
@@ -462,11 +465,11 @@ class PyfyConnectSubmenu(BaseSubmenu):
                 self.connection_menu(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
-            # After processing a selection, clear the submenu window.
+            # clear after processing
             submenu_win.clear()
             submenu_win.refresh()
 
-        # Signal the alert updater thread to stop.
+        # stop alert signal updates
         self.running = False
         updater.join(timeout=1)
         self.tool.ui_instance.unregister_active_submenu()

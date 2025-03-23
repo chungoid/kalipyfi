@@ -6,6 +6,7 @@ import yaml
 from pathlib import Path
 from typing import List, Any, Union
 
+from tools.pyficonnect.scapymanager import ScapyManager
 # locals
 from utils.ipc_client import IPCClient
 from tools.helpers.tool_utils import format_scan_display
@@ -25,6 +26,8 @@ class BaseSubmenu:
         self.alert_queue = []
         self.debug_win = None
         self.BACK_OPTION = "back"
+        self.scapy_manager = ScapyManager.get_instance()
+        self.scapy_manager.register_alert_callback(self.handle_alert)
         self.running = True
 
     #############################################
