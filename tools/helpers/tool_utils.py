@@ -336,6 +336,12 @@ def switch_interface_to_monitor(interface: str, logger: logging.Logger) -> bool:
         logger.error(f"Error switching interface {interface} to monitor mode: {e}")
     return False
 
+def get_interface_mac(interface):
+    try:
+        with open(f"/sys/class/net/{interface}/address") as f:
+            return f.read().strip()
+    except Exception as e:
+        return None
 
 def normalize_mac(mac: str) -> str:
     """
