@@ -163,23 +163,22 @@ class BaseSubmenu:
                 "expiration": time.time() + 120
             }
 
-        # Add to the global alert store instead of a local alert_queue.
-        if self.tool.name not in self.tool.ui_instance.alerts:
-            self.tool.ui_instance.alerts[self.tool.name] = []
-        self.tool.ui_instance.alerts[self.tool.name].append(formatted_alert)
-        self.display_alert(self.tool.ui_instance.alerts[self.tool.name])
+        # Append to the global alert list.
+        if not hasattr(self.tool.ui_instance, "global_alerts"):
+            self.tool.ui_instance.global_alerts = []
+        self.tool.ui_instance.global_alerts.append(formatted_alert)
+        self.display_alert(self.tool.ui_instance.global_alerts)
 
     def update_alert_window(self):
         if not self.alert_win:
             return
 
         current_time = time.time()
-        # Get the global alerts for this tool.
-        alerts = self.tool.ui_instance.alerts.get(self.tool.name, [])
-        # Remove expired alerts.
+        # Get the global alert list.
+        alerts = getattr(self.tool.ui_instance, "global_alerts", [])
+        # Filter out expired alerts.
         alerts = [alert for alert in alerts if current_time - alert.get("created_at", current_time) < 120]
-        # Update the global store.
-        self.tool.ui_instance.alerts[self.tool.name] = alerts
+        self.tool.ui_instance.global_alerts = alerts
 
         messages = []
         for alert in alerts:
@@ -189,7 +188,6 @@ class BaseSubmenu:
                 messages.append(f"{ssid} ({elapsed}s)")
             else:
                 messages.append(alert.get("message", "Unknown alert"))
-
         final_message = "\n".join(messages)
         h, w = self.alert_win.getmaxyx()
         self.alert_win.erase()
