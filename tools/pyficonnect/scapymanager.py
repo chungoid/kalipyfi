@@ -49,9 +49,11 @@ class ScapyManager:
                 ssid = "<hidden>"
             bssid = normalize_mac(pkt.addr2)
             if self.db_networks and bssid in self.db_networks:
-                if bssid not in self.alerted_networks:
+                current_time = time.time()
+                alert_delay = 120  # delay in seconds (2 minutes)
+                last_alert_time = self.alerted_networks.get(bssid)
+                if not last_alert_time or (current_time - last_alert_time) > alert_delay:
                     self.logger.info("Detected network - SSID: %s, BSSID: %s", ssid, bssid)
-                    # Create a structured alert using AlertData
                     alert = AlertData(
                         tool="pyficonnect",
                         data={
@@ -61,7 +63,7 @@ class ScapyManager:
                             "msg": f"Detected network {ssid} on {bssid}"
                         }
                     )
-                    self.alerted_networks[bssid] = True
+                    self.alerted_networks[bssid] = current_time
                     self.publish_alert(alert)
 
     def publish_alert(self, alert_data):
