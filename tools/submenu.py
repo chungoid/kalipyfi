@@ -146,8 +146,9 @@ class BaseSubmenu:
             alert_dict = {"message": str(alert_data)}
             created_at = time.time()
 
-        if alert_dict.get("action") == "NETWORK_FOUND":
-            ssid = alert_dict.get("ssid", "Unknown")
+        # Check for a NETWORK_FOUND alert in the nested 'data' dictionary.
+        if alert_dict.get("data", {}).get("action") == "NETWORK_FOUND":
+            ssid = alert_dict.get("data", {}).get("ssid", "Unknown")
             elapsed = int(time.time() - created_at)
             message = f"{ssid} ({elapsed}s)"
             formatted_alert = {
@@ -158,7 +159,11 @@ class BaseSubmenu:
                 "expiration": time.time() + 120
             }
         else:
-            formatted_alert = {"message": str(alert_dict), "created_at": created_at, "expiration": time.time() + 120}
+            formatted_alert = {
+                "message": str(alert_dict),
+                "created_at": created_at,
+                "expiration": time.time() + 120
+            }
 
         self.alert_queue.append(formatted_alert)
         self.display_alert(self.alert_queue)
@@ -168,7 +173,7 @@ class BaseSubmenu:
             return
 
         current_time = time.time()
-        # Remove alerts older than 120 seconds using the 'created_at' field.
+        # Remove expired alerts using 'created_at'
         self.alert_queue = [
             alert for alert in self.alert_queue
             if current_time - alert.get("created_at", current_time) < 120
