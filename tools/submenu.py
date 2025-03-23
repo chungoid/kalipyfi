@@ -168,7 +168,7 @@ class BaseSubmenu:
             return
 
         current_time = time.time()
-        # Remove expired alerts using the 'created_at' field.
+        # Remove alerts older than 120 seconds using the 'created_at' field.
         self.alert_queue = [
             alert for alert in self.alert_queue
             if current_time - alert.get("created_at", current_time) < 120
@@ -177,7 +177,6 @@ class BaseSubmenu:
         messages = []
         for alert in self.alert_queue:
             if alert.get("action") == "NETWORK_FOUND":
-                # Recalculate elapsed time so it updates dynamically.
                 elapsed = int(current_time - alert.get("created_at", current_time))
                 ssid = alert.get("ssid", "Unknown")
                 messages.append(f"{ssid} ({elapsed}s)")
@@ -185,8 +184,6 @@ class BaseSubmenu:
                 messages.append(alert.get("message", "Unknown alert"))
 
         final_message = "\n".join(messages)
-
-        # Redraw the alert window.
         h, w = self.alert_win.getmaxyx()
         self.alert_win.erase()
         self.alert_win.box()
@@ -200,6 +197,26 @@ class BaseSubmenu:
                 pass
         self.alert_win.refresh()
 
+    def display_alert(self, alerts: list):
+        formatted_messages = []
+        for alert in alerts:
+            self.logger.debug("Processing alert: %s", alert)
+            if isinstance(alert, dict):
+                # Look for our NETWORK_FOUND alerts using "created_at" (not "timestamp")
+                if alert.get("action") == "NETWORK_FOUND" and "ssid" in alert and "created_at" in alert:
+                    ssid = alert["ssid"]
+                    time_passed = time.time() - alert["created_at"]
+                    formatted_messages.append(f"{ssid} ({int(time_passed)}s)")
+                elif "message" in alert:
+                    formatted_messages.append(alert["message"])
+                else:
+                    self.logger.warning("Unrecognized alert format: %s", alert)
+            else:
+                formatted_messages.append(str(alert))
+        final_message = "\n".join(formatted_messages)
+        self.logger.debug("Final alert message to display: %s", final_message)
+        self._update_alert_window_from_message(final_message)
+
     def add_alert(self, alert_msg: str, duration: float = 3):
         """
         Appends an alert message (as a dict) to the alert queue with a set expiration time.
@@ -208,30 +225,6 @@ class BaseSubmenu:
         alert = {"message": alert_msg, "expiration": expiration}
         self.alert_queue.append(alert)
         self.update_alert_window()
-
-    def display_alert(self, alerts: list):
-        """
-        Processes a list of alerts and formats them for display.
-        Alerts may be:
-          - full alert dicts from ScapyManager (with 'action' and 'timestamp')
-          - display dicts with 'message' and 'expiration'
-        """
-        formatted_messages = []
-        for alert in alerts:
-            if isinstance(alert, dict):
-                if alert.get("action") == "NETWORK_FOUND" and "ssid" in alert and "timestamp" in alert:
-                    ssid = alert["ssid"]
-                    time_passed = time.time() - alert["timestamp"]
-                    formatted_messages.append(f"{ssid} ({int(time_passed)}s)")
-                elif "message" in alert:
-                    formatted_messages.append(alert["message"])
-                else:
-                    self.logger.warning("Unrecognized alert format: %s", alert)
-            else:
-                formatted_messages.append(str(alert))
-
-        final_message = "\n".join(formatted_messages)
-        self._update_alert_window_from_message(final_message)
 
     def _update_alert_window_from_message(self, message: str):
         if not self.alert_win:
