@@ -21,6 +21,7 @@ class ScapyManager:
 
     def __init__(self):
         self.logger = logging.getLogger("ScapyManager")
+        logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
         self.scanner_running = False
         self.selected_interface = None
         self.db_networks = {}         # Dictionary of networks loaded from the database
@@ -84,7 +85,6 @@ class ScapyManager:
                     ["iw", "dev", interface, "set", "channel", str(channel)],
                     stderr=subprocess.DEVNULL
                 )
-                self.logger.info("Switched %s to channel %s", interface, channel)
             except subprocess.CalledProcessError as e:
                 self.logger.error("Error switching %s to channel %s: %s", interface, channel, e)
                 continue

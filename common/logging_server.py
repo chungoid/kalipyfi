@@ -97,7 +97,6 @@ def run_logging_server(host: str = 'localhost', port: int = 9020):
     from config.constants import LOG_DIR, LOG_FILE
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
     logging.basicConfig(
         level=logging.DEBUG,
         format='%(asctime)s %(name)-15s %(levelname)-8s %(message)s',
