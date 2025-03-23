@@ -166,19 +166,19 @@ class BaseSubmenu:
             return
 
         current_time = time.time()
-        # remove alerts after 120s
+        # remove after 120s
         self.alert_queue = [alert for alert in self.alert_queue if current_time - alert.created_at < 120]
 
         messages = []
         for alert in self.alert_queue:
+            # show ssid
             if alert.tool == "pyficonnect" and "ssid" in alert.data:
                 ssid = alert.data["ssid"]
                 elapsed = current_time - alert.created_at
                 messages.append(f"{ssid} ({int(elapsed)}s)")
-            elif alert.data:
-                messages.append(str(alert.data))
             else:
-                messages.append(str(alert))
+                # In case you have other alerts you can handle them differently
+                messages.append("Unknown alert")
 
         final_message = "\n".join(messages)
 
