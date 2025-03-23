@@ -237,8 +237,5 @@ class HcxToolSubmenu(BaseSubmenu):
             # clear only the submenu window; the alert window remains intact
             submenu_win.clear()
             submenu_win.refresh()
-            # update alerts here:
-            alerts = self.tool.ui_instance.alerts.get(self.tool.name, [])
-            self.display_alert(alerts)
         self.tool.ui_instance.unregister_active_submenu()
         self.logger.debug("Active submenu unregistered in __call__ exit.")
