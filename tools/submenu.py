@@ -135,11 +135,9 @@ class BaseSubmenu:
 
     def handle_alert(self, alert_data):
         self.logger.info("Received alert: %s", alert_data)
-
-        # convert to dict
+        # Convert AlertData to a simple dict if needed.
         if hasattr(alert_data, "to_dict"):
             alert_dict = alert_data.to_dict()
-            # use created_at from data instance
             created_at = alert_data.created_at
         elif isinstance(alert_data, dict):
             alert_dict = alert_data
@@ -148,7 +146,6 @@ class BaseSubmenu:
             alert_dict = {"message": str(alert_data)}
             created_at = time.time()
 
-        # structure alerts based on alert_data "action" key
         if alert_dict.get("action") == "NETWORK_FOUND":
             ssid = alert_dict.get("ssid", "Unknown")
             elapsed = int(time.time() - created_at)
@@ -156,29 +153,22 @@ class BaseSubmenu:
             formatted_alert = {
                 "action": "NETWORK_FOUND",
                 "message": message,
-                "expiration": time.time() + 120  # alert will stay for 2 minutes
+                "ssid": ssid,
+                "created_at": created_at,
+                "expiration": time.time() + 120
             }
         else:
-            formatted_alert = {"message": str(alert_dict), "expiration": time.time() + 120}
+            formatted_alert = {"message": str(alert_dict), "created_at": created_at, "expiration": time.time() + 120}
 
         self.alert_queue.append(formatted_alert)
         self.display_alert(self.alert_queue)
-
-    def add_alert(self, alert_msg: str, duration: float = 3):
-        """
-        Appends an alert message (as a dict) to the alert queue with a set expiration time.
-        """
-        expiration = time.time() + duration
-        alert = {"message": alert_msg, "expiration": expiration}
-        self.alert_queue.append(alert)
-        self.update_alert_window()
 
     def update_alert_window(self):
         if not self.alert_win:
             return
 
         current_time = time.time()
-        # Remove alerts older than 120 seconds using the stored 'created_at' field.
+        # Remove expired alerts using the 'created_at' field.
         self.alert_queue = [
             alert for alert in self.alert_queue
             if current_time - alert.get("created_at", current_time) < 120
@@ -186,18 +176,17 @@ class BaseSubmenu:
 
         messages = []
         for alert in self.alert_queue:
-            # update window based on how alert key & format from handle_alert
             if alert.get("action") == "NETWORK_FOUND":
-                # Extract bssid and calculate elapsed time
-                bssid = alert.get("bssid", "Unknown")
-                elapsed = current_time - alert.get("created_at", current_time)
-                messages.append(f"{bssid} ({int(elapsed)}s)")
+                # Recalculate elapsed time so it updates dynamically.
+                elapsed = int(current_time - alert.get("created_at", current_time))
+                ssid = alert.get("ssid", "Unknown")
+                messages.append(f"{ssid} ({elapsed}s)")
             else:
                 messages.append(alert.get("message", "Unknown alert"))
 
         final_message = "\n".join(messages)
 
-        # Redraw the alert window
+        # Redraw the alert window.
         h, w = self.alert_win.getmaxyx()
         self.alert_win.erase()
         self.alert_win.box()
@@ -210,6 +199,15 @@ class BaseSubmenu:
             except curses.error:
                 pass
         self.alert_win.refresh()
+
+    def add_alert(self, alert_msg: str, duration: float = 3):
+        """
+        Appends an alert message (as a dict) to the alert queue with a set expiration time.
+        """
+        expiration = time.time() + duration
+        alert = {"message": alert_msg, "expiration": expiration}
+        self.alert_queue.append(alert)
+        self.update_alert_window()
 
     def display_alert(self, alerts: list):
         """
