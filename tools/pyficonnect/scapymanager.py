@@ -5,6 +5,7 @@ import logging
 from scapy.layers.dot11 import Dot11
 from scapy.all import sniff
 
+from common.models import AlertData
 # locals
 from config.constants import ALL_CHANNELS, BASE_DIR
 
@@ -54,15 +55,13 @@ class ScapyManager:
             if self.db_networks and bssid in self.db_networks:
                 if bssid not in self.alerted_networks:
                     self.logger.info("Detected network - SSID: %s, BSSID: %s", ssid, bssid)
-                    alert_data = {
-                        "action": "NETWORK_FOUND",
-                        "tool": "pyficonnect",
-                        "ssid": ssid,
-                        "bssid": bssid,
-                        "timestamp": time.time()
-                    }
+                    # Create an AlertData instance instead of a plain dict
+                    alert = AlertData(
+                        tool="pyficonnect",
+                        data={"ssid": ssid, "bssid": bssid}
+                    )
                     self.alerted_networks[bssid] = True
-                    self.publish_alert(alert_data)
+                    self.publish_alert(alert)
 
     def publish_alert(self, alert_data):
         """

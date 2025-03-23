@@ -166,23 +166,22 @@ class BaseSubmenu:
             return
 
         current_time = time.time()
-        # remove expired alerts
-        self.alert_queue = [alert for alert in self.alert_queue if alert.get("expiration", 0) > current_time]
+        # remove alerts after 120s
+        self.alert_queue = [alert for alert in self.alert_queue if current_time - alert.created_at < 120]
 
         messages = []
         for alert in self.alert_queue:
-            if alert.get("action") == "NETWORK_FOUND" and "ssid" in alert and "timestamp" in alert:
-                ssid = alert["ssid"]
-                elapsed = current_time - alert["timestamp"]
+            if alert.tool == "pyficonnect" and "ssid" in alert.data:
+                ssid = alert.data["ssid"]
+                elapsed = current_time - alert.created_at
                 messages.append(f"{ssid} ({int(elapsed)}s)")
-            elif "message" in alert:
-                messages.append(alert["message"])
+            elif alert.data:
+                messages.append(str(alert.data))
             else:
                 messages.append(str(alert))
 
         final_message = "\n".join(messages)
 
-        # Update the alert window display
         h, w = self.alert_win.getmaxyx()
         self.alert_win.erase()
         self.alert_win.box()
