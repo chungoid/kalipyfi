@@ -379,20 +379,10 @@ class NmapSubmenu(BaseSubmenu):
         super().utils_menu(parent_win)
 
     def __call__(self, stdscr) -> None:
-        """
-        Launches the Nmap submenu using curses.
-        Main options include:
-          - Network Scan
-          - Host Scan
-          - View Scans
-          - Utils
-          - (Plus the dynamic "Toggle Scrolling" option inserted by the base helper)
-          - Back
-        """
         curses.curs_set(0)
         self.stdscr = stdscr
         self.setup_alert_window(stdscr)
-        # Reset state variables and reload configuration.
+        # reset state variables and reload configuration
         self.tool.selected_network = None
         self.tool.selected_target_host = None
         self.tool.selected_preset = None
@@ -401,8 +391,11 @@ class NmapSubmenu(BaseSubmenu):
         self.tool.reload_config()
         self.tool.target_networks = self.tool.get_target_networks()
 
+        # alert window on left 1/3rd
         h, w = stdscr.getmaxyx()
-        submenu_win = curses.newwin(h, w, 0, 0)
+        alert_width = w // 3
+        # create the submenu window in the right two-thirds of the screen
+        submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()
@@ -420,8 +413,12 @@ class NmapSubmenu(BaseSubmenu):
                 self.view_scans(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
+            # clear only the submenu window so that the alert window remains visible
             submenu_win.clear()
             submenu_win.refresh()
+        self.tool.ui_instance.unregister_active_submenu()
+        self.logger.debug("Active submenu unregistered in __call__ exit.")
+
 
 
 

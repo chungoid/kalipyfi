@@ -208,22 +208,15 @@ class HcxToolSubmenu(BaseSubmenu):
         return ["WPASEC"] + base_options
 
     def __call__(self, stdscr) -> None:
-        """
-        Launches the HCXTool submenu using curses.
-        Main options include:
-          - Launch Scan
-          - View Scans
-          - Utils
-          - Toggle Scrolling
-          - Back
-        """
         curses.curs_set(0)
         self.stdscr = stdscr
-        self.setup_alert_window(stdscr)
         self.reset_connection_values()
-
+        # create alert window in the left one-third
+        self.setup_alert_window(stdscr)
         h, w = stdscr.getmaxyx()
-        submenu_win = curses.newwin(h, w, 0, 0)
+        alert_width = w // 3
+        # create the submenu window in the remaining right two-thirds
+        submenu_win = curses.newwin(h, w - alert_width, 0, alert_width)
         submenu_win.keypad(True)
         submenu_win.clear()
         submenu_win.refresh()
@@ -241,6 +234,11 @@ class HcxToolSubmenu(BaseSubmenu):
                 self.view_scans(submenu_win)
             elif selection == "Utils":
                 self.utils_menu(submenu_win)
-            # clear the window before re-displaying the main menu
+            # clear only the submenu window; the alert window remains intact
             submenu_win.clear()
             submenu_win.refresh()
+            # update alerts here:
+            alerts = self.tool.ui_instance.alerts.get(self.tool.name, [])
+            self.display_alert(alerts)
+        self.tool.ui_instance.unregister_active_submenu()
+        self.logger.debug("Active submenu unregistered in __call__ exit.")
