@@ -40,18 +40,20 @@ class ScapyManager:
         self.logger.debug(f"Loaded DB networks: {list(self.db_networks.keys())}")
 
     def active_probe_request(self, interface):
-        # Replace 'AA:BB:CC:DD:EE:FF' with your interface's MAC address (e.g., via get_if_hwaddr)
+        # Replace 'AA:BB:CC:DD:EE:FF' with your interface's MAC address (e.g., obtained via get_if_hwaddr)
         source_mac = "AA:BB:CC:DD:EE:FF"
+        self.logger.debug("Sending probe request on interface %s with source MAC %s", interface, source_mac)
         # Create a probe request frame: destination is broadcast and source is your interface.
         dot11 = Dot11(type=0, subtype=4, addr1="ff:ff:ff:ff:ff:ff",
                       addr2=source_mac, addr3="ff:ff:ff:ff:ff:ff")
         # Dot11ProbeReq frame with an empty SSID (asking for all networks)
         probe_req = Dot11ProbeReq()
         ssid_elt = Dot11Elt(ID="SSID", info=b"")
-        # Optionally, add supported rates (this is just an example)
+        # Optionally, add supported rates (example rates)
         rates_elt = Dot11Elt(ID="Rates", info=b"\x82\x84\x8b\x96")
         pkt = RadioTap() / dot11 / probe_req / ssid_elt / rates_elt
         sendp(pkt, iface=interface, verbose=False)
+        self.logger.debug("Probe request sent on %s", interface)
 
     def scapy_packet_handler(self, pkt):
         from tools.helpers.tool_utils import normalize_mac
@@ -64,6 +66,7 @@ class ScapyManager:
             if not ssid:
                 ssid = "<hidden>"
             bssid = normalize_mac(pkt.addr2)
+            self.logger.debug("Probe response received: SSID=%s, BSSID=%s", ssid, bssid)
             if self.db_networks and bssid in self.db_networks:
                 current_time = time.time()
                 alert_delay = 120  # 2 minutes delay
@@ -81,6 +84,9 @@ class ScapyManager:
                     )
                     self.alerted_networks[bssid] = current_time
                     self.publish_alert(alert)
+                else:
+                    self.logger.debug("Skipping alert for %s; last alert was %ss ago", bssid,
+                                      current_time - last_alert_time)
 
     def scan_networks_scapy(self, interface: str, dwell_time: float = 0.2) -> None:
         """
@@ -88,21 +94,26 @@ class ScapyManager:
         and listens for probe responses (subtype 5) only.
         """
         for channel in ALL_CHANNELS:
+            self.logger.debug("Switching %s to channel %s", interface, channel)
             try:
                 subprocess.check_call(
                     ["iw", "dev", interface, "set", "channel", str(channel)],
                     stderr=subprocess.DEVNULL
                 )
+                self.logger.debug("Successfully switched %s to channel %s", interface, channel)
             except subprocess.CalledProcessError as e:
                 self.logger.error("Error switching %s to channel %s: %s", interface, channel, e)
                 continue
 
             # Send a probe request on this channel
+            self.logger.debug("Sending active probe request on channel %s", channel)
             self.active_probe_request(interface)
 
             # Listen for probe responses on this channel
+            self.logger.debug("Sniffing on channel %s for %s seconds", channel, dwell_time)
             try:
                 sniff(iface=interface, prn=self.scapy_packet_handler, timeout=dwell_time, store=0)
+                self.logger.debug("Finished sniffing on channel %s", channel)
             except Exception as e:
                 self.logger.error("Error during sniffing on channel %s: %s", channel, e)
                 time.sleep(0.1)
@@ -113,12 +124,15 @@ class ScapyManager:
         It first loads the DB networks so alerts can be generated, then starts scanning.
         """
         self.selected_interface = interface
+        self.logger.debug("Loading DB networks before starting scan")
         self.load_db_networks()
         self.scanner_running = True
 
         def background_scan():
             while self.scanner_running:
+                self.logger.debug("Starting channel rotation cycle")
                 self.scan_networks_scapy(interface, dwell_time=dwell_time)
+                self.logger.debug("Completed one channel rotation cycle, sleeping briefly")
                 time.sleep(0.2)
 
         threading.Thread(target=background_scan, daemon=True).start()
