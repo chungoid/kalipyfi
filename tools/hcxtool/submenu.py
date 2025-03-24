@@ -100,9 +100,10 @@ class HcxToolSubmenu(BaseSubmenu):
                     return
             parent_win.addstr(0, 0, "Attempting to update the hcxtool database.")
             try:
-                self.tool.export_results()
-                curses.napms(2500)
-                parent_win.addstr(2,0, "Exported results to database and updated successfully.")
+                if self.tool.export_results():
+                    parent_win.addstr(2,0, "Exported results to database and updated successfully.")
+                else:
+                    parent_win.addstr(2,0, "Unable to update the database successfully.")
             except Exception as e:
                 parent_win.addstr(0, 0, f"Error: {e}")
                 self.logger.error("export: Error exporting results: %s", e)
