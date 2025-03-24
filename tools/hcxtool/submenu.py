@@ -98,15 +98,20 @@ class HcxToolSubmenu(BaseSubmenu):
                     parent_win.addstr(0, 0, f"Error: {e}")
                     self.logger.error("upload: Error accessing results directory: %s", e)
                     return
+            parent_win.refresh()
             parent_win.addstr(0, 0, "Attempting to update the hcxtool database.")
+            parent_win.refresh()
             try:
                 if self.tool.export_results():
-                    parent_win.addstr(2,0, "Exported results to database and updated successfully.")
+                    parent_win.addstr(0,0, "Exported results to database and updated successfully.")
+                    parent_win.refresh()
                 else:
-                    parent_win.addstr(2,0, "Unable to update the database successfully.")
+                    parent_win.addstr(0,0, "Unable to update the database successfully.")
             except Exception as e:
                 parent_win.addstr(0, 0, f"Error: {e}")
                 self.logger.error("export: Error exporting results: %s", e)
+                parent_win.refresh()
+                curses.napms(2500)
                 parent_win.clear()
 
     def download(self, parent_win) -> None:
