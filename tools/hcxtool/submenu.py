@@ -78,52 +78,35 @@ class HcxToolSubmenu(BaseSubmenu):
                 parent_win.refresh()
                 curses.napms(1500)
                 row = 1
-                for file in files:
-                    file_path = Path(results_dir) / file
-                    self.logger.debug("upload: Uploading %s...", file_path)
-                    success = upload_to_wpasec(self.tool, file_path, api_key)
-                    if success:
-                        parent_win.addstr(row, 0, f"Uploaded {file} successfully.")
-                    else:
-                        parent_win.addstr(row, 0, f"Failed to upload {file}.")
-                    row += 1
-                parent_win.addstr(row + 1, 0, "Press any key to retry upload menu, or 0 to go back...")
-                parent_win.refresh()
-                key = parent_win.getch()
                 try:
-                    if chr(key) == "0":
-                        return
+                    for file in files:
+                        file_path = Path(results_dir) / file
+                        self.logger.debug("upload: Uploading %s...", file_path)
+                        upload_to_wpasec(self.tool, file_path, api_key)
+                        row += 1
                 except Exception as e:
                     parent_win.addstr(0, 0, f"Error: {e}")
                     return
             else:
-                file_path = Path(results_dir) / selection
-                parent_win.addstr(0, 0, f"Uploading {selection}...")
-                parent_win.refresh()
-                curses.napms(1500)
-                success = upload_to_wpasec(self.tool, file_path, api_key)
-                if success:
-                    parent_win.addstr(1, 0, f"Uploaded {selection} successfully.")
-                else:
-                    parent_win.addstr(1, 0, f"Failed to upload {selection}.")
-                parent_win.addstr(2, 0, "Press any key to retry upload menu, or 0 to go back...")
-                parent_win.refresh()
-                key = parent_win.getch()
                 try:
-                    if chr(key) == "0":
-                        return
+                    file_path = Path(results_dir) / selection
+                    parent_win.addstr(0, 0, f"Uploading {selection}...")
+                    parent_win.refresh()
+                    curses.napms(1500)
+                    upload_to_wpasec(self.tool, file_path, api_key)
                 except Exception as e:
                     parent_win.addstr(0, 0, f"Error: {e}")
                     self.logger.error("upload: Error accessing results directory: %s", e)
                     return
+            parent_win.addstr(0, 0, "Attempting to update the hcxtool database.")
             try:
                 self.tool.export_results()
+                curses.napms(2500)
                 parent_win.addstr(2,0, "Exported results to database and updated successfully.")
             except Exception as e:
+                parent_win.addstr(0, 0, f"Error: {e}")
                 self.logger.error("export: Error exporting results: %s", e)
                 parent_win.clear()
-                parent_win.addstr(0, 0, f"Error: {e}")
-
 
     def download(self, parent_win) -> None:
         api_key = self.tool.get_wpasec_api_key()
