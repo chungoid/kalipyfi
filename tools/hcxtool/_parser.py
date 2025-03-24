@@ -1,4 +1,6 @@
 import csv
+import sqlite3
+
 import folium
 import pandas
 import logging
@@ -204,6 +206,7 @@ def update_database(csv_data: dict, header: list) -> None:
 
     For each row, if an entry with the same BSSID already exists (regardless of SSID),
     its values are updated. Otherwise, a new entry is inserted.
+    Afterwards, cleanup_db is run using the same connection.
     """
     try:
         conn = get_db_connection(BASE_DIR)
@@ -237,22 +240,22 @@ def update_database(csv_data: dict, header: list) -> None:
             except Exception:
                 lon = None
 
-            # First, try to update an existing entry based on bssid.
+            # Try to update an existing entry based on bssid.
             cursor.execute(update_query, (row[0], row[1], row[3], row[4], lat, lon, row[7], row[2]))
             # If no rows were updated, then insert a new entry.
             if cursor.rowcount == 0:
                 cursor.execute(insert_query, (row[0], row[1], row[2], row[3], row[4], lat, lon, row[7]))
 
         conn.commit()
-        conn.close()
         logging.info("Database updated with merged data from CSV and founds.txt.")
+
+        # Run cleanup_db using the existing connection.
+        cleanup_db(conn)
+        conn.commit()
+        conn.close()
     except Exception as e:
         logging.error(f"Error updating the database with merged data: {e}")
 
-    try:
-        cleanup_db()
-    except Exception as e:
-        logging.error(f"Error cleaning database: {e}")
 
 def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
     founds_map = read_founds(founds_txt)
@@ -322,54 +325,51 @@ def db_to_html_map(output_html: str = "db_map.html") -> None:
     except Exception as e:
         logger.error(f"Error saving DB HTML map: {e}")
 
-
-def cleanup_db() -> None:
+def cleanup_db(conn: sqlite3.Connection) -> None:
     """
     Consolidates entries in the hcxtool database based solely on the bssid.
     For each bssid that appears in multiple rows:
       - If any record has a non-empty key, the one with the latest created_at is chosen.
       - Otherwise, the record with the latest created_at is chosen.
     All other records for that bssid are deleted and only the consolidated record is kept.
+    This function uses the provided connection.
     """
-    import sqlite3
     logger = logging.getLogger("cleanup_db")
-    conn = get_db_connection(BASE_DIR)
-    # return rows as dicts
+    # Ensure we get rows as dictionaries.
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    # retrieve all rows
+    # Retrieve all rows from the table.
     cursor.execute("SELECT * FROM hcxtool")
     rows = cursor.fetchall()
 
     if not rows:
         logger.info("No entries found in the database.")
-        conn.close()
         return
 
-    # group by bssid
+    # Group records by bssid.
     grouped = {}
     for row in rows:
         bssid = row["bssid"]
         grouped.setdefault(bssid, []).append(dict(row))
 
-    # consolidate duplicates if they exist
+    # For each group (each unique bssid), consolidate if there are duplicates.
     for bssid, records in grouped.items():
         if len(records) <= 1:
             continue  # Only one record exists, no consolidation needed.
 
-        # prefer non-empty key records
+        # Prefer records with a non-empty key.
         records_with_key = [r for r in records if r.get("key", "").strip() != ""]
         if records_with_key:
-            # opt for records with key & favor newer records
+            # Among those with a key, choose the one with the latest created_at.
             chosen = max(records_with_key, key=lambda r: r["created_at"])
         else:
-            # fallback for records without key, favoring newer
+            # Otherwise, choose the record with the latest created_at from all.
             chosen = max(records, key=lambda r: r["created_at"])
 
-        # delete records for bssid
+        # Delete all rows for this bssid.
         cursor.execute("DELETE FROM hcxtool WHERE bssid = ?", (bssid,))
-        # insert a single consolidated record for this bssid
+        # Insert the consolidated record back into the table.
         insert_query = """
             INSERT INTO hcxtool (bssid, date, time, ssid, encryption, latitude, longitude, key)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -386,8 +386,7 @@ def cleanup_db() -> None:
         ))
         logger.info(f"Consolidated {len(records)} records for BSSID {bssid} into one.")
 
-    conn.commit()
-    conn.close()
     logger.info("Database consolidation complete.")
+
 
 
