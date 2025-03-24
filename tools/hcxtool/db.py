@@ -20,7 +20,7 @@ def init_hcxtool_schema(conn: sqlite3.Connection) -> None:
     longitude REAL,
     key TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(bssid, ssid)
+    UNIQUE(bssid)
 );
     """
     execute_query(conn, query)
