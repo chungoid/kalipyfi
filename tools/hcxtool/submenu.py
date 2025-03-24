@@ -147,7 +147,7 @@ class HcxToolSubmenu(BaseSubmenu):
         parent_win.getch()
 
     def wpasec_menu(self, parent_win) -> None:
-        menu_options = ["Set WPA-sec Key", "Upload", "Download", "Export Results"]
+        menu_options = ["Set WPA-sec Key", "Upload", "Download", "Export to DB"]
         while True:
             parent_win.clear()
             parent_win.refresh()
@@ -160,7 +160,7 @@ class HcxToolSubmenu(BaseSubmenu):
                 self.upload(parent_win)
             elif selection == "Download":
                 self.download(parent_win)
-            elif selection == "Export Results":
+            elif selection == "Export to DB":
                 parent_win.clear()
                 parent_win.addstr(0, 0, "Exporting Results... please wait a few moments.")
                 parent_win.refresh()
@@ -184,7 +184,7 @@ class HcxToolSubmenu(BaseSubmenu):
             parent_win.refresh()
 
     def utils_menu(self, parent_win) -> None:
-        menu_options = self.get_utils_menu_options()  # e.g., ["WPASEC", "Setup Configs", "Open Results Webserver", "Kill Window"]
+        menu_options = self.get_utils_menu_options()
         while True:
             parent_win.clear()
             parent_win.refresh()

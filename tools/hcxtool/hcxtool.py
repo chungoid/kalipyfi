@@ -239,8 +239,9 @@ class Hcxtool(Tool, ABC):
 
         # create an HTML map from the updated results.csv
         try:
-            create_html_map(master_csv)
-            self.logger.info("HTML map created from results.csv.")
+            from tools.hcxtool._parser import db_to_html_map
+            db_to_html_map()
+            self.logger.info("HTML map created from database results.")
         except Exception as e:
             self.logger.error(f"Error while creating HTML map: {e}")
 

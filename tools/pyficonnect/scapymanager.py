@@ -92,17 +92,17 @@ class ScapyManager:
                     ["iw", "dev", interface, "set", "channel", str(channel)],
                     stderr=subprocess.DEVNULL
                 )
-                self.logger.debug("Switched %s to channel %s", interface, channel)
+                #self.logger.debug("Switched %s to channel %s", interface, channel)
             except subprocess.CalledProcessError as e:
                 self.logger.error("Error switching %s to channel %s: %s", interface, channel, e)
                 continue
 
             # Set dwell time based on whether the channel is prioritized.
             dwell_time = 0.5 if channel in PRIORITY_CHANNELS else 0.2
-            self.logger.debug("Listening on channel %s for %s seconds", channel, dwell_time)
+            #self.logger.debug("Listening on channel %s for %s seconds", channel, dwell_time)
             try:
                 sniff(iface=interface, prn=self.scapy_packet_handler, timeout=dwell_time, store=0)
-                self.logger.debug("Finished listening on channel %s", channel)
+                #self.logger.debug("Finished listening on channel %s", channel)
             except Exception as e:
                 self.logger.error("Error during sniffing on channel %s: %s", channel, e)
                 time.sleep(0.1)
@@ -118,9 +118,9 @@ class ScapyManager:
 
         def background_scan():
             while self.scanner_running:
-                self.logger.debug("Starting a new channel rotation cycle")
+                #self.logger.debug("Starting a new channel rotation cycle")
                 self.scan_networks_scapy(interface)
-                self.logger.debug("Completed channel rotation cycle; sleeping briefly")
+                #self.logger.debug("Completed channel rotation cycle; sleeping briefly")
                 time.sleep(0.2)
 
         threading.Thread(target=background_scan, daemon=True).start()
