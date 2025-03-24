@@ -232,96 +232,6 @@ def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
     write_master_csv(master_csv, header, merged_data)
     update_database(merged_data, header)
 
-def create_html_map(results_csv: Path, output_html: str = "map.html") -> None:
-    """
-    Creates an HTML map with two layers:
-      - "All Scans": contains every valid scan (non-NaN, non-zero coordinates).
-      - "Scans with Keys": contains only scans with a valid (non-NaN, non-empty) key.
-    A layer control is added to allow toggling between these layers.
-    """
-    logger = logging.getLogger("create_html_map")
-
-    # read results.csv
-    try:
-        df = pandas.read_csv(results_csv)
-        logger.debug(f"Read CSV: {results_csv}, shape: {df.shape}")
-    except Exception as e:
-        logger.error(f"Error reading CSV {results_csv}: {e}")
-        return
-
-    # coord columns to float
-    try:
-        df["Latitude"] = df["Latitude"].astype(float)
-        df["Longitude"] = df["Longitude"].astype(float)
-        logger.debug("Converted Latitude and Longitude columns to float.")
-    except Exception as e:
-        logger.error(f"Error converting coordinates: {e}")
-        return
-
-    # remove nan
-    initial_count = df.shape[0]
-    df = df.dropna(subset=["Latitude", "Longitude"])
-    after_dropna_count = df.shape[0]
-    logger.debug(f"Dropped {initial_count - after_dropna_count} rows due to NaN in coordinates.")
-
-    # best way i've found to filter out 0's (missing coords) from hcxpcapngtool
-    df_valid = df[(df["Latitude"] != 0.0) & (df["Longitude"] != 0.0)]
-    logger.debug(f"After filtering zeros, valid entries: {df_valid.shape[0]}")
-
-    if df_valid.empty:
-        logger.error("No valid GPS entries found after filtering.")
-        return
-
-    logger.debug(f"Sample valid entries:\n{df_valid.head()}")
-
-    # sets center based on all available coords
-    avg_lat = df_valid["Latitude"].mean()
-    avg_lon = df_valid["Longitude"].mean()
-    logger.debug(f"Map center computed as: ({avg_lat}, {avg_lon})")
-
-    # base
-    m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
-
-    # create layers
-    fg_all = folium.FeatureGroup(name="All Scans", show=True)
-    fg_keys = folium.FeatureGroup(name="Scans with Keys", show=False)
-
-    # Ensure pandas is imported for checking NaN values.
-    for index, row in df_valid.iterrows():
-        popup_content = (
-            f"<strong>Date:</strong> {row.get('Date', '')}<br>"
-            f"<strong>Time:</strong> {row.get('Time', '')}<br>"
-            f"<strong>BSSID:</strong> {row.get('BSSID', '')}<br>"
-            f"<strong>SSID:</strong> {row.get('SSID', '')}<br>"
-            f"<strong>Encryption:</strong> {row.get('Encryption', '')}<br>"
-            f"<strong>Key:</strong> {row.get('Key', '')}"
-        )
-        marker_location = [row["Latitude"], row["Longitude"]]
-
-        # all scans layer (shows all entries regardless of key)
-        marker_all = folium.Marker(location=marker_location, popup=popup_content)
-        fg_all.add_child(marker_all)
-
-        # with keys layer, only shows scans with keys if toggled
-        key_val = row.get("Key", "")
-        if pandas.notna(key_val) and str(key_val).strip().lower() != "nan" and str(key_val).strip() != "":
-            marker_key = folium.Marker(location=marker_location, popup=popup_content)
-            fg_keys.add_child(marker_key)
-            logger.debug(f"Added marker with key for {row.get('BSSID', 'N/A')} at {marker_location}")
-
-    # add both layers
-    m.add_child(fg_all)
-    m.add_child(fg_keys)
-    m.add_child(folium.LayerControl())
-
-    # save
-    html_path = results_csv.parent / output_html
-    try:
-        m.save(html_path)
-        logger.info(f"Map saved to {html_path}")
-    except Exception as e:
-        logger.error(f"Error saving map to {html_path}: {e}")
-
 def db_to_html_map(output_html: str = "db_map.html") -> None:
     """
     Creates an HTML map with two layers from the hcxtool database entries:
@@ -331,26 +241,26 @@ def db_to_html_map(output_html: str = "db_map.html") -> None:
     """
     logger = logging.getLogger("db_to_html_map")
 
-    # Get valid database entries using the new helper function
+    # get valid database entries
     from tools.helpers.sql_utils import query_valid_hcxtool_entries
     results = query_valid_hcxtool_entries()
     if not results:
         logger.error("No valid entries found in the database.")
         return
 
-    # Build a DataFrame from the query results
+    # build a DataFrame from the query results
     df = pandas.DataFrame(results)
 
-    # Compute map center based on valid entries
+    # compute map center based on valid entries
     avg_lat = df["latitude"].mean()
     avg_lon = df["longitude"].mean()
     m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
 
-    # Create feature groups for two layers
+    # create feature groups for two layers
     fg_all = folium.FeatureGroup(name="All Scans", show=True)
     fg_keys = folium.FeatureGroup(name="Scans with Keys", show=False)
 
-    # Iterate through DataFrame rows and add markers
+    # iterate through DataFrame rows and add markers
     for _, row in df.iterrows():
         popup_content = (
             f"<strong>Date:</strong> {row['date']}<br>"
@@ -364,18 +274,18 @@ def db_to_html_map(output_html: str = "db_map.html") -> None:
         marker_all = folium.Marker(location=marker_location, popup=popup_content)
         fg_all.add_child(marker_all)
 
-        # Add to 'Scans with Keys' layer only if a non-empty key exists
+        # add to 'Scans with Keys' layer only if a non-empty key exists
         if row["key"] and str(row["key"]).strip() != "":
             marker_key = folium.Marker(location=marker_location, popup=popup_content)
             fg_keys.add_child(marker_key)
             logger.debug(f"Added marker with key for {row['bssid']} at {marker_location}")
 
-    # Add both layers and layer control to the map
+    # add both layers and layer control to the map
     m.add_child(fg_all)
     m.add_child(fg_keys)
     m.add_child(folium.LayerControl())
 
-    # Save the map as an HTML file
+    # save the map as an HTML file
     output_path = Path(output_html)
     try:
         m.save(output_path)

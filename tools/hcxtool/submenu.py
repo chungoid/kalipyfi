@@ -93,7 +93,8 @@ class HcxToolSubmenu(BaseSubmenu):
                 try:
                     if chr(key) == "0":
                         return
-                except Exception:
+                except Exception as e:
+                    parent_win.addstr(0, 0, f"Error: {e}")
                     return
             else:
                 file_path = Path(results_dir) / selection
@@ -111,8 +112,18 @@ class HcxToolSubmenu(BaseSubmenu):
                 try:
                     if chr(key) == "0":
                         return
-                except Exception:
+                except Exception as e:
+                    parent_win.addstr(0, 0, f"Error: {e}")
+                    self.logger.error("upload: Error accessing results directory: %s", e)
                     return
+            try:
+                self.tool.export_results()
+                parent_win.addstr(2,0, "Exported results to database and updated successfully.")
+            except Exception as e:
+                self.logger.error("export: Error exporting results: %s", e)
+                parent_win.clear()
+                parent_win.addstr(0, 0, f"Error: {e}")
+
 
     def download(self, parent_win) -> None:
         api_key = self.tool.get_wpasec_api_key()
@@ -129,7 +140,8 @@ class HcxToolSubmenu(BaseSubmenu):
         try:
             key = parent_win.getch()
             ch = chr(key)
-        except Exception:
+        except Exception as e:
+            parent_win.addstr(0, 0, f"Error: {e}")
             return
         if ch.lower() != 'y':
             return
@@ -171,7 +183,8 @@ class HcxToolSubmenu(BaseSubmenu):
                 try:
                     key = parent_win.getch()
                     ch = chr(key)
-                except Exception:
+                except Exception as e:
+                    parent_win.addstr(0, 0, f"Error: {e}")
                     ch = ''
                 if ch.lower() == 'y':
                     self.open_results_webserver(parent_win)

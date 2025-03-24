@@ -179,7 +179,6 @@ class Hcxtool(Tool, ABC):
     def get_wpasec_api_key(self) -> str:
         return wpasec_get_api_key(self)
 
-
     def set_wpasec_key(self, new_key: str) -> None:
         """
         This wrapper method updates the configuration file (self.config_file) by modifying
@@ -207,37 +206,40 @@ class Hcxtool(Tool, ABC):
             run_hcxpcapngtool,
             parse_temp_csv,
             append_keys_to_master,
-            create_html_map
         )
         results_csv = self.results_dir / "results.csv"
         founds_txt = self.results_dir / "founds.txt"
 
-        # check for caps
+        # check for new capture files in results dir
         pcapng_files = list(self.results_dir.glob("*.pcapng"))
         if not pcapng_files:
             self.logger.info("No pcapng files found in the results directory.")
-            return
 
-        # parse tmp csv
+        # update database with any new results
         try:
-            temp_csv = run_hcxpcapngtool(self.results_dir)
-            master_csv = parse_temp_csv(temp_csv)
-            self.logger.info("Master results.csv has been updated from pcapng files.")
+            if not founds_txt:
+                try:
+                    from tools.helpers.wpasec import get_wpasec_api_key, download_from_wpasec
+                    download_from_wpasec(tool=self, api_key=self.get_wpasec_api_key(), results_dir=self.results_dir)
+                except Exception as e:
+                    self.logger.error(f"Error while downloading results.csv: {e}")
+            if not results_csv:
+                try:
+                    temp_csv = run_hcxpcapngtool(self.results_dir)
+                    results_csv = parse_temp_csv(temp_csv)
+                    self.logger.info("results.csv has been updated from pcapng files.")
+                except Exception as e:
+                    self.logger.error(f"Error while generating results.csv: {e}")
         except Exception as e:
             self.logger.error(f"Error while generating results.csv: {e}")
-            return
+        finally:
+            if founds_txt.exists() and results_csv.exists():
+                append_keys_to_master(results_csv, founds_txt)
+                self.logger.info("Results have been updated.")
+            else:
+                self.logger.info("Results were unable to be updated.")
 
-        # append keys from founds.txt, if it exists
-        if founds_txt.exists():
-            try:
-                append_keys_to_master(master_csv, founds_txt)
-                self.logger.info("Results CSV updated with keys from founds.txt.")
-            except Exception as e:
-                self.logger.error(f"Error while appending keys: {e}")
-        else:
-            self.logger.info("founds.txt not found; skipping key appending step.")
-
-        # create an HTML map from the updated results.csv
+        # create an HTML map from all database results
         try:
             from tools.hcxtool._parser import db_to_html_map
             db_to_html_map()
