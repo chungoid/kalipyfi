@@ -200,7 +200,6 @@ def write_master_csv(master_csv: Path, header: list, csv_data: dict) -> None:
     except Exception as e:
         logging.error(f"Error writing master CSV: {e}")
 
-
 def update_database(csv_data: dict, header: list) -> None:
     """Updates the hcxtool database with the merged data.
 
@@ -255,75 +254,6 @@ def update_database(csv_data: dict, header: list) -> None:
         conn.close()
     except Exception as e:
         logging.error(f"Error updating the database with merged data: {e}")
-
-
-def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
-    founds_map = read_founds(founds_txt)
-    csv_data, header = read_master_csv(master_csv)
-    merged_data = merge_data(csv_data, header, founds_map)
-    write_master_csv(master_csv, header, merged_data)
-    update_database(merged_data, header)
-
-def db_to_html_map(output_html: str = "db_map.html") -> None:
-    """
-    Creates an HTML map with two layers from the hcxtool database entries:
-      - "All Scans": shows every entry with valid latitude and longitude.
-      - "Scans with Keys": shows only entries where the key field is non-empty.
-    The map is saved to the specified output_html file.
-    """
-    logger = logging.getLogger("db_to_html_map")
-
-    # get valid database entries
-    from tools.helpers.sql_utils import query_valid_hcxtool_entries
-    results = query_valid_hcxtool_entries()
-    if not results:
-        logger.error("No valid entries found in the database.")
-        return
-
-    # build a DataFrame from the query results
-    df = pandas.DataFrame(results)
-
-    # compute map center based on valid entries
-    avg_lat = df["latitude"].mean()
-    avg_lon = df["longitude"].mean()
-    m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
-
-    # create feature groups for two layers
-    fg_all = folium.FeatureGroup(name="All Scans", show=True)
-    fg_keys = folium.FeatureGroup(name="Scans with Keys", show=False)
-
-    # iterate through DataFrame rows and add markers
-    for _, row in df.iterrows():
-        popup_content = (
-            f"<strong>Date:</strong> {row['date']}<br>"
-            f"<strong>Time:</strong> {row['time']}<br>"
-            f"<strong>BSSID:</strong> {row['bssid']}<br>"
-            f"<strong>SSID:</strong> {row['ssid']}<br>"
-            f"<strong>Encryption:</strong> {row['encryption']}<br>"
-            f"<strong>Key:</strong> {row['key']}"
-        )
-        marker_location = [row["latitude"], row["longitude"]]
-        marker_all = folium.Marker(location=marker_location, popup=popup_content)
-        fg_all.add_child(marker_all)
-
-        # add to 'Scans with Keys' layer only if a non-empty key exists
-        if row["key"] and str(row["key"]).strip() != "":
-            marker_key = folium.Marker(location=marker_location, popup=popup_content)
-            fg_keys.add_child(marker_key)
-            logger.debug(f"Added marker with key for {row['bssid']} at {marker_location}")
-
-    # add both layers and layer control to the map
-    m.add_child(fg_all)
-    m.add_child(fg_keys)
-    m.add_child(folium.LayerControl())
-
-    # save the map as an HTML file
-    output_path = Path(output_html)
-    try:
-        m.save(output_path)
-        logger.info(f"DB HTML map saved to {output_path}")
-    except Exception as e:
-        logger.error(f"Error saving DB HTML map: {e}")
 
 def cleanup_db(conn: sqlite3.Connection) -> None:
     """
@@ -387,6 +317,74 @@ def cleanup_db(conn: sqlite3.Connection) -> None:
         logger.info(f"Consolidated {len(records)} records for BSSID {bssid} into one.")
 
     logger.info("Database consolidation complete.")
+
+def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
+    founds_map = read_founds(founds_txt)
+    csv_data, header = read_master_csv(master_csv)
+    merged_data = merge_data(csv_data, header, founds_map)
+    write_master_csv(master_csv, header, merged_data)
+    update_database(merged_data, header)
+
+def db_to_html_map(results_dir: Path, output_html: str = "map.html") -> None:
+    """
+    Creates an HTML map with two layers from the hcxtool database entries:
+      - "All Scans": shows every entry with valid latitude and longitude.
+      - "Scans with Keys": shows only entries where the key field is non-empty.
+    The map is saved as output_html (default "map.html") in the provided results_dir.
+    """
+    logger = logging.getLogger("db_to_html_map")
+
+    # Get valid database entries
+    from tools.helpers.sql_utils import query_valid_hcxtool_entries
+    results = query_valid_hcxtool_entries()
+    if not results:
+        logger.error("No valid entries found in the database.")
+        return
+
+    # Build a DataFrame from the query results
+    df = pandas.DataFrame(results)
+
+    # Compute map center based on valid entries
+    avg_lat = df["latitude"].mean()
+    avg_lon = df["longitude"].mean()
+    m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
+
+    # Create feature groups for two layers
+    fg_all = folium.FeatureGroup(name="All Scans", show=True)
+    fg_keys = folium.FeatureGroup(name="Scans with Keys", show=False)
+
+    # Iterate through DataFrame rows and add markers
+    for _, row in df.iterrows():
+        popup_content = (
+            f"<strong>Date:</strong> {row['date']}<br>"
+            f"<strong>Time:</strong> {row['time']}<br>"
+            f"<strong>BSSID:</strong> {row['bssid']}<br>"
+            f"<strong>SSID:</strong> {row['ssid']}<br>"
+            f"<strong>Encryption:</strong> {row['encryption']}<br>"
+            f"<strong>Key:</strong> {row['key']}"
+        )
+        marker_location = [row["latitude"], row["longitude"]]
+        marker_all = folium.Marker(location=marker_location, popup=popup_content)
+        fg_all.add_child(marker_all)
+
+        # Add marker to "Scans with Keys" only if the key is non-empty
+        if row["key"] and str(row["key"]).strip() != "":
+            marker_key = folium.Marker(location=marker_location, popup=popup_content)
+            fg_keys.add_child(marker_key)
+            logger.debug(f"Added marker with key for {row['bssid']} at {marker_location}")
+
+    # Add both layers and layer control to the map
+    m.add_child(fg_all)
+    m.add_child(fg_keys)
+    m.add_child(folium.LayerControl())
+
+    # Build full output path using the results directory
+    output_path = Path(results_dir) / output_html
+    try:
+        m.save(output_path)
+        logger.info(f"DB HTML map saved to {output_path}")
+    except Exception as e:
+        logger.error(f"Error saving DB HTML map: {e}")
 
 
 

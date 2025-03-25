@@ -242,7 +242,7 @@ class Hcxtool(Tool, ABC):
         # create an HTML map from all database results
         try:
             from tools.hcxtool._parser import db_to_html_map
-            db_to_html_map()
+            db_to_html_map(self.results_dir)
             self.logger.info("HTML map created from database results.")
         except Exception as e:
             self.logger.error(f"Error while creating HTML map: {e}")
