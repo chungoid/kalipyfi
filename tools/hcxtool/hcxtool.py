@@ -217,27 +217,22 @@ class Hcxtool(Tool, ABC):
 
         # update database with any new results
         try:
-            if not founds_txt:
-                try:
-                    from tools.helpers.wpasec import get_wpasec_api_key, download_from_wpasec
-                    download_from_wpasec(tool=self, api_key=self.get_wpasec_api_key(), results_dir=self.results_dir)
-                except Exception as e:
+            from tools.helpers.wpasec import get_wpasec_api_key, download_from_wpasec
+            download_from_wpasec(tool=self, api_key=self.get_wpasec_api_key(), results_dir=self.results_dir)
+        except Exception as e:
                     self.logger.error(f"Error while downloading results.csv: {e}")
-            if not results_csv:
-                try:
-                    temp_csv = run_hcxpcapngtool(self.results_dir)
-                    results_csv = parse_temp_csv(temp_csv)
-                    self.logger.info("results.csv has been updated from pcapng files.")
-                except Exception as e:
-                    self.logger.error(f"Error while generating results.csv: {e}")
+        try:
+            temp_csv = run_hcxpcapngtool(self.results_dir)
+            results_csv = parse_temp_csv(temp_csv)
+            self.logger.info("results.csv has been updated from pcapng files.")
         except Exception as e:
             self.logger.error(f"Error while generating results.csv: {e}")
         finally:
-            if founds_txt.exists() and results_csv.exists():
+            try:
                 append_keys_to_master(results_csv, founds_txt)
                 self.logger.info("Results have been updated.")
-            else:
-                self.logger.info("Results were unable to be updated.")
+            except Exception as e:
+                self.logger.info(f"Error while appending results: {e}")
 
         # create an HTML map from all database results
         try:
