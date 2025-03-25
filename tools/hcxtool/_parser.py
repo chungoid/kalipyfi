@@ -10,6 +10,7 @@ from pathlib import Path
 # locals
 from config.constants import BASE_DIR
 from database.db_manager import get_db_connection
+from tools.helpers.sql_utils import query_valid_hcxtool_entries
 from tools.helpers.tool_utils import normalize_mac
 
 
@@ -288,17 +289,37 @@ def cleanup_db(conn: sqlite3.Connection) -> None:
         if len(records) <= 1:
             continue  # Only one record exists, no consolidation needed.
 
+        logger.info(f"Consolidating {len(records)} records for BSSID {bssid}:")
+        for rec in records:
+            logger.debug(
+                f"Record: date={rec['date']}, time={rec['time']}, ssid={rec['ssid']}, "
+                f"encryption={rec['encryption']}, latitude={rec['latitude']}, "
+                f"longitude={rec['longitude']}, key='{rec['key']}', created_at={rec.get('created_at')}"
+            )
+
         # Prefer records with a non-empty key.
         records_with_key = [r for r in records if r.get("key", "").strip() != ""]
         if records_with_key:
-            # Among those with a key, choose the one with the latest created_at.
             chosen = max(records_with_key, key=lambda r: r["created_at"])
+            logger.info(
+                f"Chosen record for BSSID {bssid} (with key, latest created_at): "
+                f"date={chosen['date']}, time={chosen['time']}, ssid={chosen['ssid']}, "
+                f"encryption={chosen['encryption']}, latitude={chosen['latitude']}, "
+                f"longitude={chosen['longitude']}, key='{chosen['key']}', created_at={chosen.get('created_at')}"
+            )
         else:
-            # Otherwise, choose the record with the latest created_at from all.
             chosen = max(records, key=lambda r: r["created_at"])
+            logger.info(
+                f"Chosen record for BSSID {bssid} (latest created_at): "
+                f"date={chosen['date']}, time={chosen['time']}, ssid={chosen['ssid']}, "
+                f"encryption={chosen['encryption']}, latitude={chosen['latitude']}, "
+                f"longitude={chosen['longitude']}, key='{chosen['key']}', created_at={chosen.get('created_at')}"
+            )
 
         # Delete all rows for this bssid.
         cursor.execute("DELETE FROM hcxtool WHERE bssid = ?", (bssid,))
+        logger.info(f"Deleted all records for BSSID {bssid}.")
+
         # Insert the consolidated record back into the table.
         insert_query = """
             INSERT INTO hcxtool (bssid, date, time, ssid, encryption, latitude, longitude, key)
@@ -314,9 +335,10 @@ def cleanup_db(conn: sqlite3.Connection) -> None:
             chosen["longitude"],
             chosen["key"]
         ))
-        logger.info(f"Consolidated {len(records)} records for BSSID {bssid} into one.")
+        logger.info(f"Reinserted consolidated record for BSSID {bssid}.")
 
     logger.info("Database consolidation complete.")
+
 
 def append_keys_to_master(master_csv: Path, founds_txt: Path) -> None:
     founds_map = read_founds(founds_txt)
@@ -335,7 +357,6 @@ def db_to_html_map(results_dir: Path, output_html: str = "map.html") -> None:
     logger = logging.getLogger("db_to_html_map")
 
     # Get valid database entries
-    from tools.helpers.sql_utils import query_valid_hcxtool_entries
     results = query_valid_hcxtool_entries()
     if not results:
         logger.error("No valid entries found in the database.")
@@ -343,10 +364,12 @@ def db_to_html_map(results_dir: Path, output_html: str = "map.html") -> None:
 
     # Build a DataFrame from the query results
     df = pandas.DataFrame(results)
+    logger.info(f"Retrieved {len(df)} entries from the database.")
 
     # Compute map center based on valid entries
     avg_lat = df["latitude"].mean()
     avg_lon = df["longitude"].mean()
+    logger.info(f"Computed map center: ({avg_lat}, {avg_lon}).")
     m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
 
     # Create feature groups for two layers
@@ -354,7 +377,11 @@ def db_to_html_map(results_dir: Path, output_html: str = "map.html") -> None:
     fg_keys = folium.FeatureGroup(name="Scans with Keys", show=False)
 
     # Iterate through DataFrame rows and add markers
-    for _, row in df.iterrows():
+    for index, row in df.iterrows():
+        logger.info(
+            f"Processing entry {index+1}: BSSID={row['bssid']}, SSID={row['ssid']}, "
+            f"Coordinates=({row['latitude']}, {row['longitude']}), Key='{row['key']}'"
+        )
         popup_content = (
             f"<strong>Date:</strong> {row['date']}<br>"
             f"<strong>Time:</strong> {row['time']}<br>"
