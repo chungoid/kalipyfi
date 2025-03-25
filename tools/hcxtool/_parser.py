@@ -250,7 +250,7 @@ def update_database(csv_data: dict, header: list) -> None:
         logging.info("Database updated with merged data from CSV and founds.txt.")
 
         # Run cleanup_db using the existing connection.
-        cleanup_db(conn)
+        #cleanup_db(conn)
         conn.commit()
         conn.close()
     except Exception as e:
